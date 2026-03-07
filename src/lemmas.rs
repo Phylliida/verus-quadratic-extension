@@ -8,7 +8,13 @@ use verus_algebra::lemmas::additive_group_lemmas;
 use verus_algebra::lemmas::additive_commutative_monoid_lemmas;
 use verus_algebra::lemmas::ring_lemmas;
 use verus_algebra::lemmas::field_lemmas;
+use verus_algebra::traits::ordered_ring::OrderedRing;
+use verus_algebra::traits::field::OrderedField;
+use verus_algebra::lemmas::ordered_ring_lemmas;
+use verus_algebra::lemmas::ordered_field_lemmas;
 use crate::radicand::Radicand;
+use crate::radicand::PositiveRadicand;
+use crate::ordered::*;
 use crate::spec::*;
 
 verus! {
@@ -1144,6 +1150,212 @@ pub proof fn lemma_sub_eqv_zero_implies_eqv<F: Field>(a: F, b: F)
     // a ≡ (a+(-b))+b ≡ b
     F::axiom_eqv_symmetric(a, a.add(b.neg()).add(b));
     F::axiom_eqv_transitive(a, a.add(b.neg()).add(b), b);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  Antisymmetry helpers: one-component-zero cases
+// ═══════════════════════════════════════════════════════════════════
+
+/// Helper for antisymmetry: the case re ≡ 0, im ≢ 0 leads to contradiction.
+///
+/// Unlike the im_zero case (where the contradiction is purely from sign constraints),
+/// this case requires the square comparison: im²d > 0 but re² ≡ 0, so any
+/// qe_nonneg case that provides im²d ≤ re² leads to im²d ≤ 0, a contradiction.
+/// The remaining case (C1(x) + C1(-x)) gives 0≤im and 0≤-im, forcing im≡0.
+#[verifier::rlimit(120)]
+pub proof fn lemma_nonneg_neg_zero_re_zero<F: OrderedField, R: PositiveRadicand<F>>(
+    x: SpecQuadExt<F, R>,
+)
+    requires
+        qe_nonneg::<F, R>(x),
+        qe_nonneg::<F, R>(qext(x.re.neg(), x.im.neg())),
+        x.re.eqv(F::zero()),
+        !x.im.eqv(F::zero()),
+    ensures false,
+{
+    let re = x.re;
+    let im = x.im;
+    let d = R::value();
+    let re2 = re.mul(re);
+    let im2d = im.mul(im).mul(d);
+
+    // d > 0
+    R::axiom_value_positive();
+
+    // (-a)² ≡ a²
+    ring_lemmas::lemma_neg_mul_neg::<F>(re, re);
+    ring_lemmas::lemma_neg_mul_neg::<F>(im, im);
+    F::axiom_mul_congruence_left(im.neg().mul(im.neg()), im.mul(im), d);
+
+    // im² > 0, im²d > 0
+    lemma_square_pos::<F>(im);
+    ordered_field_lemmas::lemma_mul_pos_pos::<F>(im.mul(im), d);
+
+    // re² ≡ 0
+    lemma_eqv_zero_square_zero::<F>(re);
+
+    // re ≡ 0 in both directions
+    F::axiom_eqv_symmetric(re, F::zero());
+
+    // re.lt(0) and 0.lt(re) are both false — kills C3(x)
+    F::axiom_lt_iff_le_and_not_eqv(re, F::zero());
+    F::axiom_lt_iff_le_and_not_eqv(F::zero(), re);
+
+    // -re ≡ 0
+    F::axiom_neg_congruence(re, F::zero());
+    additive_group_lemmas::lemma_neg_zero::<F>();
+    F::axiom_eqv_transitive(re.neg(), F::zero().neg(), F::zero());
+    F::axiom_eqv_symmetric(re.neg(), F::zero());
+
+    // (-re).lt(0) and 0.lt(-re) both false — kills C3(-x)
+    F::axiom_lt_iff_le_and_not_eqv(re.neg(), F::zero());
+    F::axiom_lt_iff_le_and_not_eqv(F::zero(), re.neg());
+
+    // (-re)² ≡ re² ≡ 0
+    F::axiom_eqv_transitive(re.neg().mul(re.neg()), re.mul(re), F::zero());
+
+    let neg_re2 = re.neg().mul(re.neg());
+    let neg_im2d = im.neg().mul(im.neg()).mul(d);
+
+    // Three-way case split:
+    //   C2(x):  im²d ≤ re² ≡ 0 → contradiction
+    //   C2(-x): (-im)²d ≤ (-re)² ≡ 0 → contradiction
+    //   else:   C1(x) + C1(-x) → 0≤im and 0≤-im → im≡0 → contradiction
+
+    if im2d.le(re2) {
+        // im²d ≤ re² and re² ≡ 0 → im²d ≤ 0
+        F::axiom_eqv_reflexive(im2d);
+        F::axiom_le_congruence(im2d, im2d, re2, F::zero());
+        // 0 < im²d and im²d ≤ 0 → 0 ≡ im²d, contradicts 0 < im²d
+        F::axiom_lt_iff_le_and_not_eqv(F::zero(), im2d);
+        F::axiom_le_antisymmetric(F::zero(), im2d);
+    } else if neg_im2d.le(neg_re2) {
+        // (-im)²d ≤ (-re)² and (-re)² ≡ 0 → (-im)²d ≤ 0
+        F::axiom_eqv_reflexive(neg_im2d);
+        F::axiom_le_congruence(neg_im2d, neg_im2d, neg_re2, F::zero());
+        // Convert (-im)²d ≤ 0 to im²d ≤ 0 via (-im)²d ≡ im²d
+        F::axiom_eqv_reflexive(F::zero());
+        F::axiom_le_congruence(neg_im2d, im2d, F::zero(), F::zero());
+        // 0 < im²d and im²d ≤ 0 → contradiction
+        F::axiom_lt_iff_le_and_not_eqv(F::zero(), im2d);
+        F::axiom_le_antisymmetric(F::zero(), im2d);
+    } else {
+        // !im²d≤re² kills C2(x). !(-im)²d≤(-re)² kills C2(-x).
+        // C3(x) and C3(-x) already dead. Only C1(x) + C1(-x) remain.
+        // C1(x) → 0≤im. C1(-x) → 0≤-im.
+
+        // From C1(x): 0≤im → -im ≤ -0 ≡ 0
+        ordered_ring_lemmas::lemma_le_neg_flip::<F>(F::zero(), im);
+        F::axiom_eqv_reflexive(im.neg());
+        F::axiom_le_congruence(im.neg(), im.neg(), F::zero().neg(), F::zero());
+        // Now: im.neg().le(F::zero())
+
+        // From C1(-x): F::zero().le(im.neg())
+        // Z3 extracts this: qe_nonneg(-x) true, C2(-x) dead, C3(-x) dead → C1(-x)
+
+        // 0 ≤ -im and -im ≤ 0 → 0 ≡ -im
+        F::axiom_le_antisymmetric(F::zero(), im.neg());
+        F::axiom_eqv_symmetric(F::zero(), im.neg());
+        // -im ≡ 0
+
+        // -im ≡ 0 → --im ≡ -0 ≡ 0 → im ≡ 0 (contradicts !im.eqv(0))
+        F::axiom_neg_congruence(im.neg(), F::zero());
+        F::axiom_eqv_transitive(im.neg().neg(), F::zero().neg(), F::zero());
+        additive_group_lemmas::lemma_neg_involution::<F>(im);
+        F::axiom_eqv_symmetric(im.neg().neg(), im);
+        F::axiom_eqv_transitive(im, im.neg().neg(), F::zero());
+        // im ≡ 0, but !im.eqv(0) → false
+    }
+}
+
+/// Helper for antisymmetry: the case im ≡ 0, re ≢ 0 leads to contradiction.
+#[verifier::rlimit(80)]
+pub proof fn lemma_nonneg_neg_zero_im_zero<F: OrderedField, R: PositiveRadicand<F>>(
+    x: SpecQuadExt<F, R>,
+)
+    requires
+        qe_nonneg::<F, R>(x),
+        qe_nonneg::<F, R>(qext(x.re.neg(), x.im.neg())),
+        x.im.eqv(F::zero()),
+        !x.re.eqv(F::zero()),
+    ensures false,
+{
+    let re = x.re;
+    let im = x.im;
+    let d = R::value();
+    let re2 = re.mul(re);
+    let im2d = im.mul(im).mul(d);
+
+    // d > 0
+    R::axiom_value_positive();
+
+    // (-a)² ≡ a²
+    ring_lemmas::lemma_neg_mul_neg::<F>(re, re);
+    ring_lemmas::lemma_neg_mul_neg::<F>(im, im);
+    F::axiom_mul_congruence_left(im.neg().mul(im.neg()), im.mul(im), d);
+
+    // re² > 0
+    lemma_square_pos::<F>(re);
+
+    // im² ≡ 0, im²d ≡ 0
+    lemma_eqv_zero_square_zero::<F>(im);
+    F::axiom_mul_congruence_left(im.mul(im), F::zero(), d);
+    ring_lemmas::lemma_mul_zero_left::<F>(d);
+    F::axiom_eqv_transitive(im2d, F::zero().mul(d), F::zero());
+
+    // im ≡ 0 means im.lt(0) and 0.lt(im) are both false
+    F::axiom_lt_iff_le_and_not_eqv(im, F::zero());
+    F::axiom_eqv_symmetric(im, F::zero());
+    F::axiom_lt_iff_le_and_not_eqv(F::zero(), im);
+
+    // Derive 0 ≤ im from im ≡ 0
+    F::axiom_eqv_reflexive(im);
+    F::axiom_le_reflexive(im);
+    F::axiom_le_congruence(im, F::zero(), im, im);
+    // Now: F::zero().le(im)
+
+    // Extract 0 ≤ re from nonneg(x):
+    // C2 needs im.lt(0) — false. C3 needs 0.lt(im) — false. So C1 must hold.
+    if !F::zero().le(re) {
+        // All three cases of qe_nonneg(x) are false
+        return;
+    }
+
+    // 0 ≤ re and re ≢ 0 → 0 < re
+    assert(!F::zero().eqv(re)) by {
+        if F::zero().eqv(re) { F::axiom_eqv_symmetric(F::zero(), re); }
+    }
+    ordered_ring_lemmas::lemma_trichotomy::<F>(F::zero(), re);
+    F::axiom_lt_iff_le_and_not_eqv(F::zero(), re);
+
+    // -re < 0
+    lemma_pos_neg_is_neg::<F>(re);
+
+    // -im ≡ 0
+    F::axiom_neg_congruence(im, F::zero());
+    additive_group_lemmas::lemma_neg_zero::<F>();
+    F::axiom_eqv_transitive(im.neg(), F::zero().neg(), F::zero());
+
+    // -im ≡ 0 in both directions
+    F::axiom_eqv_symmetric(im.neg(), F::zero());
+
+    // → im.neg().lt(0) and 0.lt(im.neg()) are both false
+    F::axiom_lt_iff_le_and_not_eqv(im.neg(), F::zero());
+    F::axiom_lt_iff_le_and_not_eqv(F::zero(), im.neg());
+
+    // Derive 0 ≤ -im from -im ≡ 0
+    F::axiom_eqv_reflexive(im.neg());
+    F::axiom_le_reflexive(im.neg());
+    F::axiom_le_congruence(im.neg(), F::zero(), im.neg(), im.neg());
+
+    // Nonneg(-x): C2 needs im.neg().lt(0) — false. C3 needs 0.lt(im.neg()) — false.
+    // Only C1 possible. If 0 ≤ -re: -re < 0 → -re ≡ 0 → contradiction.
+    if F::zero().le(re.neg()) {
+        F::axiom_lt_iff_le_and_not_eqv(re.neg(), F::zero());
+        F::axiom_le_antisymmetric(F::zero(), re.neg());
+        F::axiom_eqv_symmetric(F::zero(), re.neg());
+    }
+    // else: !0≤-re eliminates C1,C2. C3 needs 0.lt(im.neg()) — false. All eliminated.
 }
 
 } // verus!
