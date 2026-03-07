@@ -9,8 +9,11 @@ use verus_algebra::traits::field::Field;
 use verus_algebra::traits::field::OrderedField;
 use verus_algebra::lemmas::additive_group_lemmas;
 use verus_algebra::lemmas::ordered_ring_lemmas;
+use verus_algebra::lemmas::ordered_field_lemmas;
+use verus_algebra::lemmas::field_lemmas;
 use verus_algebra::lemmas::ring_lemmas;
 use verus_algebra::determinant;
+use verus_algebra::inequalities;
 use crate::radicand::Radicand;
 use crate::radicand::PositiveRadicand;
 use crate::spec::*;
@@ -218,6 +221,335 @@ proof fn lemma_nonneg_congruence<F: OrderedField, R: PositiveRadicand<F>>(
 }
 
 // ═══════════════════════════════════════════════════════════════════
+//  Helpers for antisymmetry proof
+// ═══════════════════════════════════════════════════════════════════
+
+/// 0 < a² when a ≢ 0 in an ordered field.
+pub proof fn lemma_square_pos<F: OrderedField>(a: F)
+    requires !a.eqv(F::zero()),
+    ensures F::zero().lt(a.mul(a)),
+{
+    ordered_ring_lemmas::lemma_trichotomy::<F>(F::zero(), a);
+    if F::zero().lt(a) {
+        ordered_field_lemmas::lemma_mul_pos_pos::<F>(a, a);
+    } else if F::zero().eqv(a) {
+        F::axiom_eqv_symmetric(F::zero(), a);
+    } else {
+        ordered_field_lemmas::lemma_mul_neg_neg::<F>(a, a);
+    }
+}
+
+/// a ≡ 0 implies a² ≡ 0.
+pub proof fn lemma_eqv_zero_square_zero<F: OrderedField>(a: F)
+    requires a.eqv(F::zero()),
+    ensures a.mul(a).eqv(F::zero()),
+{
+    ring_lemmas::lemma_mul_congruence::<F>(a, F::zero(), a, F::zero());
+    F::axiom_mul_zero_right(F::zero());
+    F::axiom_eqv_transitive(a.mul(a), F::zero().mul(F::zero()), F::zero());
+}
+
+/// 0 < a implies a.neg() < 0.
+pub proof fn lemma_pos_neg_is_neg<F: OrderedField>(a: F)
+    requires F::zero().lt(a),
+    ensures a.neg().lt(F::zero()),
+{
+    ordered_ring_lemmas::lemma_lt_neg_flip::<F>(F::zero(), a);
+    additive_group_lemmas::lemma_neg_zero::<F>();
+    F::axiom_lt_iff_le_and_not_eqv(a.neg(), F::zero().neg());
+    F::axiom_eqv_reflexive(a.neg());
+    F::axiom_le_congruence(a.neg(), a.neg(), F::zero().neg(), F::zero());
+    if a.neg().eqv(F::zero()) {
+        F::axiom_eqv_symmetric(F::zero().neg(), F::zero());
+        F::axiom_eqv_transitive(a.neg(), F::zero(), F::zero().neg());
+    }
+    F::axiom_lt_iff_le_and_not_eqv(a.neg(), F::zero());
+}
+
+/// a < 0 implies 0 < a.neg().
+pub proof fn lemma_neg_pos_is_pos<F: OrderedField>(a: F)
+    requires a.lt(F::zero()),
+    ensures F::zero().lt(a.neg()),
+{
+    ordered_ring_lemmas::lemma_lt_neg_flip::<F>(a, F::zero());
+    additive_group_lemmas::lemma_neg_zero::<F>();
+    F::axiom_lt_iff_le_and_not_eqv(F::zero().neg(), a.neg());
+    F::axiom_eqv_reflexive(a.neg());
+    F::axiom_le_congruence(F::zero().neg(), F::zero(), a.neg(), a.neg());
+    if F::zero().eqv(a.neg()) {
+        F::axiom_eqv_symmetric(F::zero().neg(), F::zero());
+        F::axiom_eqv_transitive(F::zero().neg(), F::zero(), a.neg());
+    }
+    F::axiom_lt_iff_le_and_not_eqv(F::zero(), a.neg());
+}
+
+/// If a² ≡ b²·d and b ≢ 0, then (a·recip(b))² ≡ d.
+#[verifier::rlimit(30)]
+proof fn lemma_square_ratio<F: Field>(a: F, b: F, d: F)
+    requires
+        a.mul(a).eqv(b.mul(b).mul(d)),
+        !b.eqv(F::zero()),
+    ensures
+        a.mul(b.recip()).mul(a.mul(b.recip())).eqv(d),
+{
+    let br = b.recip();
+    let r = a.mul(br);
+    let a2 = a.mul(a);
+    let b2 = b.mul(b);
+    let br2 = br.mul(br);
+
+    // (a·b⁻¹)² ≡ a²·(b⁻¹)²
+    inequalities::lemma_square_mul::<F>(a, br);
+
+    // a² ≡ b²·d → a²·(b⁻¹)² ≡ b²·d·(b⁻¹)²
+    F::axiom_mul_congruence_left(a2, b2.mul(d), br2);
+
+    // Show b²·(b⁻¹)² ≡ 1:
+    //   (b·b⁻¹)² ≡ b²·(b⁻¹)²
+    inequalities::lemma_square_mul::<F>(b, br);
+    //   b·b⁻¹ ≡ 1
+    F::axiom_mul_recip_right(b);
+    //   1² ≡ 1
+    F::axiom_mul_one_right(F::one());
+    //   (b·b⁻¹)² ≡ 1²
+    ring_lemmas::lemma_mul_congruence::<F>(b.mul(br), F::one(), b.mul(br), F::one());
+    //   Chain: b²·(b⁻¹)² ≡ (b·b⁻¹)² ≡ 1² ≡ 1
+    F::axiom_eqv_symmetric(b.mul(br).mul(b.mul(br)), b2.mul(br2));
+    F::axiom_eqv_transitive(b2.mul(br2), b.mul(br).mul(b.mul(br)), F::one().mul(F::one()));
+    F::axiom_eqv_transitive(b2.mul(br2), F::one().mul(F::one()), F::one());
+
+    // Show b²·d·(b⁻¹)² ≡ d:
+    //   (b²·d)·(b⁻¹)² ≡ b²·(d·(b⁻¹)²)   [assoc]
+    F::axiom_mul_associative(b2, d, br2);
+    //   d·(b⁻¹)² ≡ (b⁻¹)²·d              [comm]
+    F::axiom_mul_commutative(d, br2);
+    //   b²·(d·(b⁻¹)²) ≡ b²·((b⁻¹)²·d)    [congruence]
+    ring_lemmas::lemma_mul_congruence_right::<F>(b2, d.mul(br2), br2.mul(d));
+    //   b²·((b⁻¹)²·d) ≡ (b²·(b⁻¹)²)·d    [assoc reversed]
+    F::axiom_mul_associative(b2, br2, d);
+    F::axiom_eqv_symmetric(b2.mul(br2).mul(d), b2.mul(br2.mul(d)));
+    //   (b²·(b⁻¹)²)·d ≡ 1·d
+    F::axiom_mul_congruence_left(b2.mul(br2), F::one(), d);
+    //   1·d ≡ d
+    ring_lemmas::lemma_mul_one_left::<F>(d);
+
+    //   Chain: b²·d·(b⁻¹)² ≡ ... ≡ d
+    F::axiom_eqv_transitive(
+        b2.mul(d).mul(br2), b2.mul(d.mul(br2)), b2.mul(br2.mul(d)),
+    );
+    F::axiom_eqv_transitive(
+        b2.mul(d).mul(br2), b2.mul(br2.mul(d)), b2.mul(br2).mul(d),
+    );
+    F::axiom_eqv_transitive(
+        b2.mul(d).mul(br2), b2.mul(br2).mul(d), F::one().mul(d),
+    );
+    F::axiom_eqv_transitive(b2.mul(d).mul(br2), F::one().mul(d), d);
+
+    // Final chain: r² ≡ a²·(b⁻¹)² ≡ b²·d·(b⁻¹)² ≡ d
+    F::axiom_eqv_transitive(r.mul(r), a2.mul(br2), b2.mul(d).mul(br2));
+    F::axiom_eqv_transitive(r.mul(r), b2.mul(d).mul(br2), d);
+}
+
+/// Core antisymmetry helper: nonneg(x) && nonneg(-x) → x ≡ 0.
+///
+/// Uses R::axiom_non_square for the hard cases where both components are nonzero.
+#[verifier::rlimit(800)]
+proof fn lemma_nonneg_neg_zero<F: OrderedField, R: PositiveRadicand<F>>(
+    x: SpecQuadExt<F, R>,
+)
+    requires
+        qe_nonneg::<F, R>(x),
+        qe_nonneg::<F, R>(qext(x.re.neg(), x.im.neg())),
+    ensures
+        x.re.eqv(F::zero()),
+        x.im.eqv(F::zero()),
+{
+    let re = x.re;
+    let im = x.im;
+    let d = R::value();
+    let re2 = re.mul(re);
+    let im2d = im.mul(im).mul(d);
+
+    // d > 0
+    R::axiom_value_positive();
+
+    // (-a)² ≡ a²
+    ring_lemmas::lemma_neg_mul_neg::<F>(re, re);
+    ring_lemmas::lemma_neg_mul_neg::<F>(im, im);
+    // (-im)²d ≡ im²d
+    F::axiom_mul_congruence_left(im.neg().mul(im.neg()), im.mul(im), d);
+
+    // Trichotomy
+    ordered_ring_lemmas::lemma_trichotomy::<F>(F::zero(), re);
+    ordered_ring_lemmas::lemma_trichotomy::<F>(F::zero(), im);
+
+    if F::zero().eqv(re) {
+        F::axiom_eqv_symmetric(F::zero(), re);
+        if F::zero().eqv(im) {
+            F::axiom_eqv_symmetric(F::zero(), im);
+            return; // Both zero, done
+        }
+        // (0, ≠0) case: delegate to re_zero helper
+        assert(!im.eqv(F::zero())) by {
+            if im.eqv(F::zero()) { F::axiom_eqv_symmetric(im, F::zero()); }
+        }
+        crate::lemmas::lemma_nonneg_neg_zero_re_zero::<F, R>(x);
+        return;
+    } else if F::zero().eqv(im) {
+        F::axiom_eqv_symmetric(F::zero(), im);
+        assert(!re.eqv(F::zero())) by {
+            if re.eqv(F::zero()) { F::axiom_eqv_symmetric(re, F::zero()); }
+        }
+        crate::lemmas::lemma_nonneg_neg_zero_im_zero::<F, R>(x);
+        return;
+    }
+
+    // ── Both re ≢ 0 and im ≢ 0 ──
+    assert(!re.eqv(F::zero())) by {
+        if re.eqv(F::zero()) { F::axiom_eqv_symmetric(re, F::zero()); }
+    }
+    assert(!im.eqv(F::zero())) by {
+        if im.eqv(F::zero()) { F::axiom_eqv_symmetric(im, F::zero()); }
+    }
+    // re² > 0, im² > 0, im²d > 0
+    lemma_square_pos::<F>(re);
+    lemma_square_pos::<F>(im);
+    ordered_field_lemmas::lemma_mul_pos_pos::<F>(im.mul(im), d);
+
+    if F::zero().lt(re) {
+        if F::zero().lt(im) {
+            // re > 0, im > 0 → nonneg(neg_x) impossible
+            lemma_pos_neg_is_neg::<F>(re);
+            lemma_pos_neg_is_neg::<F>(im);
+
+            if F::zero().le(re.neg()) && F::zero().le(im.neg()) {
+                F::axiom_lt_iff_le_and_not_eqv(re.neg(), F::zero());
+                F::axiom_le_antisymmetric(F::zero(), re.neg());
+                F::axiom_eqv_symmetric(F::zero(), re.neg());
+            } else if F::zero().le(re.neg()) {
+                F::axiom_lt_iff_le_and_not_eqv(re.neg(), F::zero());
+                F::axiom_le_antisymmetric(F::zero(), re.neg());
+                F::axiom_eqv_symmetric(F::zero(), re.neg());
+            } else {
+                // N3: -re < 0, 0 < -im. But -im < 0.
+                F::axiom_lt_iff_le_and_not_eqv(F::zero(), im.neg());
+                F::axiom_lt_iff_le_and_not_eqv(im.neg(), F::zero());
+                F::axiom_le_antisymmetric(F::zero(), im.neg());
+                F::axiom_eqv_symmetric(F::zero(), im.neg());
+            }
+        } else {
+            // re > 0, im < 0 — HARD CASE
+            lemma_pos_neg_is_neg::<F>(re);
+            lemma_neg_pos_is_pos::<F>(im);
+            F::axiom_lt_iff_le_and_not_eqv(im, F::zero());
+
+            // Extract im²d ≤ re² from nonneg(x) C2
+            if F::zero().le(re) && im.lt(F::zero()) && im2d.le(re2) {
+                // C2
+            } else if F::zero().le(re) && F::zero().le(im) {
+                F::axiom_le_antisymmetric(F::zero(), im);
+                F::axiom_eqv_symmetric(F::zero(), im);
+                return;
+            } else {
+                F::axiom_lt_iff_le_and_not_eqv(F::zero(), re);
+                return;
+            }
+
+            // Extract re² ≤ im²d from nonneg(neg_x) N3
+            let neg_re2 = re.neg().mul(re.neg());
+            let neg_im2d = im.neg().mul(im.neg()).mul(d);
+
+            if re.neg().lt(F::zero()) && F::zero().lt(im.neg()) && neg_re2.le(neg_im2d) {
+                F::axiom_le_congruence(neg_re2, re2, neg_im2d, im2d);
+            } else if F::zero().le(re.neg()) {
+                F::axiom_lt_iff_le_and_not_eqv(re.neg(), F::zero());
+                F::axiom_le_antisymmetric(F::zero(), re.neg());
+                F::axiom_eqv_symmetric(F::zero(), re.neg());
+                return;
+            } else {
+                F::axiom_lt_iff_le_and_not_eqv(F::zero(), im.neg());
+                F::axiom_lt_iff_le_and_not_eqv(im.neg(), F::zero());
+                F::axiom_le_antisymmetric(F::zero(), im.neg());
+                F::axiom_eqv_symmetric(F::zero(), im.neg());
+                return;
+            }
+
+            // im²d ≤ re² AND re² ≤ im²d → re² ≡ im²d
+            F::axiom_le_antisymmetric(im2d, re2);
+            F::axiom_eqv_symmetric(im2d, re2);
+            // re² ≡ im²d
+
+            // (re · im⁻¹)² ≡ d → contradicts axiom_non_square
+            lemma_square_ratio::<F>(re, im, d);
+            R::axiom_non_square(re.mul(im.recip()));
+        }
+    } else {
+        if F::zero().lt(im) {
+            // re < 0, im > 0 — HARD CASE (symmetric)
+            lemma_neg_pos_is_pos::<F>(re);
+            lemma_pos_neg_is_neg::<F>(im);
+
+            // Extract re² ≤ im²d from nonneg(x) C3
+            if re.lt(F::zero()) && F::zero().lt(im) && re2.le(im2d) {
+                // C3
+            } else if F::zero().le(re) {
+                F::axiom_lt_iff_le_and_not_eqv(re, F::zero());
+                F::axiom_le_antisymmetric(F::zero(), re);
+                F::axiom_eqv_symmetric(F::zero(), re);
+                return;
+            } else {
+                F::axiom_lt_iff_le_and_not_eqv(F::zero(), im);
+                return;
+            }
+
+            // Extract im²d ≤ re² from nonneg(neg_x) N2
+            let neg_re2 = re.neg().mul(re.neg());
+            let neg_im2d = im.neg().mul(im.neg()).mul(d);
+
+            F::axiom_lt_iff_le_and_not_eqv(F::zero(), re.neg());
+            F::axiom_lt_iff_le_and_not_eqv(F::zero(), im.neg());
+
+            if F::zero().le(re.neg()) && im.neg().lt(F::zero()) && neg_im2d.le(neg_re2) {
+                F::axiom_le_congruence(neg_im2d, im2d, neg_re2, re2);
+            } else if F::zero().le(re.neg()) && F::zero().le(im.neg()) {
+                F::axiom_lt_iff_le_and_not_eqv(im.neg(), F::zero());
+                F::axiom_le_antisymmetric(F::zero(), im.neg());
+                F::axiom_eqv_symmetric(F::zero(), im.neg());
+                return;
+            } else {
+                // 0 < -re and N3 needs -re < 0 — contradiction
+                return;
+            }
+
+            // re² ≤ im²d AND im²d ≤ re² → re² ≡ im²d
+            F::axiom_le_antisymmetric(re2, im2d);
+            // re² ≡ im²d
+
+            // (re · im⁻¹)² ≡ d → contradicts axiom_non_square
+            lemma_square_ratio::<F>(re, im, d);
+            R::axiom_non_square(re.mul(im.recip()));
+        } else {
+            // re < 0, im < 0 → nonneg(x) impossible
+            F::axiom_lt_iff_le_and_not_eqv(re, F::zero());
+            F::axiom_lt_iff_le_and_not_eqv(im, F::zero());
+            // If 0 ≤ re: with re ≤ 0 → 0.eqv(re) → re.eqv(0). Contradiction.
+            if F::zero().le(re) {
+                F::axiom_le_antisymmetric(F::zero(), re);
+                F::axiom_eqv_symmetric(F::zero(), re);
+            }
+            // If 0 ≤ im: same
+            if F::zero().le(im) {
+                F::axiom_le_antisymmetric(F::zero(), im);
+                F::axiom_eqv_symmetric(F::zero(), im);
+            }
+            // 0 < im → 0 ≤ im → contradiction
+            F::axiom_lt_iff_le_and_not_eqv(F::zero(), im);
+            // nonneg(x) has no viable case → false
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════
 //  PartialOrder implementation
 // ═══════════════════════════════════════════════════════════════════
 
@@ -234,67 +566,29 @@ impl<F: OrderedField, R: PositiveRadicand<F>> PartialOrder for SpecQuadExt<F, R>
     }
 
     // ── Antisymmetry: a <= b && b <= a → a ≡ b ────────────────────
-    // nonneg(b - a) && nonneg(a - b).
-    // Components of (a - b) = -(b - a), so the two conditions together
-    // force both re and im differences to be zero.
-    //
-    // This is a case analysis: if re-diff > 0, then a-b has re < 0,
-    // and similarly for im, leading to contradictions in most cases.
-    // Uses the fact that for d > 0, nonneg(x) && nonneg(-x) → x ≡ 0.
+    // nonneg(b - a) && nonneg(a - b) → diff ≡ 0.
+    // Delegates to lemma_nonneg_neg_zero which does 9-case analysis.
 
-    #[verifier::rlimit(40)]
     proof fn axiom_le_antisymmetric(a: Self, b: Self) {
-        // Let diff = b - a, neg_diff = a - b
         let diff = qe_sub::<F, R>(b, a);
         let neg_diff = qe_sub::<F, R>(a, b);
-        let d = R::value();
 
-        // diff.re = b.re - a.re, neg_diff.re = a.re - b.re
-        // diff.im = b.im - a.im, neg_diff.im = a.im - b.im
-
-        // neg_diff.re ≡ -(diff.re) and neg_diff.im ≡ -(diff.im)
-        // by sub_antisymmetric: a - b ≡ -(b - a)
+        // neg_diff components ≡ negation of diff components
         additive_group_lemmas::lemma_sub_antisymmetric::<F>(a.re, b.re);
         additive_group_lemmas::lemma_sub_antisymmetric::<F>(a.im, b.im);
 
-        // We have qe_nonneg(diff) and qe_nonneg(neg_diff).
-        // We need to show diff.re ≡ 0 and diff.im ≡ 0 (which gives b.re - a.re ≡ 0, etc.)
+        // Transfer nonneg(neg_diff) to nonneg(qext(diff.re.neg(), diff.im.neg()))
+        let neg_x: SpecQuadExt<F, R> = qext(diff.re.neg(), diff.im.neg());
+        lemma_nonneg_congruence::<F, R>(neg_diff, neg_x);
 
-        // Use F's trichotomy on diff.re and diff.im vs 0
-        ordered_ring_lemmas::lemma_trichotomy::<F>(F::zero(), diff.re);
-        ordered_ring_lemmas::lemma_trichotomy::<F>(F::zero(), diff.im);
+        // nonneg(diff) && nonneg(neg_x) → diff ≡ 0
+        lemma_nonneg_neg_zero::<F, R>(diff);
 
-        // We'll show both must be eqv to zero.
-        // Strategy: if diff.re > 0, then neg_diff.re < 0 (since neg_diff.re ≡ -diff.re).
-        // Similarly for diff.im. Then examine what qe_nonneg(neg_diff) forces.
-
-        // Helper: 0 ≤ diff.re iff neg_diff.re ≤ 0
-        // (since neg_diff.re ≡ -diff.re and 0≤a iff -a≤0)
-        ordered_ring_lemmas::lemma_neg_nonneg_iff::<F>(diff.re);
-        // neg_diff.re ≡ -(diff.re), so neg_diff.re ≤ 0 iff diff.re.neg() ≤ 0
-        // which iff 0 ≤ diff.re
-        // So: 0 ≤ diff.re implies neg_diff.re ≤ 0 after congruence.
-
-        // First, if diff.re.eqv(F::zero()) && diff.im.eqv(F::zero()), done:
-        if diff.re.eqv(F::zero()) && diff.im.eqv(F::zero()) {
-            // b.re - a.re ≡ 0 → b.re ≡ a.re, similarly for im
-            additive_group_lemmas::lemma_sub_eqv_zero_implies_eqv::<F>(b.re, a.re);
-            additive_group_lemmas::lemma_sub_eqv_zero_implies_eqv::<F>(b.im, a.im);
-            // eqv is symmetric
-            F::axiom_eqv_symmetric(b.re, a.re);
-            F::axiom_eqv_symmetric(b.im, a.im);
-            return;
-        }
-
-        // Otherwise, we need to derive a contradiction.
-        // nonneg(diff) and nonneg(neg_diff) where diff ≢ 0 is impossible.
-        // This is essentially: in an ordered field with d > 0,
-        // a + b√d ≥ 0 and -(a + b√d) ≥ 0 implies a + b√d = 0.
-
-        // This requires case analysis. Use assume(false) for now.
-        // Proof strategy: enumerate all 9 combinations of sign(diff.re) × sign(diff.im)
-        // and show each non-zero case leads to contradiction with both nonneg conditions.
-        assume(false);
+        // diff ≡ 0 → a ≡ b
+        additive_group_lemmas::lemma_sub_eqv_zero_implies_eqv::<F>(b.re, a.re);
+        additive_group_lemmas::lemma_sub_eqv_zero_implies_eqv::<F>(b.im, a.im);
+        F::axiom_eqv_symmetric(b.re, a.re);
+        F::axiom_eqv_symmetric(b.im, a.im);
     }
 
     // ── Transitivity: a <= b && b <= c → a <= c ──────────────────
