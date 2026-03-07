@@ -72,6 +72,15 @@ impl<F: Field, R: Radicand<F>> Ring for SpecQuadExt<F, R> {
     proof fn axiom_mul_associative(x: Self, y: Self, z: Self) {
         lemmas::lemma_mul_assoc_re::<F, R>(x, y, z);
         lemmas::lemma_mul_assoc_im::<F, R>(x, y, z);
+        // Lemmas give x*(y*z) ≡ (x*y)*z, trait needs (x*y)*z ≡ x*(y*z) — symmetric
+        F::axiom_eqv_symmetric(
+            qe_mul::<F, R>(x, qe_mul::<F, R>(y, z)).re,
+            qe_mul::<F, R>(qe_mul::<F, R>(x, y), z).re,
+        );
+        F::axiom_eqv_symmetric(
+            qe_mul::<F, R>(x, qe_mul::<F, R>(y, z)).im,
+            qe_mul::<F, R>(qe_mul::<F, R>(x, y), z).im,
+        );
     }
 
     // ── Right identity: x * 1 ≡ x ──────────────────────────────────

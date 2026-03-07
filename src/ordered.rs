@@ -105,19 +105,8 @@ proof fn lemma_sub_self_nonneg<F: OrderedField, R: PositiveRadicand<F>>(
     // 0 <= 0
     F::axiom_le_reflexive(F::zero());
 
-    // 0 <= diff.re (since diff.re ≡ 0 and 0 <= 0)
-    F::axiom_le_congruence(F::zero(), F::zero(), F::zero(), diff.re);
-    // Need: F::zero() ≡ F::zero() — reflexive
-    // Need: F::zero() ≡ diff.re — symmetric of diff.re ≡ 0
+    // Establish 0.eqv(0) and 0.eqv(diff.re/im) for le_congruence
     F::axiom_eqv_reflexive(F::zero());
-    F::axiom_eqv_symmetric(diff.re.sub(diff.re), F::zero()); // not needed directly
-
-    // Actually let's be more careful. diff.re = x.re.sub(x.re).
-    // We know x.re.sub(x.re).eqv(F::zero()), i.e., diff.re.eqv(F::zero()).
-    // We need F::zero().le(diff.re).
-    // We have F::zero().le(F::zero()) from reflexive.
-    // We have diff.re.eqv(F::zero()), so F::zero().eqv(diff.re) by symmetry? No.
-    // Actually we need F::zero() ≡ F::zero() (refl) and F::zero() ≡ diff.re (sym of diff.re ≡ 0).
     F::axiom_eqv_symmetric(diff.re, F::zero());
     // Now: F::zero().eqv(diff.re)
     // le_congruence: a1≡a2, b1≡b2, a1<=b1 → a2<=b2
@@ -218,9 +207,8 @@ proof fn lemma_nonneg_congruence<F: OrderedField, R: PositiveRadicand<F>>(
         F::axiom_le_congruence(F::zero(), F::zero(), bx, by);
         if F::zero().eqv(by) {
             F::axiom_eqv_symmetric(bx, by);
-            F::axiom_eqv_symmetric(F::zero(), bx);
-            F::axiom_eqv_transitive(F::zero(), bx, by);
-            // contradiction: 0.eqv(bx) but !0.eqv(bx)
+            // 0.eqv(by) + by.eqv(bx) → 0.eqv(bx) — contradiction with !0.eqv(bx)
+            F::axiom_eqv_transitive(F::zero(), by, bx);
         }
         F::axiom_lt_iff_le_and_not_eqv(F::zero(), by);
 
@@ -410,7 +398,10 @@ impl<F: OrderedField, R: PositiveRadicand<F>> OrderedRing for SpecQuadExt<F, R> 
             // We've shown 0 ≤ neg_qe.re and 0 ≤ neg_qe.im
             // so nonneg(neg_qe) holds
 
-            // Now connect neg_qe to neg_diff via congruence
+            // Connect neg_qe to neg_diff: sub_antisymmetric gives neg_diff ≡ -diff,
+            // need symmetric direction for nonneg_congruence precondition
+            F::axiom_eqv_symmetric(neg_diff.re, re.neg());
+            F::axiom_eqv_symmetric(neg_diff.im, im.neg());
             lemma_nonneg_congruence::<F, R>(neg_qe, neg_diff);
         } else if F::zero().le(re) && im.le(F::zero()) {
             // re >= 0, im <= 0
@@ -429,6 +420,7 @@ impl<F: OrderedField, R: PositiveRadicand<F>> OrderedRing for SpecQuadExt<F, R> 
                 if im.eqv(F::zero()) {
                     // im ≡ 0 → 0 ≤ im
                     F::axiom_eqv_symmetric(im, F::zero());
+                    F::axiom_eqv_reflexive(F::zero());
                     F::axiom_le_reflexive(F::zero());
                     F::axiom_le_congruence(F::zero(), F::zero(), F::zero(), im);
                     // Case 1 for diff
@@ -464,6 +456,7 @@ impl<F: OrderedField, R: PositiveRadicand<F>> OrderedRing for SpecQuadExt<F, R> 
                 if re.eqv(F::zero()) && im.eqv(F::zero()) {
                     // Both zero → case 1 for diff
                     F::axiom_eqv_symmetric(im, F::zero());
+                    F::axiom_eqv_reflexive(F::zero());
                     F::axiom_le_reflexive(F::zero());
                     F::axiom_le_congruence(F::zero(), F::zero(), F::zero(), im);
                 } else if re.eqv(F::zero()) {
@@ -481,16 +474,29 @@ impl<F: OrderedField, R: PositiveRadicand<F>> OrderedRing for SpecQuadExt<F, R> 
                     F::axiom_neg_congruence(re, F::zero());
                     F::axiom_eqv_transitive(re.neg(), F::zero().neg(), F::zero());
                     // 0 ≤ 0 ≡ neg_diff.re
+                    F::axiom_eqv_reflexive(F::zero());
                     F::axiom_le_reflexive(F::zero());
                     F::axiom_eqv_symmetric(re.neg(), F::zero());
                     F::axiom_le_congruence(F::zero(), F::zero(), F::zero(), re.neg());
 
                     let neg_qe: SpecQuadExt<F, R> = qext(re.neg(), im.neg());
+                    F::axiom_eqv_symmetric(neg_diff.re, re.neg());
+                    F::axiom_eqv_symmetric(neg_diff.im, im.neg());
                     lemma_nonneg_congruence::<F, R>(neg_qe, neg_diff);
+                } else if im.eqv(F::zero()) {
+                    // re > 0, im ≡ 0 → case 1: 0 ≤ re ✓, 0 ≤ im by congruence
+                    F::axiom_eqv_symmetric(im, F::zero());
+                    F::axiom_eqv_reflexive(F::zero());
+                    F::axiom_le_reflexive(F::zero());
+                    F::axiom_le_congruence(F::zero(), F::zero(), F::zero(), im);
                 } else {
-                    // re > 0 (since 0 ≤ re and re ≢ 0), im < 0
+                    // re > 0 (since 0 ≤ re and re ≢ 0), im < 0 (since im ≤ 0 and im ≢ 0)
                     // neg_diff: re_part ≡ -re < 0, im_part ≡ -im > 0
                     // case 3: neg_diff.re < 0, 0 < neg_diff.im, neg_diff.re² ≤ neg_diff.im²·d
+                    // re > 0: we have 0.le(re) and !re.eqv(0), derive !0.eqv(re)
+                    if F::zero().eqv(re) {
+                        F::axiom_eqv_symmetric(F::zero(), re);
+                    }
                     F::axiom_lt_iff_le_and_not_eqv(F::zero(), re);
                     ordered_ring_lemmas::lemma_lt_neg_flip::<F>(F::zero(), re);
                     // re.neg() < 0.neg() ≡ 0
@@ -505,7 +511,7 @@ impl<F: OrderedField, R: PositiveRadicand<F>> OrderedRing for SpecQuadExt<F, R> 
                     }
                     F::axiom_lt_iff_le_and_not_eqv(re.neg(), F::zero());
 
-                    // 0 < -im
+                    // im < 0: we have im.le(0) and !im.eqv(0)
                     F::axiom_lt_iff_le_and_not_eqv(im, F::zero());
                     ordered_ring_lemmas::lemma_lt_neg_flip::<F>(im, F::zero());
                     additive_group_lemmas::lemma_neg_zero::<F>();
@@ -513,8 +519,9 @@ impl<F: OrderedField, R: PositiveRadicand<F>> OrderedRing for SpecQuadExt<F, R> 
                     F::axiom_eqv_reflexive(im.neg());
                     F::axiom_le_congruence(F::zero().neg(), F::zero(), im.neg(), im.neg());
                     if F::zero().eqv(im.neg()) {
-                        F::axiom_eqv_symmetric(F::zero(), F::zero().neg());
-                        F::axiom_eqv_transitive(F::zero(), F::zero().neg(), im.neg());
+                        // 0.neg().eqv(0) from neg_zero, 0.eqv(im.neg()) from if
+                        // → 0.neg().eqv(im.neg()) by transitive — contradicts !0.neg().eqv(im.neg())
+                        F::axiom_eqv_transitive(F::zero().neg(), F::zero(), im.neg());
                     }
                     F::axiom_lt_iff_le_and_not_eqv(F::zero(), im.neg());
 
@@ -527,12 +534,17 @@ impl<F: OrderedField, R: PositiveRadicand<F>> OrderedRing for SpecQuadExt<F, R> 
                     // This is (-re)(-re) ≡ re*re, already shown
                     // And neg_qe.im.mul(neg_qe.im).mul(d) ≡ im.mul(im).mul(d), already shown
                     // Transfer: re2.le(im2d) → neg_qe.re² ≤ neg_qe.im²d via congruence
+                    // neg_mul_neg gives (-x)(-x).eqv(x*x), need symmetric for le_congruence
+                    F::axiom_eqv_symmetric(re.neg().mul(re.neg()), re.mul(re));
+                    F::axiom_eqv_symmetric(im.neg().mul(im.neg()).mul(d), im.mul(im).mul(d));
                     F::axiom_le_congruence(
                         re2, neg_qe.re.mul(neg_qe.re),
                         im2d, neg_qe.im.mul(neg_qe.im).mul(d),
                     );
                     // neg_qe is case 3 nonneg
                     // Now transfer to neg_diff via congruence
+                    F::axiom_eqv_symmetric(neg_diff.re, re.neg());
+                    F::axiom_eqv_symmetric(neg_diff.im, im.neg());
                     lemma_nonneg_congruence::<F, R>(neg_qe, neg_diff);
                 }
             }
@@ -553,11 +565,13 @@ impl<F: OrderedField, R: PositiveRadicand<F>> OrderedRing for SpecQuadExt<F, R> 
                 if re.eqv(F::zero()) {
                     // re ≡ 0 → 0 ≤ re
                     F::axiom_eqv_symmetric(re, F::zero());
+                    F::axiom_eqv_reflexive(F::zero());
                     F::axiom_le_reflexive(F::zero());
                     F::axiom_le_congruence(F::zero(), F::zero(), F::zero(), re);
                     // Case 1 for diff: 0 ≤ re and 0 ≤ im
                 } else if F::zero().eqv(im) {
                     // im ≡ 0 → 0 ≤ im
+                    F::axiom_eqv_reflexive(F::zero());
                     F::axiom_le_reflexive(F::zero());
                     F::axiom_le_congruence(F::zero(), F::zero(), F::zero(), im);
                     // re ≤ 0, im ≡ 0 → neg_diff case
@@ -567,14 +581,19 @@ impl<F: OrderedField, R: PositiveRadicand<F>> OrderedRing for SpecQuadExt<F, R> 
                     F::axiom_eqv_reflexive(re.neg());
                     F::axiom_le_congruence(F::zero().neg(), F::zero(), re.neg(), re.neg());
 
+                    // im.eqv(0) for neg_congruence (we have 0.eqv(im), need symmetric)
+                    F::axiom_eqv_symmetric(F::zero(), im);
                     F::axiom_neg_congruence(im, F::zero());
                     additive_group_lemmas::lemma_neg_zero::<F>();
                     F::axiom_eqv_transitive(im.neg(), F::zero().neg(), F::zero());
                     F::axiom_eqv_symmetric(im.neg(), F::zero());
+                    F::axiom_eqv_reflexive(F::zero());
                     F::axiom_le_reflexive(F::zero());
                     F::axiom_le_congruence(F::zero(), F::zero(), F::zero(), im.neg());
 
                     let neg_qe: SpecQuadExt<F, R> = qext(re.neg(), im.neg());
+                    F::axiom_eqv_symmetric(neg_diff.re, re.neg());
+                    F::axiom_eqv_symmetric(neg_diff.im, im.neg());
                     lemma_nonneg_congruence::<F, R>(neg_qe, neg_diff);
                 } else {
                     // re < 0 and 0 < im → case 3 for diff
@@ -605,19 +624,24 @@ impl<F: OrderedField, R: PositiveRadicand<F>> OrderedRing for SpecQuadExt<F, R> 
                 if re.eqv(F::zero()) && F::zero().eqv(im) {
                     // Both zero → case 1 for diff
                     F::axiom_eqv_symmetric(re, F::zero());
+                    F::axiom_eqv_reflexive(F::zero());
                     F::axiom_le_reflexive(F::zero());
                     F::axiom_le_congruence(F::zero(), F::zero(), F::zero(), re);
                     F::axiom_le_congruence(F::zero(), F::zero(), F::zero(), im);
                 } else if F::zero().eqv(im) {
                     // im ≡ 0 → neg_diff.im ≡ -0 ≡ 0 ≥ 0 → case 1 for neg_diff
+                    F::axiom_eqv_symmetric(F::zero(), im);
                     F::axiom_neg_congruence(im, F::zero());
                     additive_group_lemmas::lemma_neg_zero::<F>();
                     F::axiom_eqv_transitive(im.neg(), F::zero().neg(), F::zero());
                     F::axiom_eqv_symmetric(im.neg(), F::zero());
+                    F::axiom_eqv_reflexive(F::zero());
                     F::axiom_le_reflexive(F::zero());
                     F::axiom_le_congruence(F::zero(), F::zero(), F::zero(), im.neg());
 
                     let neg_qe: SpecQuadExt<F, R> = qext(re.neg(), im.neg());
+                    F::axiom_eqv_symmetric(neg_diff.re, re.neg());
+                    F::axiom_eqv_symmetric(neg_diff.im, im.neg());
                     lemma_nonneg_congruence::<F, R>(neg_qe, neg_diff);
                 } else {
                     // im > 0 → -im < 0
@@ -637,10 +661,15 @@ impl<F: OrderedField, R: PositiveRadicand<F>> OrderedRing for SpecQuadExt<F, R> 
                     // im²d ≤ re² from the totality above (we're in the else of re2.le(im2d))
                     // Transfer through (-re)²≡re², (-im)²d≡im²d
                     let neg_qe: SpecQuadExt<F, R> = qext(re.neg(), im.neg());
+                    // neg_mul_neg gives (-x)(-x).eqv(x*x), need symmetric for le_congruence
+                    F::axiom_eqv_symmetric(im.neg().mul(im.neg()).mul(d), im.mul(im).mul(d));
+                    F::axiom_eqv_symmetric(re.neg().mul(re.neg()), re.mul(re));
                     F::axiom_le_congruence(
                         im2d, neg_qe.im.mul(neg_qe.im).mul(d),
                         re2, neg_qe.re.mul(neg_qe.re),
                     );
+                    F::axiom_eqv_symmetric(neg_diff.re, re.neg());
+                    F::axiom_eqv_symmetric(neg_diff.im, im.neg());
                     lemma_nonneg_congruence::<F, R>(neg_qe, neg_diff);
                 }
             }
