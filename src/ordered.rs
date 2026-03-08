@@ -602,16 +602,22 @@ impl<F: OrderedField, R: PositiveRadicand<F>> PartialOrder for SpecQuadExt<F, R>
     // Substantial case analysis (~200 lines).
 
     proof fn axiom_le_transitive(a: Self, b: Self, c: Self) {
-        // nonneg(b - a) && nonneg(c - b) → nonneg((c - b) + (b - a))
-        // and (c - b) + (b - a) has components that telescope to c - a.
+        // nonneg(b - a) && nonneg(c - b) → nonneg(c - a)
+        let cb = qe_sub::<F, R>(c, b);
+        let ba = qe_sub::<F, R>(b, a);
 
-        // First establish that (c-b).re + (b-a).re ≡ (c-a).re, etc.
-        // (c.re - b.re) + (b.re - a.re) ≡ c.re - a.re by sub-add-telescope
-        // Similarly for im.
+        // nonneg(cb) + nonneg(ba) → nonneg(qext(cb.re + ba.re, cb.im + ba.im))
+        crate::lemmas::lemma_nonneg_add_closed::<F, R>(cb, ba);
 
-        // This is a substantial proof. Use assume(false).
-        // Strategy: prove lemma_nonneg_add_closed, then use sub-telescope congruence.
-        assume(false);
+        // Telescope: (c.re - b.re) + (b.re - a.re) ≡ c.re - a.re
+        additive_group_lemmas::lemma_sub_add_sub::<F>(c.re, b.re, a.re);
+        // Telescope: (c.im - b.im) + (b.im - a.im) ≡ c.im - a.im
+        additive_group_lemmas::lemma_sub_add_sub::<F>(c.im, b.im, a.im);
+
+        // Transfer via congruence
+        let sum = qext::<F, R>(cb.re.add(ba.re), cb.im.add(ba.im));
+        let ca = qe_sub::<F, R>(c, a);
+        lemma_nonneg_congruence::<F, R>(sum, ca);
     }
 
     // ── Congruence: a1≡a2, b1≡b2, a1<=b1 → a2<=b2 ───────────────

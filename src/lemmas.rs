@@ -13,6 +13,9 @@ use verus_algebra::traits::field::OrderedField;
 use verus_algebra::lemmas::ordered_ring_lemmas;
 use verus_algebra::lemmas::ordered_field_lemmas;
 use verus_algebra::inequalities;
+use verus_algebra::inequalities::lemma_nonneg_add;
+use verus_algebra::inequalities::lemma_square_mul;
+use verus_algebra::inequalities::lemma_square_le_implies_le;
 use verus_algebra::lemmas::partial_order_lemmas;
 use crate::radicand::Radicand;
 use crate::radicand::PositiveRadicand;
@@ -2666,715 +2669,8 @@ proof fn lemma_nonneg_add_c2_c3_subB<F: OrderedField, R: PositiveRadicand<F>>(
     let d = R::value();
     let sum_re = p.add(r);
     let sum_im = q.add(s);
-    //
-    // it does NOT follow that xu ≤ yv or xv ≤ yu in general.
-    //
-    // Counter-example: x=1, y=4, u=2, v=3: xy=4 ≤ uv=6. But xv=3, yu=8, so xv < yu.
-    // But also xu=2, yv=12, so xu < yv. Hmm, in this case it works.
-    //
-    // Hmm, but it doesn't work in general. Consider x=1, y=100, u=10, v=11: xy=100 ≤ uv=110.
-    // xv=11, yu=1000. So xv < yu but that's not what we want.
-    // xu=10, yv=1100. xu < yv. Hmm, that works too.
-    //
-    // Actually I think the right inequality is: from xy ≤ uv with all nonneg,
-    // we CANNOT conclude xv ≤ yu. Example: x=10, y=1, u=3, v=4: xy=10 ≤ uv=12.
-    // xv=40, yu=3. xv > yu. So NO, we can't rearrange the product.
-    //
-    // So we need a different strategy. Let me try the factored form.
-    //
-    // (p+r)² - (q+s)²d
-    // = p²+2pr+r² - q²d-2qsd-s²d
-    //
-    // We want this ≥ 0. Rewrite:
-    // = (p²-q²d) + 2(pr-qsd) + (r²-s²d)
-    // = A + 2M + (-B)     where A = p²-q²d ≥ 0, B = s²d-r² ≥ 0, M = pr-qsd
-    //
-    // Need: A - B + 2M ≥ 0, i.e., 2M ≥ B - A.
-    //
-    // This doesn't simplify without more info about M.
-    //
-    // Alternative factoring: use the substitution approach.
-    //
-    // Since p² ≥ q²d and s²d ≥ r², let a = p, b = -q (b>0), c = -r (c>0), e = s (e>0).
-    // Then: b²d ≤ a², c² ≤ e²d, a+c ≤ ... wait, p+r ≥ 0 means a-c ≥ 0, i.e., a ≥ c.
-    //       q+s < 0 means -b+e < 0 means e < b.
-    //
-    // So a ≥ c ≥ 0, b > e > 0, b²d ≤ a², c² ≤ e²d.
-    // Goal: (a-c)² ≥ (e-b)²d  [since p+r=a-c, q+s=e-b, and (e-b)<0 so (e-b)²=(b-e)²]
-    //
-    // Wait: (q+s)²d = (e-b)²d. And (p+r)² = (a-c)².
-    // We want (e-b)²d ≤ (a-c)².
-    //
-    // From b²d ≤ a² (upper bound): (b√d)² ≤ a² → b√d ≤ a (conceptually).
-    // From c² ≤ e²d (lower bound): c² ≤ (e√d)² → c ≤ e√d.
-    // So a ≥ b√d and e√d ≥ c. Then a-c ≥ b√d - e√d = (b-e)√d.
-    // So (a-c)² ≥ (b-e)²d. ✓
-    //
-    // This is the right argument! But it uses √d which we don't have.
-    // However, we can formalize it using the ordering:
-    //
-    // a-c ≥ 0 (given), b-e > 0 (given).
-    // Want: (a-c)² ≥ (b-e)²d.
-    //
-    // From a² ≥ b²d: (a-c)² = a²-2ac+c² ≥ b²d-2ac+c².
-    // From c² ≤ e²d: b²d-2ac+c² ≤ b²d-2ac+e²d = (b²+e²)d-2ac.
-    // But (b-e)²d = b²d-2bed+e²d = (b²+e²)d-2bed.
-    // So we want b²d-2ac+c² ≥ (b²+e²)d-2bed... that gives
-    //   -2ac+c² ≥ e²d-2bed... nope, wrong direction.
-    //
-    // Hmm, the substitution-based proof DOES work conceptually
-    // (a ≥ b√d, e√d ≥ c → a-c ≥ (b-e)√d → square)
-    // but formalizing without √d is tricky.
-    //
-    // Let me try the ordered-field approach instead:
-    //   From a ≥ c ≥ 0 and b ≥ e > 0 and a² ≥ b²d and e²d ≥ c²:
-    //
-    //   Cauchy-Schwarz-like: a·(ed) ≥ (bd)·c... does this hold?
-    //   From a ≥ b√d and e√d ≥ c: a·(e√d) ≥ (b√d)·c... hmm a·(e√d) ≥ bc√d?
-    //   a ≥ b√d → a·e ≥ be√d. And e√d ≥ c → ae ≥ ... hmm circular.
-    //
-    //   From a² ≥ b²d and e²d ≥ c²: multiply → a²·e²d ≥ b²d·c² → (ae)²d ≥ (bc)²d
-    //   → (ae)² ≥ (bc)². With ae ≥ 0, bc ≥ 0: ae ≥ bc. ✓
-    //
-    //   So ae ≥ bc where a,b,c,e ≥ 0. This is the cross-term!
-    //
-    //   Now: (a-c)² - (b-e)²d = a²-2ac+c² - b²d+2bed-e²d
-    //     = (a²-b²d) + (c²-e²d) + 2(be·d-ac)
-    //     = (a²-b²d) - (e²d-c²) + 2d(be-ac/d)... hmm no.
-    //     = (a²-b²d) - (e²d-c²) + 2(bed-ac)
-    //
-    //   A = a²-b²d ≥ 0, B = e²d-c² ≥ 0.
-    //   We need A-B+2(bed-ac) ≥ 0.
-    //   bed-ac: b,e,d,a,c ≥ 0. Is bed ≥ ac? From ae ≥ bc: ae ≥ bc.
-    //   Multiply by d: aed ≥ bcd. But we want bed ≥ ac, not aed ≥ bcd.
-    //   These are different. bed vs ac. Hmm.
-    //
-    //   Actually wait: A-B+2(bed-ac) = (a²-b²d)-(e²d-c²)+2bed-2ac
-    //     = a²-2ac+c² - b²d+2bed-e²d = (a-c)²-(b-e)²d. [That's circular.]
-    //
-    //   Hmm. Let me try yet another approach.
-    //
-    //   Use AM-GM on A and B: A·B ≤ (something related to M²).
-    //   A·B = (a²-b²d)(e²d-c²)
-    //   Let me expand: = a²e²d - a²c² - b²de²d + b²dc²
-    //   = a²e²d - a²c² - b²e²d² + b²c²d
-    //
-    //   M = bed - ac. M² = b²e²d²-2abced+a²c².
-    //
-    //   A·B - M² = a²e²d - a²c² - b²e²d² + b²c²d - b²e²d² + 2abced - a²c²
-    //   Hmm, this is getting really messy. Let me try computing M² - AB:
-    //   M² = b²e²d² - 2abced + a²c²
-    //   AB = a²e²d - a²c² - b²e²d² + b²c²d
-    //   M² - AB = b²e²d² - 2abced + a²c² - a²e²d + a²c² + b²e²d² - b²c²d
-    //   = 2b²e²d² - 2abced + 2a²c² - a²e²d - b²c²d
-    //   = 2a²c² - 2abced - a²e²d + 2b²e²d² - b²c²d
-    //   Hmm, not obviously a perfect square.
-    //
-    // I'm going in circles. Let me try the DIRECT approach that avoids all this:
-    //
-    // (a-c)² - (b-e)²d = a²-2ac+c²-b²d+2bed-e²d
-    //                   = (a²-b²d) + (c²-e²d) + 2(bed-ac)
-    //
-    // From a² ≥ b²d (given A): (a²-b²d) ≥ 0
-    // From c² ≤ e²d (given B): (c²-e²d) ≤ 0
-    //
-    // So we need: (a²-b²d) + 2(bed-ac) ≥ (e²d-c²)
-    //
-    // From ae ≥ bc (proved via product): ae-bc ≥ 0.
-    //
-    // Hmm, let me try to show (a-c)² ≥ (b-e)²d directly by factoring.
-    // (a-c)² - (b-e)²d = [(a-c) - (b-e)√d][(a-c) + (b-e)√d]
-    // But we can't use √d.
-    //
-    // Actually, I just realized: we can use a squared version of the triangle inequality argument.
-    //
-    // Key idea: from a² ≥ b²d, we get a/b ≥ √d (when b > 0).
-    // From c² ≤ e²d, we get c/e ≤ √d.
-    // So a/b ≥ √d ≥ c/e → a/b ≥ c/e → ae ≥ bc. ✓ (already proved)
-    //
-    // Now: (a-c)² = a²-2ac+c². And (b-e)²d = (b²-2be+e²)d = b²d-2bed+e²d.
-    //
-    // (a-c)² - (b-e)²d = (a²-b²d) - (e²d-c²) + 2(bed-ac)
-    //
-    // Let x = a²-b²d ≥ 0, y = e²d-c² ≥ 0, z = bed-ac.
-    // Need: x-y+2z ≥ 0, i.e., x+2z ≥ y.
-    //
-    // We'll show z ≥ 0 is NOT always true (bed might be < ac),
-    // but x+2z ≥ y should still hold.
-    //
-    // Hmm actually, is z ≥ 0? bed = b·e·d. a·c = a·c.
-    // From ae ≥ bc: multiply by d: aed ≥ bcd. But we want bed ≥ ac, not aed ≥ bcd.
-    // These are different.
-    //
-    // Example: a=10, b=3, c=2, e=1, d=9.
-    // Check: a²=100 ≥ b²d=9·9=81 ✓. c²=4 ≤ e²d=9 ✓. a≥c ✓ (10≥2). b≥e ✓ (3≥1).
-    // (a-c)²=64, (b-e)²d=4·9=36. 64≥36 ✓.
-    // x=100-81=19, y=9-4=5, z=3·1·9-10·2=27-20=7. x-y+2z=19-5+14=28≥0 ✓.
-    //
-    // Example: a=5, b=2, c=4, e=3, d=5.
-    // a²=25 ≥ b²d=4·5=20 ✓. c²=16 ≤ e²d=9·5=45 ✓. a≥c ✓. b≥e? 2≥3? NO!
-    // So b≥e is not given.
-    //
-    // Back to original: a=p (≥0), b=-q (>0, since q<0), c=-r (>0, since r<0), e=s (>0).
-    // p+r≥0 → a≥c ✓. q+s<0 → -b+e<0 → e<b ✓. So b>e.
-    //
-    // Let me redo with b > e > 0 guaranteed:
-    // From ae ≥ bc: a·e ≥ b·c. Multiply by... hmm.
-    //
-    // Actually, I just realized that there IS a clean proof.
-    //
-    // We have a ≥ c, b > e (both positive).
-    // And a² ≥ b²d, e²d ≥ c².
-    //
-    // From a² ≥ b²d: a² - b²d ≥ 0.
-    // Multiply by (b-e)² ≥ 0: (a²-b²d)(b-e)² ≥ 0. ...(*)
-    //
-    // From e²d ≥ c²: e²d - c² ≥ 0.
-    // Multiply by (a-c)² ≥ 0 (since a≥c): (e²d-c²)(a-c)² ≥ 0. ...(**)
-    //
-    // These don't directly help. Hmm.
-    //
-    // OK I really need to just DO something. Let me try the direct product cancellation approach,
-    // even if it's messy. I'll write it step by step:
-    //
-    // 1. From q²d·r² ≤ p²·s²d, rearrange to (qr)²d ≤ (ps)²d, cancel d, get (qr)² ≤ (ps)².
-    // 2. qr ≥ 0 (both neg), ps ≥ 0. square_le_implies_le: qr ≤ ps.
-    // 3. Multiply qr ≤ ps by -2d (flip, since -2d < 0): -2qrd ≥ -2psd, i.e., 2psd ≥ 2qrd... hmm no.
-    //    Wait: multiply by 2d > 0 (no flip): 2qrd ≤ 2psd. OK but that's the wrong terms.
-    //    We want 2pr vs 2qsd. qr and qs have different second factors.
-    //
-    // Actually I don't think the product approach directly gives us what we need for the cross-term.
-    // The cross-term in (p+r)²-(q+s)²d is 2pr-2qsd, and we'd need pr ≥ qsd.
-    // pr = p·r, qsd = q·s·d. These involve different pairs of (p,q,r,s,d).
-    //
-    // OK I just spent way too long thinking. Let me use a COMPLETELY different strategy:
-    //
-    // The TWO factor proof. Define:
-    //   X = p·s·d - q·r·d = (ps-qr)·d  [= ps·d - qr·d]
-    //   Y = p·s - q·r = ps - qr
-    //
-    // From ae ≥ bc (i.e., ps ≥ qr): Y ≥ 0 and X = Y·d ≥ 0.
-    //
-    // Now compute (p+r)² - (q+s)²d using the factored form:
-    //
-    // Actually, the truly simplest proof I can think of:
-    //
-    // We want to show (q+s)²d ≤ (p+r)².
-    // By le_iff_sub_nonneg, this is equivalent to 0 ≤ (p+r)² - (q+s)²d.
-    //
-    // (p+r)² - (q+s)²d = (p² - q²d) + (r² - s²d) + 2(pr - qsd)
-    //
-    // Let A = p² - q²d ≥ 0 (given).
-    // Let B = s²d - r² ≥ 0 (given). So r²-s²d = -B ≤ 0.
-    //
-    // (p+r)² - (q+s)²d = A - B + 2(pr - qsd)
-    //
-    // Now I need to show A - B + 2(pr - qsd) ≥ 0.
-    //
-    // Hmm, this requires showing 2(pr-qsd) ≥ B-A, but we don't know the sign of B-A or pr-qsd.
-    //
-    // New attempt using conjugate product:
-    //
-    // (p+r)² - (q+s)²d = [(p+r) - (q+s)√d][(p+r) + (q+s)√d]
-    //
-    // But each factor can be decomposed:
-    // (p+r) + (q+s)√d = (p + q√d) + (r + s√d)
-    // (p+r) - (q+s)√d = (p - q√d) + (r - s√d)
-    //
-    // p + q√d = conjugate of (p,q) -- could be any sign since q < 0
-    // p - q√d = other conjugate of (p,q) -- p ≥ 0, -q > 0, √d > 0 → ≥ 0
-    // r + s√d = conjugate of (r,s) -- r < 0, s > 0, √d > 0 → could be any sign, but from r²≤s²d: s√d ≥ -r → r+s√d ≥ 0
-    // r - s√d = other conjugate -- r < 0, -s < 0, √d > 0 → ≤ 0
-    //
-    // So: (p-q√d) ≥ 0 and (r+s√d) ≥ 0 → first factor ≥ 0? Not sure since we also have (p+q√d) and (r-s√d).
-    //
-    // I think the key insight is:
-    // (p-q√d) ≥ 0  [from p²≥q²d with p≥0]
-    // (r+s√d) ≥ 0  [from s²d≥r² with s>0]
-    //
-    // And we need to show: [(p-q√d)+(r-s√d)] · [(p+q√d)+(r+s√d)] ≥ 0.
-    //
-    // Hmm, (p+q√d)+(r+s√d) = (p+r)+(q+s)√d. Since q+s < 0 and p+r ≥ 0, the sign depends on magnitudes.
-    // (p-q√d)+(r-s√d) = (p+r)-(q+s)√d. Since q+s < 0, -(q+s)√d > 0, and p+r ≥ 0, this is > 0.
-    //
-    // So the second factor (p+r)-(q+s)√d > 0. The first factor (p+r)+(q+s)√d might be negative
-    // (since (q+s)√d < 0 and might dominate p+r). So the product could be negative or positive.
-    //
-    // We need to show the product ≥ 0, which means the first factor ≥ 0 too.
-    // (p+r)+(q+s)√d ≥ 0 iff (p+r) ≥ -(q+s)√d = |q+s|√d = (-(q+s))√d.
-    // (p+r)² ≥ (q+s)²d iff (p+r) ≥ |q+s|√d (when p+r ≥ 0).
-    // So this IS what we're trying to prove — circular again!
-    //
-    // OK, I think the RIGHT proof is via the norm product being monotone:
-    //
-    // N(x) = re(x)² - im(x)²·d is the "norm" of x = re+im√d.
-    // For nonneg x (C2 case): N(x) ≥ 0 (since re² ≥ im²·d).
-    //
-    // For C2+C3 subB: u is C2 (N(u) = p²-q²d ≥ 0), v is C3 (N(v) = r²-s²d ≤ 0).
-    // N(u+v) = (p+r)²-(q+s)²d. We want N(u+v) ≥ 0.
-    //
-    // N(u)·N(v) = (p²-q²d)(r²-s²d). Since N(u)≥0 and N(v)≤0: N(u)·N(v) ≤ 0.
-    //
-    // And N(u·v) = (pr+qsd)²-(ps+qr)²d [from quadratic extension multiplication].
-    //
-    // By multiplicativity: N(u·v) = N(u)·N(v). So N(u·v) ≤ 0.
-    //
-    // Hmm, this doesn't directly help with N(u+v).
-    //
-    // OK I've been going in circles for WAY too long. Let me just implement it
-    // using the identity:
-    //
-    // (p+r)² - (q+s)²d = (p²-q²d) + (r²-s²d) + 2(pr-qsd)
-    //
-    // I'll need to show that the sum is ≥ 0. Since we can't directly control the sign of each term,
-    // I'll try: show by squaring both sides and using the cross-term inequality from the product.
-    //
-    // Actually, let me just try the SIMPLEST conceivable approach:
-    //
-    // Cauchy-Schwarz type: (p+r)² ≥ ... hmm.
-    //
-    // Or: just directly compute. We have p+r ≥ 0 and q+s < 0. Let δ = p+r, β = -(q+s) > 0.
-    // Want: β²d ≤ δ².
-    //
-    // From p ≥ 0: p+r ≥ r. But r < 0. So δ = p+r.
-    // From q+s < 0: β = -q-s = (-q)+(-s). -q > 0, -s < 0.
-    //
-    // β = -q-s. Since q < 0, -q > 0. Since s > 0, -s < 0. β > 0 means -q > s.
-    // δ = p+r. Since p ≥ 0, r < 0. δ ≥ 0 means p ≥ -r.
-    //
-    // So p ≥ -r > 0 and -q > s > 0. Also p² ≥ q²d = (-q)²d and s²d ≥ r² = (-r)².
-    //
-    // Let me substitute a=p, b=-q, c=-r, e=s with a≥c>0, b>e>0, a²≥b²d, e²d≥c².
-    // δ = a-c ≥ 0, β = b-e > 0. Want: (b-e)²d ≤ (a-c)².
-    //
-    // By Cauchy-Schwarz for ordered fields:
-    // (a²)(e²d) ≥ ... hmm.
-    //
-    // Actually: from a² ≥ b²d and e²d ≥ c²:
-    //   (a·e)² = a²·e² ≥ b²d·e² and a²·e²d ≥ a²·c² (hmm not useful directly)
-    //
-    //   Actually: a²·(e²d) ≥ (b²d)·(e²d)... no that's wrong direction.
-    //
-    //   From a² ≥ b²d: a ≥ b√d [conceptually, for a,b ≥ 0]
-    //   From e²d ≥ c²: e√d ≥ c [conceptually, for e,c ≥ 0]
-    //
-    //   So: a-c ≥ b√d - c ≥ b√d - e√d = (b-e)√d
-    //   Thus: (a-c)² ≥ (b-e)²d. ✓
-    //
-    //   The step a-c ≥ b√d - c uses a ≥ b√d.
-    //   The step b√d - c ≥ (b-e)√d uses c ≤ e√d, so -c ≥ -e√d.
-    //
-    // This is the CLEAN proof! But formalizing "a ≥ b√d" without √d...
-    // In the ordered field, "a ≥ b√d" is formalized as "a ≥ 0 AND a² ≥ b²d".
-    // And subtraction preserves the inequality when done carefully.
-    //
-    // Actually, here's the formalization:
-    //
-    // Step 1: Show a·(e²d) ≥ c·(b²d)... hmm no.
-    //
-    // Step 1: From a²≥b²d and e²d≥c², multiply: a²·e²d ≥ b²d·c².
-    //   So (ae)²d ≥ (bc)²d. Cancel d: (ae)² ≥ (bc)².
-    //   ae≥0, bc≥0 → ae ≥ bc. [Cross-term inequality]
-    //
-    // Step 2: Now compute (a-c)² - (b-e)²d:
-    //   = a²-2ac+c² - b²d+2bed-e²d
-    //   = (a²-b²d) + (c²-e²d) + 2(bed-ac)
-    //   = (a²-b²d) - (e²d-c²) + 2(bed-ac)
-    //
-    // Hmm, we need (a²-b²d) - (e²d-c²) + 2(bed-ac) ≥ 0.
-    // = (a²-b²d) - (e²d-c²) - 2(ac-bed)
-    //
-    // From ae ≥ bc: is ac ≤ bed? Not necessarily!
-    // ae ≥ bc doesn't imply ac ≤ bed unless e ≤ d... which might not hold.
-    //
-    // Hmm. Let me try yet another way.
-    //
-    // (a-c)² - (b-e)²d = a²-2ac+c² - (b²-2be+e²)d
-    //   = a²-c² - b²d+e²d + 2(c²-ac) + 2(be-e²)d... no this doesn't simplify.
-    //
-    // Let me try a specific substitution. From a² ≥ b²d, write a² = b²d + X where X ≥ 0.
-    // From e²d ≥ c², write e²d = c² + Y where Y ≥ 0.
-    //
-    // (a-c)² - (b-e)²d = (a²-2ac+c²) - (b²d-2bed+e²d)
-    //   = (b²d+X-2ac+c²) - (b²d-2bed+c²+Y)  [substituting]
-    //   = X - Y + 2(bed-ac)
-    //
-    // Need: X+2(bed-ac) ≥ Y.
-    //
-    // From ae ≥ bc: ae-bc ≥ 0.
-    //
-    // Hmm, X = a²-b²d, Y = e²d-c². ae ≥ bc.
-    //
-    // X·Y = (a²-b²d)(e²d-c²). Let me check if X·Y ≤ (bed-ac)²... that would give
-    // the result by AM-GM: X+Y ≥ 2√(XY) ≥ ... no, we need X-Y+2(bed-ac), not X+Y.
-    //
-    // Actually, (bed-ac)² - XY = (bed-ac)² - (a²-b²d)(e²d-c²)
-    // Let me expand:
-    // (bed-ac)² = b²e²d² - 2abced + a²c²
-    // (a²-b²d)(e²d-c²) = a²e²d - a²c² - b²e²d² + b²c²d
-    //
-    // (bed-ac)² - (a²-b²d)(e²d-c²) = b²e²d² - 2abced + a²c² - a²e²d + a²c² + b²e²d² - b²c²d
-    //   = 2b²e²d² - 2abced + 2a²c² - a²e²d - b²c²d
-    //   = 2a²c² - 2abced + 2b²e²d² - a²e²d - b²c²d
-    //
-    // Hmm, let me group:
-    //   = a²c² - 2abced + b²e²d² + a²c² - a²e²d + b²e²d² - b²c²d
-    //   = (ac - bed)² + a²(c²-e²d) + b²d(e²d-c²)
-    //   = (ac-bed)² + (c²-e²d)(a²-b²d)
-    //   = (ac-bed)² - XY
-    //
-    // Wait! So (bed-ac)² - XY = (ac-bed)² - XY = (bed-ac)² - XY. That gives 0 = 0. Tautology!
-    //
-    // Let me redo:
-    // (bed-ac)² = b²e²d² - 2abced + a²c²
-    // XY = (a²-b²d)(e²d-c²) = a²e²d - a²c² - b²e²d² + b²dc²
-    //
-    // (bed-ac)² - XY = b²e²d² - 2abced + a²c² - a²e²d + a²c² + b²e²d² - b²dc²
-    //   = 2b²e²d² + 2a²c² - 2abced - a²e²d - b²dc²
-    //
-    // Let me try to factor this as a square:
-    //   = a²c² - 2abced + b²e²d² + a²c² - a²e²d + b²e²d² - b²dc²
-    //   = (ac-bed)² + a²c² - a²e²d + b²e²d² - b²dc²
-    //   = (ac-bed)² + a²(c²-e²d) + b²d(e²d-c²)
-    //   = (ac-bed)² - a²Y + b²dY       [where Y = e²d-c²]
-    //   = (ac-bed)² + Y(b²d-a²)
-    //   = (ac-bed)² - YX   [since X = a²-b²d, so b²d-a² = -X]
-    //   = (ac-bed)² - XY
-    //
-    // So (bed-ac)² - XY = (ac-bed)² - XY. Since (bed-ac)² = (ac-bed)², this is:
-    // (ac-bed)² - XY = (ac-bed)² - XY. Tautology again!
-    //
-    // OK so (bed-ac)² = XY + [(bed-ac)² - XY]. Not helpful.
-    //
-    // Let me try DIRECTLY. We need X - Y + 2(bed-ac) ≥ 0 where X,Y ≥ 0.
-    //
-    // Factor: X - Y + 2(bed-ac) = (√X - √Y)² + 2(√X·√Y + bed - ac)...
-    // No, can't take square roots in general.
-    //
-    // Actually, the substitution proof DOES work cleanly:
-    //
-    // From a ≥ 0, a² ≥ b²d, b > 0: we can show via ordered field that a/b satisfies (a/b)² ≥ d.
-    // Define t = a/b. Then t² ≥ d, t ≥ 0.
-    //
-    // Similarly, from e > 0, e²d ≥ c², c ≥ 0: (e/1)²d ≥ (c/1)². No, c/e: (c/e)² ≤ d.
-    // Define u = c/e. Then u² ≤ d, u ≥ 0.
-    //
-    // So t² ≥ d ≥ u². With t, u ≥ 0: t ≥ u (by square_le_implies_le applied to u, t).
-    //
-    // Now: a = tb, c = ue.
-    // (a-c) = tb-ue. (b-e)√d conceptually.
-    // (a-c)² = t²b²-2tbue+u²e² = t²b²-2tueb+u²e².
-    // (b-e)²d = (b²-2be+e²)d.
-    //
-    // (a-c)² - (b-e)²d = t²b²-2tube+u²e² - b²d+2bed-e²d
-    //   = b²(t²-d) + e²(u²-d) + 2be(d-tu)
-    //   = b²(t²-d) - e²(d-u²) + 2be(d-tu)
-    //
-    // Since t²≥d: b²(t²-d) ≥ 0. ✓
-    // Since u²≤d: e²(d-u²) ≥ 0, so -e²(d-u²) ≤ 0. Bad.
-    // d-tu: t≥u≥0, t²≥d≥u². d-tu ≥ 0 iff d ≥ tu.
-    //   From t²≥d and u²≤d: tu ≤ t·t = t² (if u≤t, which we proved).
-    //   And tu ≥ u·u = u². So u² ≤ tu ≤ t².
-    //   d ≥ u² and d ≤ t², so d could be anywhere between u² and t².
-    //   tu ≤ t² and tu ≥ u². So d-tu could be positive or negative.
-    //
-    // Hmm, even with the substitution this doesn't factor nicely.
-    //
-    // Let me try: t = a/b, so a = tb.
-    //
-    // (a-c)² - (b-e)²d = (tb-c)² - (b-e)²d
-    //   = t²b² - 2tbc + c² - b²d + 2bed - e²d
-    //   = b²(t²-d) + 2b(ed-tc) + (c²-e²d)
-    //   = b²(t²-d) + 2b(ed-tc) - Y
-    //   where Y = e²d-c² ≥ 0.
-    //
-    // t²-d ≥ 0 (from t² ≥ d).
-    // ed-tc: e > 0, d > 0, t = a/b > 0, c > 0. Is ed ≥ tc?
-    //   tc = ac/b. ed = ed. So ed ≥ ac/b iff bed ≥ ac.
-    //   Is bed ≥ ac? From ae ≥ bc: ae ≥ bc. Multiply by d/c: aed/c ≥ bd. Hmm.
-    //   Not directly.
-    //
-    // OK I think I need to give up finding a clean factoring and just use the SUBSTITUTION approach
-    // with ordered field division.
-    //
-    // THE PROOF:
-    // 1. Let t = a·recip(b) (= a/b in the field). Since a ≥ 0 and b > 0: t ≥ 0.
-    //    From a² ≥ b²d: t² = a²·recip(b²) ≥ b²d·recip(b²) = d. So t² ≥ d.
-    //
-    // 2. Similarly, let u = c·recip(e). Since c ≥ 0, e > 0: u ≥ 0.
-    //    From e²d ≥ c²: u² = c²·recip(e²) ≤ e²d·recip(e²) = d. So u² ≤ d.
-    //
-    // 3. From t² ≥ d ≥ u² and t, u ≥ 0: t ≥ u (by square_le_implies_le).
-    //
-    // 4. a = t·b, c = u·e. So:
-    //    a-c = tb-ue.
-    //    From t ≥ u and b ≥ e (wait, b = -q > 0, e = s > 0, b > e since q+s < 0 means -q > s):
-    //    tb ≥ ue: need t ≥ u and b ≥ e, both ≥ 0.
-    //    By le_mul_nonneg_both(u, e, t, b): ue ≤ tb. So a-c ≥ 0. Already known (δ ≥ 0).
-    //
-    //    Now: tb-ue = t(b-e) + e(t-u).
-    //    (tb-ue)² = t²(b-e)² + 2te(b-e)(t-u) + e²(t-u)²
-    //
-    //    (b-e)²d ≤ (b-e)²t² (since d ≤ t²). [le_mul_nonneg_both or le_mul_nonpos_flip]
-    //    So (b-e)²d ≤ t²(b-e)² ≤ (tb-ue)² since 2te(b-e)(t-u) ≥ 0 and e²(t-u)² ≥ 0.
-    //
-    //    Thus (b-e)²d ≤ (a-c)² = (tb-ue)².  ✓
-    //
-    // That's the proof! The key step is:
-    //   d ≤ t² → (b-e)²d ≤ (b-e)²t² ≤ (tb-ue)² = (a-c)²
-    //
-    // And (tb-ue)² = t²(b-e)² + 2te(b-e)(t-u) + e²(t-u)²
-    //              ≥ t²(b-e)² since the other terms are ≥ 0
-    //   [because t ≥ 0, e ≥ 0, b-e ≥ 0, t-u ≥ 0, so products are ≥ 0]
-    //
-    // So the proof WITHOUT square roots is:
-    //
-    // Step 1: t = p/(-q) ≥ 0, t² ≥ d (from p² ≥ q²d, dividing by q² > 0).
-    // Step 2: u = (-r)/s ≥ 0, u² ≤ d (from r² ≤ s²d, dividing by s² > 0).
-    // Step 3: t ≥ u (from t², u² ≥ 0 and t² ≥ d ≥ u², by square_le_implies_le).
-    // Step 4: (p+r)² = (t·(-q)-u·s)² + ... hmm wait, a=p, b=-q, c=-r, e=s.
-    //    a-c = p-(-r) = p+r = δ. a = tb = t·(-q). c = ue = u·s. But c = -r, so u·s = -r → u = -r/s.
-    //    δ = a-c = t(-q) - us.
-    //    β = b-e = (-q)-s = -(q+s) > 0.
-    //
-    //    δ² = (t(-q)-us)² = t²q² - 2t(-q)us + u²s² (since (-q)² = q²)
-    //       Wait, δ = t·(-q) - u·s. So δ² = [t·(-q)]² - 2·t·(-q)·u·s + (u·s)²
-    //       = t²·q² - 2tuqs + u²s². Hmm but q is negative so -q is positive.
-    //       Actually (t·b - u·e)² where b=-q, e=s:
-    //       = t²b² - 2tube + u²e².
-    //       = t²(-q)² - 2t(-q)(u)(s) + u²s²
-    //       = t²q² + 2tuqs + u²s²... wait: -2t(-q)us = -2t·(-q)·us = 2tqus since -(-q) = q. Hmm.
-    //       Let me be careful: t·b = t·(-q). u·e = u·s.
-    //       (t·b - u·e)² = (tb)² - 2(tb)(ue) + (ue)² = t²b² - 2tube + u²e².
-    //       b = -q, e = s.
-    //       = t²·(-q)² - 2·t·(-q)·u·s + u²·s²
-    //       = t²·q² - 2·t·(-q)·u·s + u²·s²
-    //
-    //       Now (-q) = b > 0, so t·(-q) > 0 (since t ≥ 0). And u·s ≥ 0.
-    //       So -2·t·(-q)·u·s = -2·(t·b)·(u·e) ≤ 0.
-    //
-    //       OK in the ring: (tb - ue)·(tb - ue) = (tb)² - 2(tb)(ue) + (ue)².
-    //       = t²b² - (1+1)·t·b·u·e + u²e²
-    //       [using square_expand with a=tb, b=-ue: (tb-ue)² = (tb)²+(1+1)(tb)(-ue)+(-ue)² = (tb)²-(1+1)(tb)(ue)+(ue)²]
-    //
-    //       Actually wait, square_expand says (a+b)² = a²+2ab+b², with a=tb, b=-(ue):
-    //       (tb + (-(ue)))² = (tb)² + 2·(tb)·(-(ue)) + (-(ue))² = (tb)² - 2·tb·ue + (ue)².
-    //       And (tb + (-(ue))) = tb - ue = δ. So δ² = (tb)² - 2·tb·ue + (ue)².
-    //
-    //       = t²b² - (1+1)·(tb)(ue) + u²e²
-    //
-    //       Now: β²d = (b-e)²d. And we want δ² ≥ β²d.
-    //
-    //       β²d = (b²-2be+e²)d = b²d - 2bed + e²d.
-    //
-    //       δ² - β²d = t²b² - 2tube + u²e² - b²d + 2bed - e²d
-    //         = b²(t²-d) + e²(u²-d) + 2be(d-tu)
-    //
-    //       t² ≥ d, so t²-d ≥ 0. ✓
-    //       u² ≤ d, so u²-d ≤ 0. ✗
-    //       d-tu: hmm.
-    //
-    //       OK so this factoring isn't clean either. But the CONCEPTUAL proof works:
-    //       δ² = (tb-ue)² = t²(b-e)² + 2te(b-e)(t-u) + e²(t-u)²   [expand differently]
-    //
-    //       Wait, let me expand (tb-ue)² differently:
-    //       tb - ue = t(b-e) + e(t-u)   [add and subtract te]
-    //       So (tb-ue)² = [t(b-e) + e(t-u)]² = t²(b-e)² + 2te(b-e)(t-u) + e²(t-u)²
-    //
-    //       Now: β²d = (b-e)²d ≤ (b-e)²t² = t²(b-e)²  [since d ≤ t²]
-    //       And: t²(b-e)² ≤ t²(b-e)² + 2te(b-e)(t-u) + e²(t-u)² = δ²
-    //         [since t≥0, e≥0, b-e≥0, t-u≥0 → all additional terms ≥ 0]
-    //
-    //       Chain: β²d ≤ t²(b-e)² ≤ δ²  ✓
-    //
-    //       This is the CLEAN proof!
-    //
-    // Translating back to (p, q, r, s, d):
-    //   b = -q = q.neg(), e = s, a = p, c = -r = r.neg().
-    //   t = p/(-q) = p·recip(q.neg()) = p·(q.neg().recip())  [since q.neg() > 0]
-    //   u = (-r)/s = r.neg()·recip(s) = r.neg()·s.recip()  [since s > 0]
-    //
-    // The proof steps in the ordered field:
-    //   1. t ≥ 0: p ≥ 0 and q.neg() > 0 → t = p/q.neg() ≥ 0 [nonneg_div_pos]
-    //   2. t² ≥ d: from p² ≥ q²d, divide by q² > 0 → t² = p²/q² ≥ q²d/q² = d [le_div_monotone]
-    //   3. u ≥ 0: r.neg() ≥ 0 and s > 0 → u = r.neg()/s ≥ 0 [nonneg_div_pos]
-    //   4. u² ≤ d: from r² ≤ s²d, divide by s² > 0 → u² = r²/s² ≤ s²d/s² = d [le_div_monotone]
-    //   5. t ≥ u: from t² ≥ d ≥ u² and t, u ≥ 0 [square_le_implies_le]
-    //   6. b-e = q.neg()-s > 0 and b-e ≥ 0 [given q+s < 0 → -q > s → -q-s > 0]
-    //   7. t-u ≥ 0 [from step 5]
-    //   8. δ = tb-ue, i.e., p+r = p·(q.neg())·recip(q.neg()) - ... hmm, this requires showing
-    //      a = tb and c = ue, which requires a·recip(b)·b = a, i.e., field cancellation.
-    //   9. (b-e)²d ≤ (b-e)²t² [from d ≤ t², multiply by (b-e)² ≥ 0]
-    //  10. t²(b-e)² ≤ (tb-ue)² [from expanding (tb-ue)² = t²(b-e)²+2te(b-e)(t-u)+e²(t-u)², all addends ≥ 0]
-    //  11. (tb-ue)² = (a-c)² = δ² [from a=tb, c=ue]
-    //  12. Chain: β²d ≤ t²β² ≤ δ² ✓
-    //
-    // This is a lot of algebra but each step is individually provable in the ordered field.
-    // The key lemmas needed are:
-    //   - nonneg_div_pos (already have)
-    //   - le_div_monotone (already have)
-    //   - square_le_implies_le (already have)
-    //   - mul_cancel for field (a·recip(b)·b = a) (already have: field_lemmas has these)
-    //   - square_expand (already have)
-    //   - le_mul_nonneg_monotone for (b-e)² ≥ 0 times d ≤ t²
-    //   - nonneg_add for showing (tb-ue)² ≥ t²(b-e)²
-    //
-    // I think this is doable! Let me write it as several helper lemmas:
-    //   A. lemma_div_preserves_square_ineq: show t² ≥ d from p² ≥ q²d (division)
-    //   B. lemma_sum_decomposition: show (tb-ue)² = t²(b-e)² + 2te(b-e)(t-u) + e²(t-u)²
-    //   C. lemma_sum_geq: show (tb-ue)² ≥ t²(b-e)² using B + nonneg terms
-    //   D. Main: chain β²d ≤ t²β² ≤ δ²
-    //
-    // Actually, the expansion of (tb-ue)² uses:
-    //   tb-ue = t(b-e) + e(t-u)
-    //   [= tb-te+te-ue = t(b-e)+e(t-u)]
-    //   Then square_expand on these two terms.
-    //
-    // And t²(b-e)² ≤ (tb-ue)² follows from:
-    //   (tb-ue)² = [t(b-e)]² + 2·t(b-e)·e(t-u) + [e(t-u)]²
-    //   Each of 2·t(b-e)·e(t-u) and [e(t-u)]² is ≥ 0, so
-    //   (tb-ue)² ≥ [t(b-e)]² = t²(b-e)².
-    //
-    // OK but even without the decomposition, there's a simpler proof:
-    //
-    // From t ≥ u ≥ 0 and b ≥ e ≥ 0 (where b > e):
-    //   tb ≥ ub (mult by b ≥ 0) and ub ≥ ue (mult by u ≥ 0).
-    //   So tb ≥ ue. Also tb-ue ≥ tb-ub = (t-u)b + ... hmm no.
-    //
-    //   tb ≥ ue → tb-ue ≥ 0. ✓
-    //
-    //   Also: tb-ue ≥ t(b-e) iff tb-ue ≥ tb-te iff -ue ≥ -te iff te ≥ ue iff t ≥ u. ✓
-    //   [Since e ≥ 0 and t ≥ u: t·e ≥ u·e, so -(ue) ≥ -(te), so tb-ue ≥ tb-te = t(b-e)]
-    //
-    //   So tb-ue ≥ t(b-e) ≥ 0 (since t ≥ 0, b-e > 0).
-    //
-    //   From tb-ue ≥ t(b-e) ≥ 0: square_le_square gives t²(b-e)² ≤ (tb-ue)². ✓
-    //
-    //   And from d ≤ t²: (b-e)²·d ≤ (b-e)²·t² [le_mul_nonneg_monotone with (b-e)² ≥ 0]. ✓
-    //
-    //   Chain: (b-e)²d ≤ t²(b-e)² ≤ (tb-ue)² = δ². ✓
-    //
-    // PERFECT! This is clean and each step is a single lemma call. Let me implement this.
-    //
-    // But wait, I need to also handle the conversion between (p,q,r,s) and (a,b,c,e,t,u) and
-    // show that (tb-ue)² = δ² = (p+r)² and (b-e)² = β² = (-(q+s))² = (q+s)².
-    //
-    // a = p, b = -q, c = -r, e = s, t = p/(-q), u = (-r)/s.
-    // tb = p/(-q)·(-q) = p (by field cancellation). ✓
-    // ue = (-r)/s·s = -r (by field cancellation). ✓
-    // tb-ue = p-(-r) = p+r = δ. ✓
-    // b-e = -q-s = -(q+s) = β. ✓
-    //
-    // And δ² = (p+r)², β² = (q+s)² [since (-x)² = x²].
-    //
-    // So the proof is:
-    //   0. Setup: q.neg() > 0 (from q < 0), s > 0.
-    //   1. t = p.div(q.neg()). t ≥ 0 (nonneg_div_pos). t² ≥ d (le_div_monotone on p² ≥ q²d by q²).
-    //   2. u = r.neg().div(s). u ≥ 0 (nonneg_div_pos). u² ≤ d (le_div_monotone on r² ≤ s²d by s²).
-    //   3. t ≥ u (square_le_implies_le on u, t from u² ≤ d ≤ t²).
-    //   4. b = q.neg(), e = s. b-e > 0 (from q+s < 0 → -(q+s) > 0 → -q-s > 0 → b-e > 0). b-e ≥ 0.
-    //   5. tb = p (field: x/y·y = x). ue = -r (field: x/y·y = x). So tb-ue = p+r = δ.
-    //   6. t(b-e) = t·b-t·e. And tb-ue ≥ t(b-e) iff te ≥ ue iff t ≥ u ✓ (from step 3, mult by e ≥ 0).
-    //   7. 0 ≤ t(b-e) [t ≥ 0, b-e ≥ 0], and t(b-e) ≤ tb-ue (step 6).
-    //   8. square_le_square(t(b-e), tb-ue): t²(b-e)² ≤ (tb-ue)² = δ².
-    //   9. le_mul_nonneg_monotone(d, t², (b-e)²): d ≤ t², 0 ≤ (b-e)² → d·(b-e)² ≤ t²(b-e)².
-    //      Hmm, commute: (b-e)²·d ≤ (b-e)²·t². Actually axiom has a·c ≤ b·c, so:
-    //      d ≤ t² and 0 ≤ (b-e)² → d·(b-e)² ≤ t²·(b-e)² [le_mul_nonneg_monotone(d, t², (b-e)²)].
-    //   10. Chain: (b-e)²·d ≤ t²·(b-e)² ≤ (tb-ue)² = δ².
-    //       Congruence: (b-e)²d = β²d = (q+s)²d (since b-e = -(q+s) and neg²=id²).
-    //                   δ² = (p+r)².
-    //   11. So (q+s)²d ≤ (p+r)². ✓
-    //
-    // This is clean and feasible! Each step uses at most 1-2 lemma calls.
-    //
-    // The field division stuff requires showing t² = p²/q² and d = q²d/q², etc.
-    // That's the most algebraically tedious part. Let me think about how to do it...
-    //
-    // Actually, for step 1 (t² ≥ d from p² ≥ q²d):
-    //   t = p/(-q). t² = t·t = p·recip(-q)·p·recip(-q).
-    //   Need: t² ≡ p²/(-q)² ≡ p²/q².
-    //   From p² ≥ q²d: p²/q² ≥ q²d/q² = d.
-    //   le_div_monotone(q²d, p², q²) with 0 < q² → q²d/q² ≤ p²/q².
-    //   And q²d/q² = d by field cancellation (q²·d·recip(q²) = d).
-    //   And p²/q² = t² by... (p·recip(q))² = p²·recip(q²)?? Need mul_recip and similar.
-    //
-    // This is getting involved. Let me simplify: instead of using div, I can avoid it entirely.
-    //
-    // Alternative approach WITHOUT division:
-    //   Instead of defining t and u via division, use the INEQUALITIES directly.
-    //
-    //   From p² ≥ q²d: for any x ≥ 0, p²·x² ≥ q²d·x² (mult by x² ≥ 0).
-    //   From r² ≤ s²d: for any x ≥ 0, r²·x² ≤ s²d·x² (mult by x² ≥ 0).
-    //
-    //   Hmm, not directly useful.
-    //
-    //   Actually, the proof I outlined DOES work without division! Let me re-examine:
-    //
-    //   The key steps are:
-    //   6. tb - ue ≥ t(b-e): this follows from t ≥ u and e ≥ 0.
-    //      Specifically: tb-ue ≥ tb-te = t(b-e) iff ue ≤ te iff u ≤ t (mult both by e ≥ 0).
-    //
-    //   8. square_le_square(t(b-e), tb-ue): t²(b-e)² ≤ (tb-ue)².
-    //      But: (tb-ue)² = δ² = (p+r)² (from step 5: tb=p, ue=-r, tb-ue=p+r).
-    //      And: t²(b-e)² = t²·β² (where β = b-e = -(q+s)).
-    //      So: t²β² ≤ (p+r)².
-    //
-    //   9. β²d ≤ t²β²: from d ≤ t², mult by β² ≥ 0.
-    //
-    //   Chain: β²d ≤ t²β² ≤ (p+r)².
-    //   And β² = (q+s)² (since β = -(q+s) and squares are invariant under neg).
-    //   So: (q+s)²d ≤ (p+r)². ✓
-    //
-    //   The issue is that steps 5 and 8 require t and u to be defined via division,
-    //   which means we DO need the field structure.
-    //
-    // OK I think the division approach is necessary but manageable. Let me start implementing.
-    // I'll break it into helper lemmas to keep rlimit manageable.
-    //
-    // HELPER 1: lemma_div_sq_ge_d(p, q, d) — from 0≤p, 0<q, q²d≤p²: proves p²/q² ≥ d
-    //   (i.e., p.div(q).mul(p.div(q)) ≥ d, where div = mul by recip)
-    //
-    // HELPER 2: lemma_div_sq_le_d(r, s, d) — from 0≤r, 0<s, r²≤s²d: proves r²/s² ≤ d
-    //   (i.e., r.div(s).mul(r.div(s)) ≤ d)
-    //
-    // HELPER 3: lemma_weighted_sub_bound — the main inequality
-    //   From t ≥ u ≥ 0, b > e ≥ 0, t² ≥ d:
-    //   (b-e)²d ≤ (tb-ue)²
-    //
-    // Then subB combines: define t = p/(-q), u = (-r)/s, apply helpers to get (q+s)²d ≤ (p+r)².
-    //
-    // The helpers for division are really about showing p/q·p/q ≡ p²/q² and then using
-    // le_div_monotone.
-    //
-    // Actually wait: `le_div_monotone(a, b, c)` says `a ≤ b and 0 < c → a/c ≤ b/c`.
-    // So from q²d ≤ p²: q²d/(q²) ≤ p²/(q²). And q²d/q² ≡ d (cancellation), p²/q² = (p/q)².
-    // So d ≤ (p/q)² = t².
-    //
-    // The cancellation `q²d/q² ≡ d` needs: q²d·recip(q²) ≡ d. This is:
-    //   q².mul(d).div(q²) = q².mul(d).mul(recip(q²)).
-    //   By assoc/commut: d.mul(q².mul(recip(q²))) = d.mul(1) = d.
-    //   Where q²·recip(q²) = 1 by axiom_mul_recip (since q² ≢ 0 when q ≢ 0).
-    //
-    // And p²/q² = (p/q)²: p².div(q²) = p².mul(recip(q²)).
-    //   (p/q)² = p.div(q).mul(p.div(q)) = p.mul(recip(q)).mul(p.mul(recip(q))).
-    //   = (p·p)·(recip(q)·recip(q)) [by assoc/commut]
-    //   = p²·recip(q)²
-    //   And recip(q)² = recip(q²) by lemma_recip_mul.
-    //   So (p/q)² = p²·recip(q²) = p²/q² ✓.
-    //
-    // And tb = (p/(-q))·(-q) = p by mul_div_cancel (a·recip(b)·b = a for b ≢ 0).
-    // Actually: t·b = p·recip((-q))·(-q). And (-q)·recip(-q) = 1.
-    // So t·b = p·1 = p by assoc/commut.
-    //
-    // OK this is all doable but tedious. Let me just write it and not worry about being perfect.
 
-    // I am going to implement it now in a straightforward manner.
-    //
-    // The proof uses OrderedField because we need recip/div.
-    // F: OrderedField is already our bound.
-
-    // STEP 0: Setup
-    // b = q.neg() > 0, e = s > 0
+    // STEP 0: Setup — b = -q > 0, e = s > 0
     let b = q.neg();
     let e = s;
 
@@ -3390,6 +2686,7 @@ proof fn lemma_nonneg_add_c2_c3_subB<F: OrderedField, R: PositiveRadicand<F>>(
 
     // b ≢ 0 (from 0 < b)
     F::axiom_lt_iff_le_and_not_eqv(F::zero(), b);
+    if b.eqv(F::zero()) { F::axiom_eqv_symmetric(b, F::zero()); }
 
     // STEP 1: t = p / b, show t ≥ 0 and t² ≥ d
     let t = p.div(b);
@@ -3405,59 +2702,355 @@ proof fn lemma_nonneg_add_c2_c3_subB<F: OrderedField, R: PositiveRadicand<F>>(
     // p² ≥ q²d, i.e., q²d ≤ p²
     // q² = b² (since q.neg() = b, and (-q)² = q²)
     ring_lemmas::lemma_neg_mul_neg::<F>(q, q);
-    // b² ≡ q²
-    // So b²d ≤ p²
+    // b² ≡ q². Need symmetric for le_congruence_left.
+    F::axiom_eqv_symmetric(b.mul(b), q.mul(q));
+    // q² ≡ b²
     F::axiom_eqv_reflexive(d);
-    ring_lemmas::lemma_mul_congruence::<F>(b.mul(b), q.mul(q), d, d);
-    // b²d ≡ q²d
+    ring_lemmas::lemma_mul_congruence::<F>(q.mul(q), b.mul(b), d, d);
+    // q²d ≡ b²d
     ordered_ring_lemmas::lemma_le_congruence_left::<F>(
         q.mul(q).mul(d), b.mul(b).mul(d), p.mul(p)
     );
     // b²d ≤ p²
 
-    // Divide by b²: b²d/b² ≤ p²/b²
-    ordered_field_lemmas::lemma_le_div_monotone::<F>(b.mul(b).mul(d), p.mul(p), b.mul(b));
-
-    // b²d/b² ≡ d: (b²·d)/b² = d by field cancellation
-    // b²d = b²·d. (b²·d)/b² = (b²·d)·recip(b²).
-    // = d·(b²·recip(b²)) [by assoc/commut] = d·1 = d.
-    F::axiom_mul_commutative(b.mul(b), d);
-    // d·b² = b²·d, so d·b²/b² is what we compute
-    // d·(b²·recip(b²)): b²·recip(b²) ≡ 1 since b² ≢ 0
-    // Actually b²d/b² means b.mul(b).mul(d).div(b.mul(b)) = b.mul(b).mul(d).mul(b.mul(b).recip())
-    // By commutativity: ≡ d.mul(b.mul(b).mul(b.mul(b).recip())) ≡ d.mul(one) ≡ d
+    // Swap to d·b² form, then divide
     let b2 = b.mul(b);
-    // b2 ≢ 0 (from 0 < b²)
-    F::axiom_lt_iff_le_and_not_eqv(F::zero(), b2);
-    F::axiom_eqv_symmetric(F::zero(), b2);
-    // If 0.eqv(b2) then... we need !b2.eqv(0). We have 0 < b2, which means 0.le(b2) && !0.eqv(b2).
-    // But !0.eqv(b2) is NOT the same as !b2.eqv(0).
-    // However, if b2.eqv(0) then by symmetric 0.eqv(b2), contradiction. So !b2.eqv(0).
-    // Verus might not see this. Let me be explicit:
-    if b2.eqv(F::zero()) {
-        F::axiom_eqv_symmetric(b2, F::zero());
-    }
-    // Now !b2.eqv(F::zero()) is known.
-
-    F::axiom_mul_recip(b2); // b2 · recip(b2) ≡ 1
-    // b2·d / b2 = b2·d · recip(b2) ≡ d · (b2 · recip(b2)) ≡ d · 1 ≡ d
-    F::axiom_mul_associative(b2, d, b2.recip());
-    F::axiom_eqv_symmetric(b2.mul(d.mul(b2.recip())), b2.mul(d).mul(b2.recip()));
-    F::axiom_mul_commutative(d, b2.recip());
-    additive_group_lemmas::lemma_add_congruence_right::<F>(
-        b2, d.mul(b2.recip()), b2.recip().mul(d)
+    F::axiom_mul_commutative(b2, d);
+    // b²·d ≡ d·b²
+    ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+        b2.mul(d), d.mul(b2), p.mul(p)
     );
-    // Hmm, this is getting really tedious with the ring rearrangements.
-    // Let me use a different approach: show b2d/b2 ≡ d by using lemma_mul_div_cancel or similar.
-    //
-    // Actually, the cleanest: b2d = d·b2 (commutative). d·b2 / b2 = d·(b2/b2) = d·1 = d.
-    // (d·b2)·recip(b2) ≡ d·(b2·recip(b2)) [assoc] ≡ d·1 [mul_recip] ≡ d [mul_one].
-    //
-    // Let me just use field_lemmas::lemma_mul_div_cancel or similar.
-    // Actually there might be a `lemma_div_cancel` or `lemma_mul_recip_cancel` in field_lemmas.
+    // d·b² ≤ p²
 
-    // I'll look up what's available for field cancellation.
-    assume(false);
+    // Divide by b²: d·b²/b² ≤ p²/b²
+    ordered_field_lemmas::lemma_le_div_monotone::<F>(d.mul(b2), p.mul(p), b2);
+
+    // d·b²/b² ≡ d by lemma_mul_div_cancel(d, b2)
+    F::axiom_lt_iff_le_and_not_eqv(F::zero(), b2);
+    if b2.eqv(F::zero()) { F::axiom_eqv_symmetric(b2, F::zero()); }
+    field_lemmas::lemma_mul_div_cancel::<F>(d, b2);
+
+    // d ≤ p²/b²
+    ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+        d.mul(b2).div(b2), d, p.mul(p).div(b2)
+    );
+    // d ≤ p²/b²
+
+    // p²/b² ≡ t²: use lemma_div_mul_div(p, b, p, b) → (p/b)·(p/b) ≡ (p·p)/(b·b)
+    field_lemmas::lemma_div_mul_div::<F>(p, b, p, b);
+    // t·t ≡ p²/b², i.e., t² ≡ p²/b²
+    F::axiom_eqv_symmetric(t.mul(t), p.mul(p).div(b2));
+    // p²/b² ≡ t²
+
+    // d ≤ t²
+    ordered_ring_lemmas::lemma_le_congruence_right::<F>(d, p.mul(p).div(b2), t.mul(t));
+
+    // STEP 2: u = r.neg() / e, show u ≥ 0 and u² ≤ d
+    let c = r.neg();  // c = -r > 0 (since r < 0)
+    ordered_ring_lemmas::lemma_lt_neg_flip::<F>(r, F::zero());
+    additive_group_lemmas::lemma_neg_zero::<F>();
+    F::axiom_eqv_symmetric(F::zero().neg(), F::zero());
+    F::axiom_eqv_reflexive(c);
+    ordered_ring_lemmas::lemma_lt_congruence_both::<F>(F::zero().neg(), F::zero(), c, c);
+    // 0 < c
+
+    let u = c.div(e);  // u = (-r)/s
+
+    // e ≢ 0 (from 0 < e = s)
+    F::axiom_lt_iff_le_and_not_eqv(F::zero(), e);
+    if e.eqv(F::zero()) { F::axiom_eqv_symmetric(e, F::zero()); }
+
+    // u ≥ 0
+    F::axiom_lt_iff_le_and_not_eqv(F::zero(), c);
+    ordered_field_lemmas::lemma_nonneg_div_pos::<F>(c, e);
+    // 0 ≤ u
+
+    // u² ≤ d: from r² ≤ s²d, i.e., c² ≤ e²d (since (-r)² = r², s = e)
+    let e2 = e.mul(e);
+    ring_lemmas::lemma_neg_mul_neg::<F>(r, r);
+    // c² ≡ r². Need symmetric:
+    F::axiom_eqv_symmetric(c.mul(c), r.mul(r));
+    // r² ≡ c², so r² ≤ s²d → c² ≤ s²d = e²d
+    ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+        r.mul(r), c.mul(c), s.mul(s).mul(d)
+    );
+    // c² ≤ e²d
+
+    // Swap to d·e² form, then divide
+    F::axiom_mul_commutative(e2, d);
+    ordered_ring_lemmas::lemma_le_congruence_right::<F>(
+        c.mul(c), e2.mul(d), d.mul(e2)
+    );
+    // c² ≤ d·e²
+
+    // Divide by e²
+    lemma_square_pos::<F>(e); // 0 < e²
+    ordered_field_lemmas::lemma_le_div_monotone::<F>(c.mul(c), d.mul(e2), e2);
+    // c²/e² ≤ d·e²/e²
+
+    // c²/e² ≡ u²
+    field_lemmas::lemma_div_mul_div::<F>(c, e, c, e);
+    F::axiom_eqv_symmetric(u.mul(u), c.mul(c).div(e2));
+
+    // d·e²/e² ≡ d
+    F::axiom_lt_iff_le_and_not_eqv(F::zero(), e2);
+    if e2.eqv(F::zero()) { F::axiom_eqv_symmetric(e2, F::zero()); }
+    field_lemmas::lemma_mul_div_cancel::<F>(d, e2);
+
+    // u² ≤ d
+    ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+        c.mul(c).div(e2), u.mul(u), d.mul(e2).div(e2)
+    );
+    ordered_ring_lemmas::lemma_le_congruence_right::<F>(
+        u.mul(u), d.mul(e2).div(e2), d
+    );
+    // u² ≤ d
+
+    // STEP 3: t ≥ u (from u² ≤ d ≤ t², both nonneg)
+    F::axiom_le_transitive(u.mul(u), d, t.mul(t));
+    // u² ≤ t²
+    inequalities::lemma_square_le_implies_le::<F>(u, t);
+    // u ≤ t
+
+    // STEP 4: b - e > 0 (from q + s < 0)
+    // -(q+s) = (-q)+(-s) = b + (-e). But we need b - e = b + (-e).
+    // -(q+s) > 0, and -(q+s) ≡ b + (-e) = b - e.
+    let beta = b.sub(e);  // β = b - e = -(q+s)
+    additive_group_lemmas::lemma_neg_add::<F>(q, s);
+    // -(q+s) ≡ (-q) + (-s) = b + (-e) = b - e = β
+    // But sub is defined as a + (-b), so b.sub(e) = b.add(e.neg()) = b.add(s.neg())
+    // We need: -(q+s) ≡ β
+    // -(q+s) ≡ q.neg() + s.neg() = b + s.neg()
+    // β = b.sub(e) = b.add(e.neg()) = b.add(s.neg())  [since e = s]
+    // So -(q+s) ≡ β definitionally? Not quite — we need eqv.
+    // sum_im.neg() ≡ q.neg().add(s.neg()) [by lemma_neg_add]
+    // = b.add(s.neg()) [since b = q.neg()]
+    // But β = b.sub(e) = b.add(e.neg()) = b.add(s.neg()) [since e = s]
+    // These are the same term! So sum_im.neg() ≡ β.
+    // 0 < -(q+s): from q+s < 0
+    ordered_ring_lemmas::lemma_lt_neg_flip::<F>(sum_im, F::zero());
+    additive_group_lemmas::lemma_neg_zero::<F>();
+    // F::zero().neg() < sum_im.neg(), i.e., after congruence 0 < -(q+s)
+    F::axiom_eqv_symmetric(F::zero().neg(), F::zero());
+    F::axiom_eqv_reflexive(sum_im.neg());
+    ordered_ring_lemmas::lemma_lt_congruence_both::<F>(
+        F::zero().neg(), F::zero(), sum_im.neg(), sum_im.neg()
+    );
+    // 0 < sum_im.neg()
+    // Now prove sum_im.neg() ≡ beta:
+    // sum_im.neg() = (q+s).neg() ≡ q.neg() + s.neg() [by neg_add] = b + s.neg()
+    // beta = b.sub(e) ≡ b.add(e.neg()) [by axiom_sub_is_add_neg] = b.add(s.neg()) [since e=s]
+    // Both ≡ b.add(s.neg()), so chain through that.
+    F::axiom_sub_is_add_neg(b, e);
+    // beta ≡ b.add(e.neg()) = b.add(s.neg()) — same term since e = s
+    F::axiom_eqv_symmetric(beta, b.add(s.neg()));
+    // b.add(s.neg()) ≡ beta
+    // sum_im.neg() ≡ q.neg().add(s.neg()) = b.add(s.neg()) [same term since b = q.neg()]
+    // So sum_im.neg() ≡ b.add(s.neg()) ≡ beta
+    F::axiom_eqv_transitive(sum_im.neg(), b.add(s.neg()), beta);
+    // sum_im.neg() ≡ beta
+
+    F::axiom_eqv_reflexive(F::zero());
+    ordered_ring_lemmas::lemma_lt_congruence_both::<F>(
+        F::zero(), F::zero(), sum_im.neg(), beta
+    );
+    // 0 < beta
+
+    // β ≢ 0
+    F::axiom_lt_iff_le_and_not_eqv(F::zero(), beta);
+    if beta.eqv(F::zero()) { F::axiom_eqv_symmetric(beta, F::zero()); }
+
+    // STEP 5: t·b ≡ p, u·e ≡ c
+    field_lemmas::lemma_div_mul_cancel::<F>(p, b);
+    // (p/b)·b ≡ p, i.e., t·b ≡ p
+
+    field_lemmas::lemma_div_mul_cancel::<F>(c, e);
+    // (c/e)·e ≡ c, i.e., u·e ≡ c
+
+    // STEP 6: t·b - u·e ≡ p - c ≡ p + r
+    // p - c = p - (-r) = p + r (since c = -r, so -c = r by neg_involution)
+    // t·b ≡ p, u·e ≡ c, so t·b - u·e ≡ p - c
+    additive_group_lemmas::lemma_sub_congruence::<F>(t.mul(b), p, u.mul(e), c);
+    // tb - ue ≡ p - c
+
+    // p - c ≡ p + r: need axiom_sub_is_add_neg to bridge sub and add(neg)
+    F::axiom_sub_is_add_neg(p, c);
+    // p.sub(c) ≡ p.add(c.neg()) = p.add(r.neg().neg())
+    // r.neg().neg() ≡ r by neg_involution
+    additive_group_lemmas::lemma_neg_involution::<F>(r);
+    additive_group_lemmas::lemma_add_congruence_right::<F>(p, r.neg().neg(), r);
+    // p.add(r.neg().neg()) ≡ p.add(r) = sum_re
+    F::axiom_eqv_transitive(p.sub(c), p.add(c.neg()), sum_re);
+    // p.sub(c) ≡ sum_re
+    F::axiom_eqv_transitive(t.mul(b).sub(u.mul(e)), p.sub(c), sum_re);
+    // tb - ue ≡ sum_re
+
+    // STEP 7: 0 ≤ t·β and t·β ≤ tb - ue
+    // t·β = t·(b - e) = tb - te (by distributivity)
+    // From u ≤ t and 0 ≤ e: ue ≤ te (mul_nonneg_monotone)
+    // So tb - ue ≥ tb - te = t·β ≥ 0
+
+    // 0 ≤ β (from 0 < β)
+    F::axiom_lt_iff_le_and_not_eqv(F::zero(), beta);
+
+    // 0 ≤ t·β (t ≥ 0, β ≥ 0)
+    F::axiom_le_mul_nonneg_monotone(F::zero(), t, beta);
+    // 0·β ≤ t·β
+    ring_lemmas::lemma_mul_zero_left::<F>(beta);
+    ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+        F::zero().mul(beta), F::zero(), t.mul(beta)
+    );
+    // 0 ≤ t·β
+
+    // u·e ≤ t·e: from u ≤ t, 0 ≤ e
+    F::axiom_lt_iff_le_and_not_eqv(F::zero(), e);
+    F::axiom_le_mul_nonneg_monotone(u, t, e);
+    // u·e ≤ t·e
+
+    // tb - ue ≥ tb - te: le_neg_flip on ue ≤ te → -te ≤ -ue, then add tb
+    ordered_ring_lemmas::lemma_le_neg_flip::<F>(u.mul(e), t.mul(e));
+    // -(t·e) ≤ -(u·e)
+    F::axiom_le_add_monotone(t.mul(e).neg(), u.mul(e).neg(), t.mul(b));
+    // (-te)+tb ≤ (-ue)+tb. Convert to sub form:
+    // (-te)+tb ≡ tb+(-te) ≡ tb-te [comm + sub_is_add_neg]
+    F::axiom_add_commutative(t.mul(e).neg(), t.mul(b));
+    F::axiom_sub_is_add_neg(t.mul(b), t.mul(e));
+    F::axiom_eqv_symmetric(t.mul(b).sub(t.mul(e)), t.mul(b).add(t.mul(e).neg()));
+    F::axiom_eqv_transitive(
+        t.mul(e).neg().add(t.mul(b)), t.mul(b).add(t.mul(e).neg()), t.mul(b).sub(t.mul(e))
+    );
+    // (-ue)+tb ≡ tb+(-ue) ≡ tb-ue
+    F::axiom_add_commutative(u.mul(e).neg(), t.mul(b));
+    F::axiom_sub_is_add_neg(t.mul(b), u.mul(e));
+    F::axiom_eqv_symmetric(t.mul(b).sub(u.mul(e)), t.mul(b).add(u.mul(e).neg()));
+    F::axiom_eqv_transitive(
+        u.mul(e).neg().add(t.mul(b)), t.mul(b).add(u.mul(e).neg()), t.mul(b).sub(u.mul(e))
+    );
+    // Transfer le: tb-te ≤ tb-ue
+    ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+        t.mul(e).neg().add(t.mul(b)), t.mul(b).sub(t.mul(e)),
+        u.mul(e).neg().add(t.mul(b))
+    );
+    ordered_ring_lemmas::lemma_le_congruence_right::<F>(
+        t.mul(b).sub(t.mul(e)),
+        u.mul(e).neg().add(t.mul(b)),
+        t.mul(b).sub(u.mul(e))
+    );
+    // tb - te ≤ tb - ue
+
+    // t·β ≡ tb - te: via distributivity
+    // beta ≡ b.add(e.neg()) [axiom_sub_is_add_neg]
+    F::axiom_sub_is_add_neg(b, e);
+    ring_lemmas::lemma_mul_congruence_right::<F>(t, beta, b.add(e.neg()));
+    // t·β ≡ t·(b+(-e))
+    F::axiom_mul_distributes_left(t, b, e.neg());
+    // t·(b+(-e)) ≡ tb + t·(-e)
+    F::axiom_eqv_transitive(t.mul(beta), t.mul(b.add(e.neg())), t.mul(b).add(t.mul(e.neg())));
+    // t·β ≡ tb + t·(-e)
+    ring_lemmas::lemma_mul_neg_right::<F>(t, e);
+    additive_group_lemmas::lemma_add_congruence_right::<F>(
+        t.mul(b), t.mul(e.neg()), t.mul(e).neg()
+    );
+    // tb + t·(-e) ≡ tb + (-te)
+    F::axiom_eqv_transitive(t.mul(beta), t.mul(b).add(t.mul(e.neg())), t.mul(b).add(t.mul(e).neg()));
+    // t·β ≡ tb + (-te) ≡ tb - te
+    F::axiom_eqv_transitive(t.mul(beta), t.mul(b).add(t.mul(e).neg()), t.mul(b).sub(t.mul(e)));
+    // t·β ≡ tb - te
+    F::axiom_eqv_symmetric(t.mul(beta), t.mul(b).sub(t.mul(e)));
+    // tb - te ≡ t·β
+
+    // Chain: t·β ≤ tb - ue
+    ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+        t.mul(b).sub(t.mul(e)), t.mul(beta), t.mul(b).sub(u.mul(e))
+    );
+
+    // STEP 8: 0 ≤ t·β ≤ tb - ue, so (t·β)² ≤ (tb - ue)²
+    ordered_ring_lemmas::lemma_square_le_square::<F>(t.mul(beta), t.mul(b).sub(u.mul(e)));
+
+    // (tb-ue)² ≡ sum_re² (from step 6: tb-ue ≡ sum_re)
+    F::axiom_eqv_reflexive(t.mul(b).sub(u.mul(e)));
+    ring_lemmas::lemma_mul_congruence::<F>(
+        t.mul(b).sub(u.mul(e)), sum_re,
+        t.mul(b).sub(u.mul(e)), sum_re
+    );
+    // (tb-ue)² ≡ sum_re²
+
+    // (t·β)² ≡ t²·β² by lemma_square_mul
+    inequalities::lemma_square_mul::<F>(t, beta);
+    // (t·β)·(t·β) ≡ t²·β²
+
+    // STEP 9: d·β² ≤ t²·β² (from d ≤ t², β² ≥ 0)
+    ordered_ring_lemmas::lemma_square_nonneg::<F>(beta);
+    // 0 ≤ β²
+    F::axiom_le_mul_nonneg_monotone(d, t.mul(t), beta.mul(beta));
+    // d·β² ≤ t²·β²
+
+    // STEP 10: Chain d·β² ≤ t²·β² ≤ (t·β)² ≤ (tb-ue)² ≡ sum_re²
+    // t²·β² ≡ (t·β)² (symmetric of square_mul)
+    F::axiom_eqv_symmetric(t.mul(beta).mul(t.mul(beta)), t.mul(t).mul(beta.mul(beta)));
+    ordered_ring_lemmas::lemma_le_congruence_right::<F>(
+        d.mul(beta.mul(beta)), t.mul(t).mul(beta.mul(beta)), t.mul(beta).mul(t.mul(beta))
+    );
+    // d·β² ≤ (t·β)²
+
+    F::axiom_le_transitive(d.mul(beta.mul(beta)), t.mul(beta).mul(t.mul(beta)),
+        t.mul(b).sub(u.mul(e)).mul(t.mul(b).sub(u.mul(e))));
+    // d·β² ≤ (tb-ue)²
+
+    ordered_ring_lemmas::lemma_le_congruence_right::<F>(
+        d.mul(beta.mul(beta)),
+        t.mul(b).sub(u.mul(e)).mul(t.mul(b).sub(u.mul(e))),
+        sum_re.mul(sum_re)
+    );
+    // d·β² ≤ sum_re²
+
+    // STEP 11: β² ≡ (q+s)² (since β = -(q+s) and (-x)² = x²)
+    ring_lemmas::lemma_neg_mul_neg::<F>(sum_im, sum_im);
+    // sum_im.neg()·sum_im.neg() ≡ sum_im·sum_im, i.e., β² ≡ (q+s)²
+    // Wait: β = b.sub(e) = q.neg().sub(s) and sum_im.neg() = (q+s).neg()
+    // We showed earlier: sum_im.neg() ≡ β (from lemma_neg_add)
+    // So β·β ≡ sum_im.neg()·sum_im.neg() by congruence
+    F::axiom_eqv_reflexive(beta);
+    ring_lemmas::lemma_mul_congruence::<F>(
+        sum_im.neg(), beta, sum_im.neg(), beta
+    );
+    F::axiom_eqv_symmetric(sum_im.neg().mul(sum_im.neg()), beta.mul(beta));
+    // β² ≡ (-sum_im)²
+
+    // (-sum_im)² ≡ sum_im² by neg_mul_neg
+    // β² ≡ sum_im²
+    F::axiom_eqv_transitive(beta.mul(beta), sum_im.neg().mul(sum_im.neg()), sum_im.mul(sum_im));
+    F::axiom_eqv_symmetric(beta.mul(beta), sum_im.mul(sum_im));
+    // sum_im² ≡ β²
+
+    // d·β² ≤ sum_re². Need d·sum_im² ≤ sum_re².
+    // β² ≡ sum_im² (line 3019). Take symmetric for mul_congruence direction:
+    // Already have sum_im² ≡ β² (line 3020). So d·β².eqv(d·sum_im²):
+    F::axiom_eqv_reflexive(d);
+    // β² ≡ sum_im² from eqv_transitive above
+    F::axiom_eqv_symmetric(sum_im.mul(sum_im), beta.mul(beta));
+    // β² ≡ sum_im²
+    ring_lemmas::lemma_mul_congruence::<F>(d, d, beta.mul(beta), sum_im.mul(sum_im));
+    // d·β² ≡ d·sum_im²
+    ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+        d.mul(beta.mul(beta)), d.mul(sum_im.mul(sum_im)), sum_re.mul(sum_re)
+    );
+    // d·sum_im² ≤ sum_re²
+
+    // STEP 12: Conclude qe_nonneg for C2 case
+    // sum_re ≥ 0 (given), sum_im < 0 (given), sum_im²d ≤ sum_re² (just proved)
+    // Need: sum_im.mul(sum_im).mul(d).le(sum_re.mul(sum_re))
+    // We proved: d.mul(sum_im.mul(sum_im)).le(sum_re.mul(sum_re))
+    // These differ by commutativity of d and sum_im²
+    F::axiom_mul_commutative(sum_im.mul(sum_im), d);
+    // sum_im²·d ≡ d·sum_im²
+    F::axiom_eqv_symmetric(sum_im.mul(sum_im).mul(d), d.mul(sum_im.mul(sum_im)));
+    // d·sum_im² ≡ sum_im²·d
+    ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+        d.mul(sum_im.mul(sum_im)), sum_im.mul(sum_im).mul(d), sum_re.mul(sum_re)
+    );
+    // sum_im²·d ≤ sum_re² ✓
+    // qe_nonneg C2 case: 0 ≤ sum_re, sum_im < 0, sum_im²·d ≤ sum_re²
 }
 
 /// Sub-case C of C2+C3: p+r < 0, q+s > 0, need (p+r)² ≤ (q+s)²d
@@ -3472,8 +3065,394 @@ proof fn lemma_nonneg_add_c2_c3_subC<F: OrderedField, R: PositiveRadicand<F>>(
     ensures
         qe_nonneg::<F, R>(qext::<F, R>(p.add(r), q.add(s))),
 {
-    // Same strategy as subB but for C3 conclusion
-    assume(false);
+    let d = R::value();
+    let sum_re = p.add(r);
+    let sum_im = q.add(s);
+
+    // STEP 0: Setup — b = -q > 0, e = s > 0, e > b (since q+s > 0)
+    let b = q.neg();
+    let e = s;
+
+    // 0 < b (from q < 0)
+    ordered_ring_lemmas::lemma_lt_neg_flip::<F>(q, F::zero());
+    additive_group_lemmas::lemma_neg_zero::<F>();
+    F::axiom_eqv_symmetric(F::zero().neg(), F::zero());
+    F::axiom_eqv_reflexive(b);
+    ordered_ring_lemmas::lemma_lt_congruence_both::<F>(
+        F::zero().neg(), F::zero(), b, b
+    );
+    // 0 < b
+
+    // b ≢ 0
+    F::axiom_lt_iff_le_and_not_eqv(F::zero(), b);
+    if b.eqv(F::zero()) { F::axiom_eqv_symmetric(b, F::zero()); }
+
+    // STEP 1: c = -r > 0, u = c/e, show u ≥ 0 and u² ≤ d
+    let c = r.neg();
+    ordered_ring_lemmas::lemma_lt_neg_flip::<F>(r, F::zero());
+    F::axiom_eqv_symmetric(F::zero().neg(), F::zero());
+    F::axiom_eqv_reflexive(c);
+    ordered_ring_lemmas::lemma_lt_congruence_both::<F>(F::zero().neg(), F::zero(), c, c);
+    // 0 < c
+
+    // e ≢ 0
+    F::axiom_lt_iff_le_and_not_eqv(F::zero(), e);
+    if e.eqv(F::zero()) { F::axiom_eqv_symmetric(e, F::zero()); }
+
+    let u = c.div(e);
+
+    // u ≥ 0
+    F::axiom_lt_iff_le_and_not_eqv(F::zero(), c);
+    ordered_field_lemmas::lemma_nonneg_div_pos::<F>(c, e);
+
+    // u² ≤ d: from r² ≤ s²d, c² = r² (neg_mul_neg), e² = s²
+    let e2 = e.mul(e);
+    ring_lemmas::lemma_neg_mul_neg::<F>(r, r);
+    // c² ≡ r². Need r² ≡ c² for le_congruence_left:
+    F::axiom_eqv_symmetric(c.mul(c), r.mul(r));
+    // r² ≡ c²
+    ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+        r.mul(r), c.mul(c), s.mul(s).mul(d)
+    );
+    // c² ≤ e²d
+
+    // Swap to d·e² form, then divide
+    F::axiom_mul_commutative(e2, d);
+    ordered_ring_lemmas::lemma_le_congruence_right::<F>(
+        c.mul(c), e2.mul(d), d.mul(e2)
+    );
+    // c² ≤ d·e²
+
+    lemma_square_pos::<F>(e);
+    ordered_field_lemmas::lemma_le_div_monotone::<F>(c.mul(c), d.mul(e2), e2);
+
+    // c²/e² ≡ u²
+    field_lemmas::lemma_div_mul_div::<F>(c, e, c, e);
+    F::axiom_eqv_symmetric(u.mul(u), c.mul(c).div(e2));
+
+    // d·e²/e² ≡ d
+    F::axiom_lt_iff_le_and_not_eqv(F::zero(), e2);
+    if e2.eqv(F::zero()) { F::axiom_eqv_symmetric(e2, F::zero()); }
+    field_lemmas::lemma_mul_div_cancel::<F>(d, e2);
+
+    // u² ≤ d
+    ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+        c.mul(c).div(e2), u.mul(u), d.mul(e2).div(e2)
+    );
+    ordered_ring_lemmas::lemma_le_congruence_right::<F>(
+        u.mul(u), d.mul(e2).div(e2), d
+    );
+
+    // STEP 2: t = p/b, show t ≥ 0 and d ≤ t²
+    let t = p.div(b);
+    ordered_field_lemmas::lemma_nonneg_div_pos::<F>(p, b);
+
+    let b2 = b.mul(b);
+    lemma_square_pos::<F>(b);
+    ring_lemmas::lemma_neg_mul_neg::<F>(q, q);
+    // b² ≡ q². Need q² ≡ b² for le_congruence_left(q²d, b²d, p²):
+    F::axiom_eqv_symmetric(b.mul(b), q.mul(q));
+    F::axiom_eqv_reflexive(d);
+    ring_lemmas::lemma_mul_congruence::<F>(q.mul(q), b.mul(b), d, d);
+    ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+        q.mul(q).mul(d), b.mul(b).mul(d), p.mul(p)
+    );
+    // b²d ≤ p². Swap to d·b² form, then divide:
+    F::axiom_mul_commutative(b2, d);
+    ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+        b2.mul(d), d.mul(b2), p.mul(p)
+    );
+    // d·b² ≤ p²
+    ordered_field_lemmas::lemma_le_div_monotone::<F>(d.mul(b2), p.mul(p), b2);
+
+    F::axiom_lt_iff_le_and_not_eqv(F::zero(), b2);
+    if b2.eqv(F::zero()) { F::axiom_eqv_symmetric(b2, F::zero()); }
+    field_lemmas::lemma_mul_div_cancel::<F>(d, b2);
+    ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+        d.mul(b2).div(b2), d, p.mul(p).div(b2)
+    );
+    field_lemmas::lemma_div_mul_div::<F>(p, b, p, b);
+    F::axiom_eqv_symmetric(t.mul(t), p.mul(p).div(b2));
+    ordered_ring_lemmas::lemma_le_congruence_right::<F>(d, p.mul(p).div(b2), t.mul(t));
+    // d ≤ t²
+
+    // STEP 3: t ≥ u
+    F::axiom_le_transitive(u.mul(u), d, t.mul(t));
+    inequalities::lemma_square_le_implies_le::<F>(u, t);
+
+    // STEP 4: γ = e - b > 0 (from q+s > 0, γ = s - (-q) = s + q = q+s = sum_im)
+    let gamma = e.sub(b);  // γ = e - b
+
+    // γ = e.sub(b). Bridge sub to add(neg):
+    F::axiom_sub_is_add_neg(e, b);
+    // gamma ≡ e.add(b.neg()) = s.add(q.neg().neg()) [since e=s, b=q.neg()]
+    // q.neg().neg() ≡ q by neg_involution
+    additive_group_lemmas::lemma_neg_involution::<F>(q);
+    additive_group_lemmas::lemma_add_congruence_right::<F>(s, q.neg().neg(), q);
+    // s.add(q.neg().neg()) ≡ s.add(q)
+    // Chain: gamma ≡ s.add(b.neg()) = s.add(q.neg().neg()) ≡ s.add(q)
+    F::axiom_eqv_transitive(gamma, s.add(b.neg()), s.add(q));
+    F::axiom_add_commutative(s, q);
+    F::axiom_eqv_transitive(gamma, s.add(q), sum_im);
+    // γ ≡ sum_im
+
+    // 0 < γ (from 0 < sum_im and γ ≡ sum_im)
+    F::axiom_eqv_symmetric(gamma, sum_im);
+    F::axiom_eqv_reflexive(F::zero());
+    ordered_ring_lemmas::lemma_lt_congruence_both::<F>(
+        F::zero(), F::zero(), sum_im, gamma
+    );
+    // 0 < γ
+    F::axiom_lt_iff_le_and_not_eqv(F::zero(), gamma);
+
+    // STEP 5: tb ≡ p, ue ≡ c
+    field_lemmas::lemma_div_mul_cancel::<F>(p, b);
+    field_lemmas::lemma_div_mul_cancel::<F>(c, e);
+
+    // STEP 6: ue - tb ≡ c - p ≡ -(p+r) = -sum_re > 0
+    // ue - tb ≡ c - p (by sub_congruence)
+    additive_group_lemmas::lemma_sub_congruence::<F>(u.mul(e), c, t.mul(b), p);
+    // ue - tb ≡ c - p
+
+    // STEP 7: ue - tb ≤ u·γ
+    // ue - tb = ue - ub + ub - tb = u(e-b) + (u-t)b
+    // Since u ≤ t and b > 0: ub ≤ tb, so -tb ≤ -ub, so ue - tb ≤ ue - ub = u·(e-b) = u·γ
+    // i.e., just need: ue - tb ≤ u·γ
+
+    // tb ≥ ub (from t ≥ u, 0 < b, by le_mul_nonneg_monotone)
+    F::axiom_lt_iff_le_and_not_eqv(F::zero(), b);
+    F::axiom_le_mul_nonneg_monotone(u, t, b);
+    // u·b ≤ t·b
+
+    // -tb ≤ -ub
+    ordered_ring_lemmas::lemma_le_neg_flip::<F>(u.mul(b), t.mul(b));
+
+    // (-tb)+ue ≤ (-ub)+ue. Convert add terms to sub:
+    F::axiom_le_add_monotone(t.mul(b).neg(), u.mul(b).neg(), u.mul(e));
+    // (-tb)+ue ≡ ue+(-tb) ≡ ue-tb
+    F::axiom_add_commutative(t.mul(b).neg(), u.mul(e));
+    F::axiom_sub_is_add_neg(u.mul(e), t.mul(b));
+    F::axiom_eqv_symmetric(u.mul(e).sub(t.mul(b)), u.mul(e).add(t.mul(b).neg()));
+    F::axiom_eqv_transitive(
+        t.mul(b).neg().add(u.mul(e)), u.mul(e).add(t.mul(b).neg()), u.mul(e).sub(t.mul(b))
+    );
+    // (-ub)+ue ≡ ue+(-ub) ≡ ue-ub
+    F::axiom_add_commutative(u.mul(b).neg(), u.mul(e));
+    F::axiom_sub_is_add_neg(u.mul(e), u.mul(b));
+    F::axiom_eqv_symmetric(u.mul(e).sub(u.mul(b)), u.mul(e).add(u.mul(b).neg()));
+    F::axiom_eqv_transitive(
+        u.mul(b).neg().add(u.mul(e)), u.mul(e).add(u.mul(b).neg()), u.mul(e).sub(u.mul(b))
+    );
+    // Transfer le: ue-tb ≤ ue-ub
+    ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+        t.mul(b).neg().add(u.mul(e)), u.mul(e).sub(t.mul(b)),
+        u.mul(b).neg().add(u.mul(e))
+    );
+    ordered_ring_lemmas::lemma_le_congruence_right::<F>(
+        u.mul(e).sub(t.mul(b)),
+        u.mul(b).neg().add(u.mul(e)),
+        u.mul(e).sub(u.mul(b))
+    );
+    // ue - tb ≤ ue - ub
+
+    // u·γ ≡ u·e - u·b: chain through u·(e + (-b))
+    // gamma ≡ e.add(b.neg()) [axiom_sub_is_add_neg, already proved]
+    ring_lemmas::lemma_mul_congruence_right::<F>(u, gamma, e.add(b.neg()));
+    // u·γ ≡ u·(e + (-b))
+    F::axiom_mul_distributes_left(u, e, b.neg());
+    // u·(e+(-b)) ≡ u·e + u·(-b)
+    F::axiom_eqv_transitive(u.mul(gamma), u.mul(e.add(b.neg())), u.mul(e).add(u.mul(b.neg())));
+    // u·γ ≡ u·e + u·(-b)
+    // u·(-b) ≡ -(u·b)
+    ring_lemmas::lemma_mul_neg_right::<F>(u, b);
+    additive_group_lemmas::lemma_add_congruence_right::<F>(
+        u.mul(e), u.mul(b.neg()), u.mul(b).neg()
+    );
+    // u·e + u·(-b) ≡ u·e + -(u·b)
+    F::axiom_eqv_transitive(u.mul(gamma), u.mul(e).add(u.mul(b.neg())), u.mul(e).add(u.mul(b).neg()));
+    // u·γ ≡ u·e + -(u·b)
+    // u·e + -(u·b) ≡ u·e - u·b [symmetric of axiom_sub_is_add_neg]
+    F::axiom_sub_is_add_neg(u.mul(e), u.mul(b));
+    F::axiom_eqv_symmetric(u.mul(e).sub(u.mul(b)), u.mul(e).add(u.mul(b).neg()));
+    F::axiom_eqv_transitive(u.mul(gamma), u.mul(e).add(u.mul(b).neg()), u.mul(e).sub(u.mul(b)));
+    // u·γ ≡ u·e - u·b
+    F::axiom_eqv_symmetric(u.mul(gamma), u.mul(e).sub(u.mul(b)));
+    // u·e - u·b ≡ u·γ
+
+    // ue - tb ≤ u·γ
+    ordered_ring_lemmas::lemma_le_congruence_right::<F>(
+        u.mul(e).sub(t.mul(b)), u.mul(e).sub(u.mul(b)), u.mul(gamma)
+    );
+
+    // 0 ≤ u·γ (u ≥ 0, γ ≥ 0)
+    F::axiom_le_mul_nonneg_monotone(F::zero(), u, gamma);
+    ring_lemmas::lemma_mul_zero_left::<F>(gamma);
+    ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+        F::zero().mul(gamma), F::zero(), u.mul(gamma)
+    );
+
+    // 0 ≤ ue - tb: need to show this
+    // We know ue ≡ c > 0 and tb ≡ p ≥ 0, but ue - tb ≡ c - p = -sum_re > 0
+    // Actually we need: 0 ≤ ue - tb
+    // sum_re < 0 → -sum_re > 0 → c - p > 0 (since c - p ≡ -(p+r) = -sum_re)
+    // c - p = r.neg() - p = r.neg().add(p.neg()) = (r+p).neg()... hmm
+    // Actually c - p = c.sub(p) = c.add(p.neg())
+    // We have ue - tb ≡ c - p (proved above).
+    // And sum_re = p + r, sum_re < 0, so -(p+r) > 0
+    // c - p = (-r) - p = (-r) + (-p) = -(r + p) = -(p + r) [by commutativity] = -sum_re
+    // So c - p > 0, meaning ue - tb > 0, hence 0 ≤ ue - tb
+    // Let me prove: 0 < c - p
+    // -sum_re > 0:
+    ordered_ring_lemmas::lemma_lt_neg_flip::<F>(sum_re, F::zero());
+    additive_group_lemmas::lemma_neg_zero::<F>();
+    F::axiom_eqv_symmetric(F::zero().neg(), F::zero());
+    F::axiom_eqv_reflexive(sum_re.neg());
+    ordered_ring_lemmas::lemma_lt_congruence_both::<F>(
+        F::zero().neg(), F::zero(), sum_re.neg(), sum_re.neg()
+    );
+    // 0 < -sum_re
+
+    // -sum_re ≡ c - p: -(p+r) = (-p) + (-r) = (-p) + c
+    additive_group_lemmas::lemma_neg_add::<F>(p, r);
+    // -(p+r) ≡ (-p) + (-r) = p.neg().add(r.neg()) = p.neg().add(c)
+    F::axiom_add_commutative(p.neg(), c);
+    // p.neg().add(c) ≡ c.add(p.neg())
+    F::axiom_eqv_transitive(sum_re.neg(), p.neg().add(c), c.add(p.neg()));
+    // -sum_re ≡ c.add(p.neg())
+    // c.add(p.neg()) ≡ c.sub(p) [symmetric of axiom_sub_is_add_neg]
+    F::axiom_sub_is_add_neg(c, p);
+    F::axiom_eqv_symmetric(c.sub(p), c.add(p.neg()));
+    F::axiom_eqv_transitive(sum_re.neg(), c.add(p.neg()), c.sub(p));
+    // -sum_re ≡ c - p
+
+    // 0 < c - p
+    F::axiom_eqv_reflexive(F::zero());
+    ordered_ring_lemmas::lemma_lt_congruence_both::<F>(
+        F::zero(), F::zero(), sum_re.neg(), c.sub(p)
+    );
+    // 0 < c - p
+
+    // 0 < ue - tb (via congruence with ue - tb ≡ c - p)
+    F::axiom_eqv_symmetric(u.mul(e).sub(t.mul(b)), c.sub(p));
+    ordered_ring_lemmas::lemma_lt_congruence_both::<F>(
+        F::zero(), F::zero(), c.sub(p), u.mul(e).sub(t.mul(b))
+    );
+    // 0 < ue - tb
+    F::axiom_lt_iff_le_and_not_eqv(F::zero(), u.mul(e).sub(t.mul(b)));
+    // 0 ≤ ue - tb
+
+    // STEP 8: (ue - tb)² ≤ (u·γ)² (since 0 ≤ ue-tb ≤ u·γ)
+    ordered_ring_lemmas::lemma_square_le_square::<F>(
+        u.mul(e).sub(t.mul(b)), u.mul(gamma)
+    );
+
+    // (u·γ)² ≡ u²·γ²
+    inequalities::lemma_square_mul::<F>(u, gamma);
+
+    // u²·γ² ≤ d·γ² (from u² ≤ d, γ² ≥ 0)
+    ordered_ring_lemmas::lemma_square_nonneg::<F>(gamma);
+    F::axiom_le_mul_nonneg_monotone(u.mul(u), d, gamma.mul(gamma));
+
+    // Chain: (ue-tb)² ≤ (u·γ)² ≡ u²·γ² ≤ d·γ²
+    // square_mul gives (u·γ)² ≡ u²·γ²
+    // Use le_congruence_right to go from (ue-tb)² ≤ (u·γ)² to (ue-tb)² ≤ u²·γ²
+    ordered_ring_lemmas::lemma_le_congruence_right::<F>(
+        u.mul(e).sub(t.mul(b)).mul(u.mul(e).sub(t.mul(b))),
+        u.mul(gamma).mul(u.mul(gamma)),
+        u.mul(u).mul(gamma.mul(gamma))
+    );
+    // (ue-tb)² ≤ u²·γ²
+    F::axiom_le_transitive(
+        u.mul(e).sub(t.mul(b)).mul(u.mul(e).sub(t.mul(b))),
+        u.mul(u).mul(gamma.mul(gamma)),
+        d.mul(gamma.mul(gamma))
+    );
+    // (ue-tb)² ≤ d·γ²
+
+    // STEP 9: (ue-tb)² ≡ (tb-ue)² ≡ sum_re²
+    // (-x)² = x²
+    ring_lemmas::lemma_neg_mul_neg::<F>(
+        t.mul(b).sub(u.mul(e)), t.mul(b).sub(u.mul(e))
+    );
+    // (tb-ue).neg()·(tb-ue).neg() ≡ (tb-ue)·(tb-ue)
+    // But (tb-ue).neg() = ue - tb? Not directly: a.sub(b).neg() ≡ b.sub(a)?
+    // Actually we need: (ue - tb) = (tb - ue).neg()
+    // a.sub(b).neg() ≡ b.sub(a) is a standard identity:
+    // a - b = a + (-b). -(a + (-b)) = (-a) + b [by neg_add] = b + (-a) = b - a
+    // So (tb - ue).neg() ≡ ue - tb
+    additive_group_lemmas::lemma_neg_add::<F>(t.mul(b), u.mul(e).neg());
+    // (tb + (-ue)).neg() ≡ tb.neg() + (-ue).neg() = tb.neg() + ue
+    additive_group_lemmas::lemma_neg_involution::<F>(u.mul(e));
+    additive_group_lemmas::lemma_add_congruence_right::<F>(
+        t.mul(b).neg(), u.mul(e).neg().neg(), u.mul(e)
+    );
+    // tb.neg() + ue ≡ tb.neg().add(ue)... wait this is getting complicated.
+    // Let me just use: (ue-tb)² = (ue-tb)·(ue-tb).
+    // And: ue - tb ≡ c - p ≡ -sum_re (proved above).
+    // So (ue-tb)² ≡ (-sum_re)² ≡ sum_re² by neg_mul_neg.
+    // Easier chain!
+    // Need: ue-tb ≡ -sum_re. We proved ue-tb ≡ c-p and -sum_re ≡ c-p.
+    // So ue-tb ≡ c-p and c-p ≡ -sum_re (symmetric of -sum_re ≡ c-p)
+    F::axiom_eqv_symmetric(sum_re.neg(), c.sub(p));
+    F::axiom_eqv_transitive(u.mul(e).sub(t.mul(b)), c.sub(p), sum_re.neg());
+    // ue-tb ≡ -sum_re
+
+    // (ue-tb)² ≡ (-sum_re)²
+    ring_lemmas::lemma_mul_congruence::<F>(
+        u.mul(e).sub(t.mul(b)), sum_re.neg(),
+        u.mul(e).sub(t.mul(b)), sum_re.neg()
+    );
+
+    // (-sum_re)² ≡ sum_re²
+    ring_lemmas::lemma_neg_mul_neg::<F>(sum_re, sum_re);
+
+    // (ue-tb)² ≡ sum_re²
+    F::axiom_eqv_transitive(
+        u.mul(e).sub(t.mul(b)).mul(u.mul(e).sub(t.mul(b))),
+        sum_re.neg().mul(sum_re.neg()),
+        sum_re.mul(sum_re)
+    );
+
+    // sum_re² ≤ d·γ² (from (ue-tb)² ≤ d·γ² and (ue-tb)² ≡ sum_re²)
+    F::axiom_eqv_symmetric(
+        u.mul(e).sub(t.mul(b)).mul(u.mul(e).sub(t.mul(b))),
+        sum_re.mul(sum_re)
+    );
+    ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+        u.mul(e).sub(t.mul(b)).mul(u.mul(e).sub(t.mul(b))),
+        sum_re.mul(sum_re),
+        d.mul(gamma.mul(gamma))
+    );
+    // sum_re² ≤ d·γ²
+
+    // STEP 10: γ² ≡ sum_im² (since γ ≡ sum_im)
+    ring_lemmas::lemma_mul_congruence::<F>(gamma, sum_im, gamma, sum_im);
+    // γ² ≡ sum_im²
+
+    // d·γ² ≡ d·sum_im²
+    F::axiom_eqv_reflexive(d);
+    ring_lemmas::lemma_mul_congruence::<F>(d, d, gamma.mul(gamma), sum_im.mul(sum_im));
+
+    // sum_re² ≤ d·sum_im²
+    ordered_ring_lemmas::lemma_le_congruence_right::<F>(
+        sum_re.mul(sum_re),
+        d.mul(gamma.mul(gamma)),
+        d.mul(sum_im.mul(sum_im))
+    );
+
+    // Need: sum_re² ≤ sum_im²·d (with mul order swapped)
+    F::axiom_mul_commutative(sum_im.mul(sum_im), d);
+    // sum_im²·d ≡ d·sum_im²
+    F::axiom_eqv_symmetric(sum_im.mul(sum_im).mul(d), d.mul(sum_im.mul(sum_im)));
+    // d·sum_im² ≡ sum_im²·d
+    ordered_ring_lemmas::lemma_le_congruence_right::<F>(
+        sum_re.mul(sum_re),
+        d.mul(sum_im.mul(sum_im)),
+        sum_im.mul(sum_im).mul(d)
+    );
+    // sum_re² ≤ sum_im²·d ✓
+
+    // qe_nonneg C3 case: sum_re < 0, 0 < sum_im, sum_re² ≤ sum_im²·d
 }
 
 /// Main lemma: nonneg is closed under addition.
@@ -3545,6 +3524,129 @@ pub proof fn lemma_nonneg_add_closed<F: OrderedField, R: PositiveRadicand<F>>(
         );
     }
     // All 9 case combinations handled (u must be one of C1/C2/C3, v likewise)
+}
+
+/// Given a² ≥ b²d and c² ≥ e²d (with a,c,d ≥ 0), proves 0 ≤ a*c + b*e*d.
+/// Key helper for nonneg_mul_closed: the "dominant product" in each component.
+proof fn lemma_dominant_product<F: OrderedField>(
+    a: F, b: F, c: F, e: F, d: F,
+)
+    requires
+        b.mul(b).mul(d).le(a.mul(a)),  // b²d ≤ a²
+        e.mul(e).mul(d).le(c.mul(c)),  // e²d ≤ c²
+        F::zero().le(a),
+        F::zero().le(c),
+        F::zero().le(d),
+    ensures
+        F::zero().le(a.mul(c).add(b.mul(e).mul(d))),
+{
+    let ac = a.mul(c);
+    let bed = b.mul(e).mul(d);
+
+    // ac ≥ 0
+    ordered_ring_lemmas::lemma_nonneg_mul_nonneg::<F>(a, c);
+
+    if F::zero().le(bed) {
+        // Both nonneg → sum nonneg
+        lemma_nonneg_add::<F>(ac, bed);
+    } else {
+        // bed < 0. Show (bed)² ≤ (ac)², then bed.neg() ≤ ac, then ac + bed ≥ 0.
+
+        // e²d ≥ 0
+        ordered_ring_lemmas::lemma_square_nonneg::<F>(e);
+        ordered_ring_lemmas::lemma_nonneg_mul_nonneg::<F>(e.mul(e), d);
+
+        // a² ≥ 0
+        ordered_ring_lemmas::lemma_square_nonneg::<F>(a);
+
+        // Multiplication chain: b²d·e²d ≤ a²·e²d (step 1)
+        F::axiom_le_mul_nonneg_monotone(b.mul(b).mul(d), a.mul(a), e.mul(e).mul(d));
+
+        // e²d·a² ≤ c²·a² (step 2)
+        F::axiom_le_mul_nonneg_monotone(e.mul(e).mul(d), c.mul(c), a.mul(a));
+
+        // a²·e²d ≡ e²d·a² (commutativity)
+        F::axiom_mul_commutative(a.mul(a), e.mul(e).mul(d));
+        // b²d·e²d ≤ a²·e²d ≡ e²d·a² ≤ c²·a²
+        ordered_ring_lemmas::lemma_le_congruence_right::<F>(
+            b.mul(b).mul(d).mul(e.mul(e).mul(d)),
+            a.mul(a).mul(e.mul(e).mul(d)),
+            e.mul(e).mul(d).mul(a.mul(a)),
+        );
+        F::axiom_le_transitive(
+            b.mul(b).mul(d).mul(e.mul(e).mul(d)),
+            e.mul(e).mul(d).mul(a.mul(a)),
+            c.mul(c).mul(a.mul(a)),
+        );
+        // c²·a² ≡ a²·c²
+        F::axiom_mul_commutative(c.mul(c), a.mul(a));
+        ordered_ring_lemmas::lemma_le_congruence_right::<F>(
+            b.mul(b).mul(d).mul(e.mul(e).mul(d)),
+            c.mul(c).mul(a.mul(a)),
+            a.mul(a).mul(c.mul(c)),
+        );
+        // Now: b²d·e²d ≤ a²·c²
+
+        // b²d·e²d ≡ (bed)² by lemma_sq_d_product
+        lemma_sq_d_product::<F>(b, e, d);
+        // a²·c² ≡ (ac)² by lemma_square_mul (reversed)
+        lemma_square_mul::<F>(a, c);
+        F::axiom_eqv_symmetric(ac.mul(ac), a.mul(a).mul(c.mul(c)));
+        // Chain: (bed)² ≤ (ac)²
+        ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+            b.mul(b).mul(d).mul(e.mul(e).mul(d)),
+            bed.mul(bed),
+            a.mul(a).mul(c.mul(c)),
+        );
+        ordered_ring_lemmas::lemma_le_congruence_right::<F>(
+            bed.mul(bed),
+            a.mul(a).mul(c.mul(c)),
+            ac.mul(ac),
+        );
+
+        // (bed.neg())² ≡ (bed)² by neg_mul_neg
+        ring_lemmas::lemma_neg_mul_neg::<F>(bed, bed);
+        // neg_mul_neg: bed.neg()² ≡ bed². Symmetric: bed² ≡ bed.neg()²
+        F::axiom_eqv_symmetric(bed.neg().mul(bed.neg()), bed.mul(bed));
+        // bed² ≤ ac² and bed² ≡ bed.neg()² → bed.neg()² ≤ ac²
+        ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+            bed.mul(bed), bed.neg().mul(bed.neg()), ac.mul(ac),
+        );
+
+        // bed.neg() ≥ 0 (since bed ≤ 0)
+        F::axiom_le_total(F::zero(), bed);
+        // ¬(0 ≤ bed), so bed ≤ 0
+        ordered_ring_lemmas::lemma_le_neg_flip::<F>(bed, F::zero());
+        // 0.neg() ≤ bed.neg()
+        additive_group_lemmas::lemma_neg_zero::<F>();
+        ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+            F::zero().neg(), F::zero(), bed.neg(),
+        );
+        // 0 ≤ bed.neg()
+
+        // square_le_implies_le: bed.neg() ≤ ac
+        lemma_square_le_implies_le::<F>(bed.neg(), ac);
+
+        // Convert: bed.neg() ≤ ac → 0 ≤ ac - bed.neg() ≡ ac + bed
+        ordered_ring_lemmas::lemma_le_iff_sub_nonneg::<F>(bed.neg(), ac);
+        // 0 ≤ ac.sub(bed.neg())
+        // ac.sub(bed.neg()) ≡ ac.add(bed.neg().neg()) ≡ ac.add(bed)
+        F::axiom_sub_is_add_neg(ac, bed.neg());
+        additive_group_lemmas::lemma_neg_involution::<F>(bed);
+        additive_group_lemmas::lemma_add_congruence_right::<F>(
+            ac, bed.neg().neg(), bed,
+        );
+        F::axiom_eqv_transitive(
+            ac.sub(bed.neg()),
+            ac.add(bed.neg().neg()),
+            ac.add(bed),
+        );
+        ordered_ring_lemmas::lemma_le_congruence_right::<F>(
+            F::zero(),
+            ac.sub(bed.neg()),
+            ac.add(bed),
+        );
+    }
 }
 
 } // verus!
