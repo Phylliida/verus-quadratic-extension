@@ -12,6 +12,7 @@ use verus_algebra::traits::ordered_ring::OrderedRing;
 use verus_algebra::traits::field::OrderedField;
 use verus_algebra::lemmas::ordered_ring_lemmas;
 use verus_algebra::lemmas::ordered_field_lemmas;
+use verus_algebra::determinant;
 use verus_algebra::inequalities;
 use verus_algebra::inequalities::lemma_nonneg_add;
 use verus_algebra::inequalities::lemma_square_mul;
@@ -3646,6 +3647,1421 @@ proof fn lemma_dominant_product<F: OrderedField>(
             ac.sub(bed.neg()),
             ac.add(bed),
         );
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  Norm multiplicativity and nonneg × nonneg helpers
+// ═══════════════════════════════════════════════════════════════════
+
+/// (a·c)·(b·e) ≡ (a·e)·(b·c) — rearrange a 4-factor product.
+proof fn lemma_four_commute<F: Field>(a: F, c: F, b: F, e: F)
+    ensures
+        a.mul(c).mul(b.mul(e)).eqv(a.mul(e).mul(b.mul(c))),
+{
+    // (ac)(be) → (a(be))·c
+    lemma_mul_swap_last_two::<F>(a, c, b.mul(e));
+    // a(be) → b(ae) by swap_first_two
+    lemma_mul_swap_first_two::<F>(a, b, e);
+    F::axiom_mul_congruence_left(a.mul(b.mul(e)), b.mul(a.mul(e)), c);
+    // b(ae)·c → (bc)·(ae) by swap_last_two
+    lemma_mul_swap_last_two::<F>(b, a.mul(e), c);
+    // (bc)(ae) → (ae)(bc) by commut
+    F::axiom_mul_commutative(b.mul(c), a.mul(e));
+    // Chain: (ac)(be) ≡ a(be)·c ≡ b(ae)·c ≡ (bc)(ae) ≡ (ae)(bc)
+    F::axiom_eqv_transitive(
+        a.mul(c).mul(b.mul(e)),
+        a.mul(b.mul(e)).mul(c),
+        b.mul(a.mul(e)).mul(c),
+    );
+    F::axiom_eqv_transitive(
+        a.mul(c).mul(b.mul(e)),
+        b.mul(a.mul(e)).mul(c),
+        b.mul(c).mul(a.mul(e)),
+    );
+    F::axiom_eqv_transitive(
+        a.mul(c).mul(b.mul(e)),
+        b.mul(c).mul(a.mul(e)),
+        a.mul(e).mul(b.mul(c)),
+    );
+}
+
+/// norm(x·y) ≡ norm(x) · norm(y) — the norm is multiplicative.
+///
+/// The identity: (ac+bed)² - (ae+bc)²d = (a²-b²d)(c²-e²d)
+/// follows from cross-term cancellation (2·ac·bed = 2·ae·bc·d).
+#[verifier::rlimit(30)]
+proof fn lemma_norm_mul<F: OrderedField, R: PositiveRadicand<F>>(
+    x: SpecQuadExt<F, R>,
+    y: SpecQuadExt<F, R>,
+)
+    ensures
+        qe_norm::<F, R>(qe_mul::<F, R>(x, y)).eqv(
+            qe_norm::<F, R>(x).mul(qe_norm::<F, R>(y))
+        ),
+{
+    let a = x.re; let b = x.im;
+    let c = y.re; let e = y.im;
+    let d = R::value();
+    let z = qe_mul::<F, R>(x, y);
+    // z.re = ac + bed, z.im = ae + bc
+    let ac = a.mul(c);
+    let bed = b.mul(e).mul(d);
+    let ae = a.mul(e);
+    let bc = b.mul(c);
+    let two = F::one().add(F::one());
+
+    let a2 = a.mul(a);
+    let b2 = b.mul(b);
+    let c2 = c.mul(c);
+    let e2 = e.mul(e);
+    let b2d = b2.mul(d);
+    let e2d = e2.mul(d);
+    let nx = a2.sub(b2d);  // norm(x)
+    let ny = c2.sub(e2d);  // norm(y)
+
+    // ─── RHS: expand nx·ny ───
+    // nx·ny = (a² - b²d)·ny ≡ a²·ny - b²d·ny
+    ring_lemmas::lemma_sub_mul_right::<F>(a2, b2d, ny);
+    // a²·ny = a²·(c² - e²d) ≡ a²c² - a²e²d
+    ring_lemmas::lemma_mul_distributes_over_sub::<F>(a2, c2, e2d);
+    // b²d·ny = b²d·(c² - e²d) ≡ b²d·c² - b²d·e²d
+    ring_lemmas::lemma_mul_distributes_over_sub::<F>(b2d, c2, e2d);
+
+    // So nx·ny ≡ (a²c² - a²e²d) - (b²d·c² - b²d·e²d)
+    // Using sub_pairs: (P-Q) - (R-S) ≡ (P-R) + (S-Q)
+    // But that's tricky. Instead, connect through the 4-term form directly.
+
+    // ─── LHS: expand norm(z) ───
+    // z.re² = (ac + bed)²
+    ring_lemmas::lemma_square_expand::<F>(ac, bed);
+    // z.re² ≡ (ac)² + two·(ac)(bed) + (bed)²
+
+    // z.im²d = (ae + bc)²·d
+    lemma_square_expand_mul::<F>(ae, bc, d);
+    // z.im²d ≡ (ae)²d + two·(ae)(bc)·d + (bc)²d
+
+    // ─── Cross-term equality ───
+    // (ac)(bed) ≡ (ae)(bc)·d
+    // First: (ac)(bed) = (ac)·((be)·d)
+    // By assoc_rev on ac, be, d: (ac)·(be·d) ≡ ((ac)(be))·d
+    lemma_mul_assoc_rev::<F>(a.mul(c), b.mul(e), d);
+    // (ac)(be) ≡ (ae)(bc) by four_commute
+    lemma_four_commute::<F>(a, c, b, e);
+    // So ((ac)(be))·d ≡ ((ae)(bc))·d by congr_left
+    F::axiom_mul_congruence_left(
+        a.mul(c).mul(b.mul(e)),
+        a.mul(e).mul(b.mul(c)),
+        d,
+    );
+    // Chain: (ac)(bed) ≡ ((ac)(be))·d ≡ ((ae)(bc))·d
+    F::axiom_eqv_transitive(
+        ac.mul(bed),
+        a.mul(c).mul(b.mul(e)).mul(d),
+        a.mul(e).mul(b.mul(c)).mul(d),
+    );
+    // ((ae)(bc))·d ≡ (ae)·((bc)·d) by assoc
+    F::axiom_mul_associative(ae, bc, d);
+    // But we want (ae)·(bc)·d = ae.mul(bc).mul(d) which IS the flat form.
+    // Actually (ae)(bc)·d = a.mul(e).mul(b.mul(c)).mul(d) and
+    // the square_expand_mul cross term is two.mul(ae.mul(bc)).mul(d).
+    // ae.mul(bc) = a.mul(e).mul(b.mul(c)) ← yes, same thing.
+    // So cross_lhs = two.mul(ac.mul(bed)) and cross_rhs = two.mul(ae.mul(bc)).mul(d).
+
+    // two · cross_lhs ≡ two · cross_rhs
+    // cross_lhs = ac.mul(bed), and we showed: ac.mul(bed) ≡ ae.mul(bc).mul(d)
+    ring_lemmas::lemma_mul_congruence_right::<F>(
+        two, ac.mul(bed), ae.mul(bc).mul(d),
+    );
+    // cross ≡ two·((ae·bc)·d) (will bridge to cross_d after let bindings)
+    // Associativity: cross_d = two.mul(ae.mul(bc)).mul(d) ≡ two.mul(ae.mul(bc).mul(d))
+    F::axiom_mul_associative(two, ae.mul(bc), d);
+    F::axiom_eqv_symmetric(
+        two.mul(ae.mul(bc)).mul(d),
+        two.mul(ae.mul(bc).mul(d)),
+    );
+
+    // ─── Subtract expansions, cross terms cancel ───
+    // z.re² ≡ (ac)² + (two·cross + (bed)²) where cross = (ac)(bed)
+    // z.im²d ≡ (ae)²d + (two·cross_d + (bc)²d) where cross_d = (ae)(bc)·d
+    // And two·cross ≡ two·cross_d (proved above).
+    //
+    // norm(z) = z.re² - z.im²d
+    //         ≡ ((ac)² + two·cross + (bed)²) - ((ae)²d + two·cross + (bc)²d)
+    // By sub_pairs: (P + Q) - (R + Q') where Q ≡ Q':
+    //   ≡ (P - R) + (Q - Q') + ...
+    // Actually let me use a cleaner approach.
+
+    // Let's denote:
+    //   A = (ac)², B = (bed)², C = (ae)²d, D = (bc)²d
+    //   cross = two·(ac)(bed) ≡ two·(ae)(bc)·d
+    //
+    // z.re² ≡ A + cross + B = (A + cross) + B
+    // z.im²d ≡ C + cross + D = (C + cross) + D
+    //
+    // norm(z) = z.re² - z.im²d
+    //         ≡ ((A+cross)+B) - ((C+cross)+D)
+    //         ≡ ((A+cross) - (C+cross)) + (B - D)    [sub_pairs]
+    //         ≡ (A - C) + (B - D)                     [cancel cross]
+
+    let cross = two.mul(ac.mul(bed));
+    let cross_d = two.mul(ae.mul(bc)).mul(d);
+    let sq_ac = ac.mul(ac);
+    let sq_bed = bed.mul(bed);
+    let sq_ae_d = ae.mul(ae).mul(d);
+    let sq_bc_d = bc.mul(bc).mul(d);
+
+    // Bridge: cross ≡ cross_d
+    // mul_congruence_right gave: cross ≡ two·((ae·bc)·d)
+    // axiom_mul_associative + symmetric gave: two·((ae·bc)·d) ≡ cross_d (reversed)
+    // Actually: symmetric gave two.mul(ae.mul(bc).mul(d)).eqv(cross_d)
+    // Chain: cross ≡ two·((ae·bc)·d) ≡ cross_d
+    F::axiom_eqv_transitive(cross, two.mul(ae.mul(bc).mul(d)), cross_d);
+
+    // Substitute cross ≡ cross_d in z.im²d expansion
+    // z.im²d ≡ sq_ae_d + cross_d + sq_bc_d
+    // cross_d ≡ cross (symmetric of what we proved)
+    F::axiom_eqv_symmetric(cross, cross_d);
+    // So z.im²d ≡ sq_ae_d + cross + sq_bc_d
+    F::axiom_eqv_reflexive(sq_ae_d);
+    additive_group_lemmas::lemma_add_congruence::<F>(
+        sq_ae_d, sq_ae_d, cross_d, cross,
+    );
+    // sq_ae_d + cross_d ≡ sq_ae_d + cross
+    F::axiom_eqv_reflexive(sq_bc_d);
+    additive_group_lemmas::lemma_add_congruence::<F>(
+        sq_ae_d.add(cross_d), sq_ae_d.add(cross),
+        sq_bc_d, sq_bc_d,
+    );
+    // z.im²d ≡ (sq_ae_d + cross) + sq_bc_d
+
+    // Now subtract using sub_pairs:
+    // ((sq_ac + cross) + sq_bed) - ((sq_ae_d + cross) + sq_bc_d)
+    // ≡ ((sq_ac + cross) - (sq_ae_d + cross)) + (sq_bed - sq_bc_d)
+
+    // First congruence: z.re² ≡ (sq_ac + cross) + sq_bed
+    // z.re² is the spec expression. Let's assert these equivalences.
+
+    // The sub_pairs application needs:
+    // norm(z) = z.re².sub(z.im²d)
+    // and z.re² ≡ (sq_ac + cross) + sq_bed [from square_expand]
+    // and z.im²d ≡ (sq_ae_d + cross) + sq_bc_d [from square_expand_mul + cross subst]
+
+    // Use sub congruence to replace:
+    let zre_expanded = sq_ac.add(cross).add(sq_bed);
+    let zim_expanded = sq_ae_d.add(cross).add(sq_bc_d);
+
+    // z.re.mul(z.re) ≡ zre_expanded (from square_expand)
+    // z.im.mul(z.im).mul(d) ≡ zim_expanded (from square_expand_mul + cross subst)
+
+    // Now: norm(z) = z.re² - z.im²d ≡ zre_expanded - zim_expanded
+
+    // sub_pairs: (p+q) - (r+s) ≡ (p-r) + (q-s)
+    // where p = sq_ac + cross, q = sq_bed, r = sq_ae_d + cross, s = sq_bc_d
+    determinant::lemma_sub_pairs::<F>(
+        sq_ac.add(cross), sq_bed, sq_ae_d.add(cross), sq_bc_d,
+    );
+    // ≡ ((sq_ac+cross) - (sq_ae_d+cross)) + (sq_bed - sq_bc_d)
+
+    // Cancel cross: (sq_ac+cross) - (sq_ae_d+cross)
+    // sub_pairs again: (sq_ac + cross) - (sq_ae_d + cross) ≡ (sq_ac - sq_ae_d) + (cross - cross)
+    determinant::lemma_sub_pairs::<F>(sq_ac, cross, sq_ae_d, cross);
+    // cross - cross ≡ 0
+    additive_group_lemmas::lemma_sub_self::<F>(cross);
+    // (sq_ac - sq_ae_d) + 0 ≡ sq_ac - sq_ae_d
+    F::axiom_add_zero_right(sq_ac.sub(sq_ae_d));
+    // Chain: (sq_ac+cross) - (sq_ae_d+cross) ≡ (sq_ac - sq_ae_d) + 0 ≡ sq_ac - sq_ae_d
+    F::axiom_eqv_reflexive(sq_ac.sub(sq_ae_d));
+    additive_group_lemmas::lemma_add_congruence::<F>(
+        sq_ac.sub(sq_ae_d), sq_ac.sub(sq_ae_d),
+        cross.sub(cross), F::zero(),
+    );
+    F::axiom_eqv_transitive(
+        sq_ac.add(cross).sub(sq_ae_d.add(cross)),
+        sq_ac.sub(sq_ae_d).add(cross.sub(cross)),
+        sq_ac.sub(sq_ae_d).add(F::zero()),
+    );
+    F::axiom_eqv_transitive(
+        sq_ac.add(cross).sub(sq_ae_d.add(cross)),
+        sq_ac.sub(sq_ae_d).add(F::zero()),
+        sq_ac.sub(sq_ae_d),
+    );
+
+    // So norm(z) ≡ (sq_ac - sq_ae_d) + (sq_bed - sq_bc_d)
+    F::axiom_eqv_reflexive(sq_bed.sub(sq_bc_d));
+    additive_group_lemmas::lemma_add_congruence::<F>(
+        sq_ac.add(cross).sub(sq_ae_d.add(cross)), sq_ac.sub(sq_ae_d),
+        sq_bed.sub(sq_bc_d), sq_bed.sub(sq_bc_d),
+    );
+    // Chain: zre_expanded - zim_expanded ≡ ... ≡ (sq_ac - sq_ae_d) + (sq_bed - sq_bc_d)
+    F::axiom_eqv_transitive(
+        zre_expanded.sub(zim_expanded),
+        sq_ac.add(cross).sub(sq_ae_d.add(cross)).add(sq_bed.sub(sq_bc_d)),
+        sq_ac.sub(sq_ae_d).add(sq_bed.sub(sq_bc_d)),
+    );
+
+    // ─── Factor first pair: sq_ac - sq_ae_d ≡ a²·ny ───
+    // (ac)² ≡ a²c² by square_mul
+    lemma_square_mul::<F>(a, c);
+    F::axiom_eqv_symmetric(ac.mul(ac), a2.mul(c2));
+    // (ae)² ≡ a²e²
+    lemma_square_mul::<F>(a, e);
+    F::axiom_eqv_symmetric(ae.mul(ae), a2.mul(e2));
+    // (ae)²·d ≡ a²e²·d
+    F::axiom_mul_congruence_left(ae.mul(ae), a2.mul(e2), d);
+    // a²e²·d ≡ a²·(e²d) by assoc
+    F::axiom_mul_associative(a2, e2, d);
+    // Chain: (ae)²d ≡ a²e²d ≡ a²·e²d
+    F::axiom_eqv_transitive(ae.mul(ae).mul(d), a2.mul(e2).mul(d), a2.mul(e2d));
+
+    // sq_ac - sq_ae_d = (ac)² - (ae)²d ≡ a²c² - a²·e²d
+    additive_group_lemmas::lemma_sub_congruence::<F>(
+        sq_ac, a2.mul(c2),
+        sq_ae_d, a2.mul(e2d),
+    );
+    // a²c² - a²e²d ≡ a²·(c² - e²d) = a²·ny
+    ring_lemmas::lemma_mul_distributes_over_sub::<F>(a2, c2, e2d);
+    F::axiom_eqv_symmetric(a2.mul(ny), a2.mul(c2).sub(a2.mul(e2d)));
+    // Chain:
+    F::axiom_eqv_transitive(
+        sq_ac.sub(sq_ae_d),
+        a2.mul(c2).sub(a2.mul(e2d)),
+        a2.mul(ny),
+    );
+
+    // ─── Factor second pair: sq_bed - sq_bc_d ≡ -(b²d·ny) ───
+    // (bed)² ≡ b²d·e²d by sq_d_product
+    lemma_sq_d_product::<F>(b, e, d);
+    F::axiom_eqv_symmetric(b2d.mul(e2d), bed.mul(bed));
+
+    // (bc)²·d: first (bc)² ≡ b²c²
+    lemma_square_mul::<F>(b, c);
+    F::axiom_eqv_symmetric(bc.mul(bc), b2.mul(c2));
+    // (bc)²d ≡ b²c²·d
+    F::axiom_mul_congruence_left(bc.mul(bc), b2.mul(c2), d);
+    // b²c²·d ≡ b²·(c²d) by assoc
+    F::axiom_mul_associative(b2, c2, d);
+    F::axiom_eqv_transitive(bc.mul(bc).mul(d), b2.mul(c2).mul(d), b2.mul(c2.mul(d)));
+    // b²·(c²d) ≡ b²·(d·c²) ≡ b²d·c² by commut + assoc
+    F::axiom_mul_commutative(c2, d);
+    ring_lemmas::lemma_mul_congruence_right::<F>(b2, c2.mul(d), d.mul(c2));
+    lemma_mul_assoc_rev::<F>(b2, d, c2);
+    F::axiom_eqv_transitive(b2.mul(c2.mul(d)), b2.mul(d.mul(c2)), b2.mul(d).mul(c2));
+    // Chain: (bc)²d ≡ b²(c²d) ≡ b²(dc²) ≡ (b²d)c² = b2d·c2
+    F::axiom_eqv_transitive(
+        sq_bc_d, b2.mul(c2.mul(d)), b2.mul(d.mul(c2)),
+    );
+    F::axiom_eqv_transitive(sq_bc_d, b2.mul(d.mul(c2)), b2d.mul(c2));
+
+    // sq_bed - sq_bc_d ≡ b²d·e²d - b²d·c²
+    additive_group_lemmas::lemma_sub_congruence::<F>(
+        sq_bed, b2d.mul(e2d),
+        sq_bc_d, b2d.mul(c2),
+    );
+    // b²d·e²d - b²d·c² ≡ b²d·(e²d - c²) by mul_distributes_over_sub reversed
+    ring_lemmas::lemma_mul_distributes_over_sub::<F>(b2d, e2d, c2);
+    F::axiom_eqv_symmetric(b2d.mul(e2d.sub(c2)), b2d.mul(e2d).sub(b2d.mul(c2)));
+    F::axiom_eqv_transitive(
+        sq_bed.sub(sq_bc_d),
+        b2d.mul(e2d).sub(b2d.mul(c2)),
+        b2d.mul(e2d.sub(c2)),
+    );
+    // e²d - c² ≡ -(c² - e²d) = -(ny)
+    additive_group_lemmas::lemma_sub_antisymmetric::<F>(e2d, c2);
+    // e2d.sub(c2).eqv(c2.sub(e2d).neg()) = ny.neg()
+    ring_lemmas::lemma_mul_congruence_right::<F>(b2d, e2d.sub(c2), ny.neg());
+    // b²d·(-(ny)) ≡ -(b²d·ny)
+    ring_lemmas::lemma_mul_neg_right::<F>(b2d, ny);
+    F::axiom_eqv_transitive(
+        b2d.mul(e2d.sub(c2)),
+        b2d.mul(ny.neg()),
+        b2d.mul(ny).neg(),
+    );
+    // Chain: sq_bed - sq_bc_d ≡ b²d·(e²d-c²) ≡ b²d·(-ny) ≡ -(b²d·ny)
+    F::axiom_eqv_transitive(
+        sq_bed.sub(sq_bc_d),
+        b2d.mul(e2d.sub(c2)),
+        b2d.mul(ny).neg(),
+    );
+
+    // ─── Combine: (sq_ac - sq_ae_d) + (sq_bed - sq_bc_d) ≡ a²·ny + (-(b²d·ny)) ───
+    additive_group_lemmas::lemma_add_congruence::<F>(
+        sq_ac.sub(sq_ae_d), a2.mul(ny),
+        sq_bed.sub(sq_bc_d), b2d.mul(ny).neg(),
+    );
+    // a²·ny + (-(b²d·ny)) ≡ a²·ny - b²d·ny by sub_is_add_neg reversed
+    F::axiom_sub_is_add_neg(a2.mul(ny), b2d.mul(ny));
+    F::axiom_eqv_symmetric(a2.mul(ny).sub(b2d.mul(ny)), a2.mul(ny).add(b2d.mul(ny).neg()));
+    F::axiom_eqv_transitive(
+        sq_ac.sub(sq_ae_d).add(sq_bed.sub(sq_bc_d)),
+        a2.mul(ny).add(b2d.mul(ny).neg()),
+        a2.mul(ny).sub(b2d.mul(ny)),
+    );
+    // a²·ny - b²d·ny ≡ (a² - b²d)·ny = nx·ny by sub_mul_right reversed
+    ring_lemmas::lemma_sub_mul_right::<F>(a2, b2d, ny);
+    F::axiom_eqv_symmetric(nx.mul(ny), a2.mul(ny).sub(b2d.mul(ny)));
+    F::axiom_eqv_transitive(
+        sq_ac.sub(sq_ae_d).add(sq_bed.sub(sq_bc_d)),
+        a2.mul(ny).sub(b2d.mul(ny)),
+        nx.mul(ny),
+    );
+
+    // ─── Final chain: norm(z) ≡ LHS_expanded ≡ 4 terms ≡ nx·ny ───
+    // norm(z) = z.re² - z.im²d
+    // z.re² ≡ zre_expanded (from square_expand)
+    // z.im²d ≡ zim_expanded (from square_expand_mul + cross subst)
+    // norm(z) ≡ zre_expanded - zim_expanded by sub congruence
+    // ≡ sub_pairs result ≡ (sq_ac-sq_ae_d) + (sq_bed-sq_bc_d) ≡ nx·ny
+
+    // Step A: z.re.mul(z.re) ≡ zre_expanded
+    // square_expand gave: ac.add(bed).mul(ac.add(bed)) ≡ sq_ac + cross + sq_bed
+
+    // Step B: z.im.mul(z.im).mul(d) ≡ zim_expanded
+    // square_expand_mul + cross subst (done above)
+    // We need to chain: z.im.mul(z.im).mul(d) ≡ original_expansion ≡ zim_expanded
+    // The original expansion from square_expand_mul is:
+    //   ae.add(bc).mul(ae.add(bc)).mul(d) ≡ sq_ae_d + cross_d + sq_bc_d
+    // Then we showed cross_d ≡ cross, giving:
+    //   ≡ sq_ae_d + cross + sq_bc_d = zim_expanded
+    let zim_orig = sq_ae_d.add(cross_d).add(sq_bc_d);
+    F::axiom_eqv_transitive(
+        ae.add(bc).mul(ae.add(bc)).mul(d),
+        zim_orig,
+        zim_expanded,
+    );
+
+    // Step C: norm(z) ≡ zre_expanded - zim_expanded by sub congruence
+    additive_group_lemmas::lemma_sub_congruence::<F>(
+        z.re.mul(z.re), zre_expanded,
+        z.im.mul(z.im).mul(d), zim_expanded,
+    );
+
+    // Step D: zre_expanded - zim_expanded ≡ (sq_ac-sq_ae_d)+(sq_bed-sq_bc_d) by sub_pairs
+    // (already proved above)
+
+    // Step E: chain all
+    F::axiom_eqv_transitive(
+        z.re.mul(z.re).sub(z.im.mul(z.im).mul(d)),
+        zre_expanded.sub(zim_expanded),
+        sq_ac.sub(sq_ae_d).add(sq_bed.sub(sq_bc_d)),
+    );
+    F::axiom_eqv_transitive(
+        z.re.mul(z.re).sub(z.im.mul(z.im).mul(d)),
+        sq_ac.sub(sq_ae_d).add(sq_bed.sub(sq_bc_d)),
+        nx.mul(ny),
+    );
+}
+
+/// If P ≥ 0 and Q² ≤ P², then 0 ≤ P + Q.
+proof fn lemma_square_dominance_sum<F: OrderedField>(p: F, q: F)
+    requires
+        F::zero().le(p),
+        q.mul(q).le(p.mul(p)),
+    ensures
+        F::zero().le(p.add(q)),
+{
+    if F::zero().le(q) {
+        lemma_nonneg_add::<F>(p, q);
+    } else {
+        // q < 0. Show -q ≤ p, so p + q ≥ 0.
+        // -q ≥ 0
+        F::axiom_le_total(F::zero(), q);
+        // ¬(0 ≤ q), so q ≤ 0
+        ordered_ring_lemmas::lemma_le_neg_flip::<F>(q, F::zero());
+        // 0.neg() ≤ q.neg()
+        additive_group_lemmas::lemma_neg_zero::<F>();
+        ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+            F::zero().neg(), F::zero(), q.neg(),
+        );
+        // 0 ≤ q.neg()
+
+        // (-q)² ≡ q² by neg_mul_neg
+        ring_lemmas::lemma_neg_mul_neg::<F>(q, q);
+        // q.neg().mul(q.neg()).eqv(q.mul(q))
+        // So q² ≤ p² becomes (-q)² ≤ p² by le_congruence_left
+        F::axiom_eqv_symmetric(q.neg().mul(q.neg()), q.mul(q));
+        ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+            q.mul(q), q.neg().mul(q.neg()), p.mul(p),
+        );
+        // (-q)² ≤ p²
+
+        // By square_le_implies_le: -q ≤ p
+        lemma_square_le_implies_le::<F>(q.neg(), p);
+
+        // -q ≤ p → 0 ≤ p - (-q)
+        ordered_ring_lemmas::lemma_le_iff_sub_nonneg::<F>(q.neg(), p);
+        // p - (-q) ≡ p + q
+        F::axiom_sub_is_add_neg(p, q.neg());
+        additive_group_lemmas::lemma_neg_involution::<F>(q);
+        additive_group_lemmas::lemma_add_congruence_right::<F>(
+            p, q.neg().neg(), q,
+        );
+        F::axiom_eqv_transitive(
+            p.sub(q.neg()),
+            p.add(q.neg().neg()),
+            p.add(q),
+        );
+        ordered_ring_lemmas::lemma_le_congruence_right::<F>(
+            F::zero(),
+            p.sub(q.neg()),
+            p.add(q),
+        );
+    }
+}
+
+/// a ≤ b implies a - b ≤ 0.
+proof fn lemma_sub_nonpos<F: OrderedField>(a: F, b: F)
+    requires a.le(b),
+    ensures a.sub(b).le(F::zero()),
+{
+    F::axiom_le_add_monotone(a, b, b.neg());
+    F::axiom_sub_is_add_neg(a, b);
+    F::axiom_eqv_symmetric(a.sub(b), a.add(b.neg()));
+    ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+        a.add(b.neg()), a.sub(b), b.add(b.neg()),
+    );
+    F::axiom_add_inverse_right(b);
+    ordered_ring_lemmas::lemma_le_congruence_right::<F>(
+        a.sub(b), b.add(b.neg()), F::zero(),
+    );
+}
+
+/// a - b ≤ 0 implies a ≤ b. (Converse of lemma_sub_nonpos.)
+proof fn lemma_nonpos_sub_implies_le<F: OrderedField>(a: F, b: F)
+    requires a.sub(b).le(F::zero()),
+    ensures a.le(b),
+{
+    F::axiom_le_add_monotone(a.sub(b), F::zero(), b);
+    additive_group_lemmas::lemma_sub_then_add_cancel::<F>(a, b);
+    ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+        a.sub(b).add(b), a, F::zero().add(b),
+    );
+    additive_group_lemmas::lemma_add_zero_left::<F>(b);
+    ordered_ring_lemmas::lemma_le_congruence_right::<F>(
+        a, F::zero().add(b), b,
+    );
+}
+
+/// z.re ≥ 0 and norm(z) ≥ 0 implies nonneg(z).
+///
+/// If z.im ≥ 0: C1. If z.im < 0: C2 (z.im²d ≤ z.re² from norm ≥ 0).
+proof fn lemma_nonneg_conclude_re<F: OrderedField, R: PositiveRadicand<F>>(
+    z: SpecQuadExt<F, R>,
+)
+    requires
+        F::zero().le(z.re),
+        F::zero().le(qe_norm::<F, R>(z)),
+    ensures
+        qe_nonneg::<F, R>(z),
+{
+    let d = R::value();
+    R::axiom_value_positive();
+    F::axiom_lt_iff_le_and_not_eqv(F::zero(), d);
+    F::axiom_le_total(F::zero(), z.im);
+    if F::zero().le(z.im) {
+        // C1: z.re ≥ 0, z.im ≥ 0
+    } else {
+        // C2: z.re ≥ 0, z.im < 0, need z.im²d ≤ z.re²
+        // Prove z.im.lt(0): z.im.le(0) from le_total, and !z.im.eqv(0) by contradiction
+        if z.im.eqv(F::zero()) {
+            F::axiom_eqv_symmetric(z.im, F::zero());
+            F::axiom_le_total(F::zero(), F::zero());
+            ordered_ring_lemmas::lemma_le_congruence_right::<F>(F::zero(), F::zero(), z.im);
+            assert(false); // contradicts !0.le(z.im)
+        }
+        F::axiom_lt_iff_le_and_not_eqv(z.im, F::zero());
+        // norm ≥ 0: 0 ≤ z.re² - z.im²d
+        // Derive z.im²d ≤ z.re² using add_monotone
+        let b2d_r = z.im.mul(z.im).mul(d);
+        let a2_r = z.re.mul(z.re);
+        F::axiom_le_add_monotone(F::zero(), a2_r.sub(b2d_r), b2d_r);
+        additive_group_lemmas::lemma_add_zero_left::<F>(b2d_r);
+        ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+            F::zero().add(b2d_r), b2d_r, a2_r.sub(b2d_r).add(b2d_r),
+        );
+        additive_group_lemmas::lemma_sub_then_add_cancel::<F>(a2_r, b2d_r);
+        ordered_ring_lemmas::lemma_le_congruence_right::<F>(
+            b2d_r, a2_r.sub(b2d_r).add(b2d_r), a2_r,
+        );
+    }
+}
+
+/// z.im ≥ 0 and norm(z) ≤ 0 implies nonneg(z).
+///
+/// If z.re ≥ 0: C1. If z.re < 0: show z.im > 0 (from z.im ≡ 0 → z.re ≡ 0 contradiction), then C3.
+#[verifier::rlimit(30)]
+proof fn lemma_nonneg_conclude_im<F: OrderedField, R: PositiveRadicand<F>>(
+    z: SpecQuadExt<F, R>,
+)
+    requires
+        F::zero().le(z.im),
+        qe_norm::<F, R>(z).le(F::zero()),
+    ensures
+        qe_nonneg::<F, R>(z),
+{
+    let d = R::value();
+    R::axiom_value_positive();
+    F::axiom_lt_iff_le_and_not_eqv(F::zero(), d);
+    F::axiom_le_total(F::zero(), z.re);
+    if F::zero().le(z.re) {
+        // C1: z.re ≥ 0, z.im ≥ 0
+    } else {
+        // z.re < 0. Need C3: z.re < 0, z.im > 0, z.re² ≤ z.im²d.
+
+        // Derive z.re² ≤ z.im²d from norm ≤ 0 using add_monotone
+        let b2d_i = z.im.mul(z.im).mul(d);
+        let a2_i = z.re.mul(z.re);
+        // norm = a2_i - b2d_i ≤ 0, add b2d_i to both sides
+        F::axiom_le_add_monotone(a2_i.sub(b2d_i), F::zero(), b2d_i);
+        additive_group_lemmas::lemma_sub_then_add_cancel::<F>(a2_i, b2d_i);
+        ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+            a2_i.sub(b2d_i).add(b2d_i), a2_i, F::zero().add(b2d_i),
+        );
+        additive_group_lemmas::lemma_add_zero_left::<F>(b2d_i);
+        ordered_ring_lemmas::lemma_le_congruence_right::<F>(
+            a2_i, F::zero().add(b2d_i), b2d_i,
+        );
+        // z.re² ≤ z.im²d ✓
+
+        // Derive z.re.lt(0): z.re.le(0) from le_total, and !z.re.eqv(0) by contradiction
+        if z.re.eqv(F::zero()) {
+            F::axiom_eqv_symmetric(z.re, F::zero());
+            F::axiom_le_total(F::zero(), F::zero());
+            ordered_ring_lemmas::lemma_le_congruence_right::<F>(F::zero(), F::zero(), z.re);
+            assert(false); // contradicts !0.le(z.re)
+        }
+        F::axiom_lt_iff_le_and_not_eqv(z.re, F::zero());
+
+        // Derive z.im > 0 (strictly). If z.im ≡ 0: z.im²d ≡ 0, z.re² ≤ 0 ∧ z.re² ≥ 0 → z.re² ≡ 0.
+        // Field: z.re² ≡ 0 ∧ z.re ≢ 0 → contradiction (multiply by z.re.recip()).
+        if z.im.eqv(F::zero()) {
+            // z.im² ≡ 0
+            F::axiom_eqv_symmetric(z.im, F::zero());
+            F::axiom_mul_congruence_left(F::zero(), z.im, z.im);
+            ring_lemmas::lemma_mul_zero_left::<F>(z.im);
+            F::axiom_eqv_symmetric(F::zero().mul(z.im), z.im.mul(z.im));
+            F::axiom_eqv_transitive(z.im.mul(z.im), F::zero().mul(z.im), F::zero());
+            // z.im²d ≡ 0
+            F::axiom_mul_congruence_left(z.im.mul(z.im), F::zero(), d);
+            ring_lemmas::lemma_mul_zero_left::<F>(d);
+            F::axiom_eqv_transitive(b2d_i, F::zero().mul(d), F::zero());
+            // z.re² ≤ z.im²d ≡ 0 → z.re² ≤ 0
+            ordered_ring_lemmas::lemma_le_congruence_right::<F>(a2_i, b2d_i, F::zero());
+            // z.re² ≥ 0
+            ordered_ring_lemmas::lemma_square_nonneg::<F>(z.re);
+            // z.re² ≡ 0
+            F::axiom_le_antisymmetric(a2_i, F::zero());
+            // Field inverse: z.re.recip() * z.re² ≡ z.re.recip() * 0 ≡ 0
+            ring_lemmas::lemma_mul_congruence_right::<F>(z.re.recip(), a2_i, F::zero());
+            F::axiom_mul_commutative(z.re.recip(), F::zero());
+            ring_lemmas::lemma_mul_zero_left::<F>(z.re.recip());
+            F::axiom_eqv_transitive(
+                z.re.recip().mul(F::zero()), F::zero().mul(z.re.recip()), F::zero(),
+            );
+            F::axiom_eqv_transitive(
+                z.re.recip().mul(a2_i), z.re.recip().mul(F::zero()), F::zero(),
+            );
+            // z.re.recip() * z.re² ≡ (z.re.recip() * z.re) * z.re ≡ 1 * z.re ≡ z.re
+            lemma_mul_assoc_rev::<F>(z.re.recip(), z.re, z.re);
+            field_lemmas::lemma_mul_recip_left::<F>(z.re);
+            F::axiom_mul_congruence_left(z.re.recip().mul(z.re), F::one(), z.re);
+            ring_lemmas::lemma_mul_one_left::<F>(z.re);
+            F::axiom_eqv_transitive(
+                z.re.recip().mul(z.re).mul(z.re), F::one().mul(z.re), z.re,
+            );
+            F::axiom_eqv_transitive(
+                z.re.recip().mul(a2_i), z.re.recip().mul(z.re).mul(z.re), z.re,
+            );
+            // z.re ≡ 0 (from z.re.recip()*z.re² ≡ 0 and ≡ z.re)
+            F::axiom_eqv_symmetric(z.re.recip().mul(a2_i), z.re);
+            F::axiom_eqv_transitive(z.re, z.re.recip().mul(a2_i), F::zero());
+            // But z.re ≢ 0 from the earlier block → contradiction
+            assert(false);
+        }
+        // z.im ≢ 0 combined with 0.le(z.im) [requires] → 0.lt(z.im)
+        // Z3 needs !0.eqv(z.im), but if-block above gave !z.im.eqv(0). Bridge via symmetric:
+        F::axiom_eqv_symmetric(F::zero(), z.im);
+        F::axiom_lt_iff_le_and_not_eqv(F::zero(), z.im);
+        // z.re.lt(0) ✓, 0.lt(z.im) ✓, z.re² ≤ z.im²d ✓ → C3
+    }
+}
+
+/// Cross dominance: 0≤a, 0≤e, 0≤d, b²d≤a², c²≤e²d → 0≤ae+bc.
+///
+/// The dominant term ae ≥ 0, and (bc)² ≤ (ae)² from the multiplication chain.
+#[verifier::rlimit(20)]
+proof fn lemma_cross_dominance<F: OrderedField>(
+    a: F, b: F, c: F, e: F, d: F,
+)
+    requires
+        F::zero().le(a),
+        F::zero().le(e),
+        F::zero().le(d),
+        b.mul(b).mul(d).le(a.mul(a)),
+        c.mul(c).le(e.mul(e).mul(d)),
+    ensures
+        F::zero().le(a.mul(e).add(b.mul(c))),
+{
+    // ae ≥ 0
+    ordered_ring_lemmas::lemma_nonneg_mul_nonneg::<F>(a, e);
+    // Need (bc)² ≤ (ae)²
+    // (bc)² = b²c². (ae)² = a²e².
+    // From c² ≤ e²d, multiply by b² ≥ 0: b²c² ≤ b²·(e²d)
+    ordered_ring_lemmas::lemma_square_nonneg::<F>(b);
+    F::axiom_le_mul_nonneg_monotone(c.mul(c), e.mul(e).mul(d), b.mul(b));
+    // c²·b² ≤ (e²d)·b²
+    // c²·b² ≡ (bc)² by square_mul (reversed)
+    lemma_square_mul::<F>(b, c);
+    F::axiom_eqv_symmetric(b.mul(c).mul(b.mul(c)), b.mul(b).mul(c.mul(c)));
+    // b²c² ≡ (bc)²
+    F::axiom_mul_commutative(c.mul(c), b.mul(b));
+    ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+        c.mul(c).mul(b.mul(b)), b.mul(b).mul(c.mul(c)),
+        e.mul(e).mul(d).mul(b.mul(b)),
+    );
+    F::axiom_eqv_symmetric(b.mul(c).mul(b.mul(c)), b.mul(b).mul(c.mul(c)));
+    ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+        b.mul(b).mul(c.mul(c)), b.mul(c).mul(b.mul(c)),
+        e.mul(e).mul(d).mul(b.mul(b)),
+    );
+    // (bc)² ≤ (e²d)·b²
+    // (e²d)·b² = e²·d·b² = (b²d)·e² by commuting
+    // From b²d ≤ a², multiply by e² ≥ 0: (b²d)·e² ≤ a²·e²
+    ordered_ring_lemmas::lemma_square_nonneg::<F>(e);
+    F::axiom_le_mul_nonneg_monotone(b.mul(b).mul(d), a.mul(a), e.mul(e));
+    // (b²d)·e² ≤ a²·e²
+    // a²·e² ≡ (ae)² by square_mul (reversed)
+    lemma_square_mul::<F>(a, e);
+    F::axiom_eqv_symmetric(a.mul(e).mul(a.mul(e)), a.mul(a).mul(e.mul(e)));
+    // a²e² ≡ (ae)²
+    // Need to chain: (e²d)·b² ≡ (b²d)·e²
+    // e²d·b² = (e²·d)·b². b²d·e² = (b²·d)·e².
+    // (e²·d)·b² = e²·(d·b²) by assoc. d·b² = b²·d by commut. So e²·b²d.
+    // (b²·d)·e² = b²d·e². And e²·b²d = e²·(b²d). Commute: b²d·e² ≡ e²·b²d? By commut.
+    F::axiom_mul_commutative(e.mul(e).mul(d), b.mul(b));
+    // (e²d)·b² ≡ b²·(e²d) = b.mul(b).mul(e.mul(e).mul(d))
+    // And b²·(e²d): need this ≡ (b²d)·e² = b.mul(b).mul(d).mul(e.mul(e))
+    // b²·(e²d) = b²·(e²·d). (b²d)·e² = (b²·d)·e².
+    // b²·(e²·d) ≡ b²·(d·e²) by commut inside, then ≡ (b²·d)·e² by assoc_rev.
+    F::axiom_mul_commutative(e.mul(e), d);
+    ring_lemmas::lemma_mul_congruence_right::<F>(b.mul(b), e.mul(e).mul(d), d.mul(e.mul(e)));
+    lemma_mul_assoc_rev::<F>(b.mul(b), d, e.mul(e));
+    F::axiom_eqv_transitive(
+        b.mul(b).mul(e.mul(e).mul(d)),
+        b.mul(b).mul(d.mul(e.mul(e))),
+        b.mul(b).mul(d).mul(e.mul(e)),
+    );
+    // Chain: (e²d)·b² ≡ b²·(e²d) ≡ (b²d)·e²
+    F::axiom_eqv_transitive(
+        e.mul(e).mul(d).mul(b.mul(b)),
+        b.mul(b).mul(e.mul(e).mul(d)),
+        b.mul(b).mul(d).mul(e.mul(e)),
+    );
+    // (bc)² ≤ (e²d)·b² and (e²d)·b² ≡ (b²d)·e², so (bc)² ≤ (b²d)·e²
+    ordered_ring_lemmas::lemma_le_congruence_right::<F>(
+        b.mul(c).mul(b.mul(c)),
+        e.mul(e).mul(d).mul(b.mul(b)),
+        b.mul(b).mul(d).mul(e.mul(e)),
+    );
+    // (b²d)·e² ≤ a²·e² from axiom_le_mul_nonneg_monotone
+    F::axiom_le_transitive(
+        b.mul(c).mul(b.mul(c)),
+        b.mul(b).mul(d).mul(e.mul(e)),
+        a.mul(a).mul(e.mul(e)),
+    );
+    ordered_ring_lemmas::lemma_le_congruence_right::<F>(
+        b.mul(c).mul(b.mul(c)),
+        a.mul(a).mul(e.mul(e)),
+        a.mul(e).mul(a.mul(e)),
+    );
+    // (bc)² ≤ (ae)²
+    lemma_square_dominance_sum::<F>(a.mul(e), b.mul(c));
+}
+
+/// Dual dominant product: 0≤b, 0≤e, 0≤d, a²≤b²d, c²≤e²d → 0≤ac+bed.
+///
+/// The dominant term bed ≥ 0, and (ac)² ≤ (bed)² from the multiplication chain.
+#[verifier::rlimit(20)]
+proof fn lemma_dominant_product_dual<F: OrderedField>(
+    a: F, b: F, c: F, e: F, d: F,
+)
+    requires
+        F::zero().le(b),
+        F::zero().le(e),
+        F::zero().le(d),
+        a.mul(a).le(b.mul(b).mul(d)),
+        c.mul(c).le(e.mul(e).mul(d)),
+    ensures
+        F::zero().le(a.mul(c).add(b.mul(e).mul(d))),
+{
+    // bed ≥ 0
+    ordered_ring_lemmas::lemma_nonneg_mul_nonneg::<F>(b, e);
+    ordered_ring_lemmas::lemma_nonneg_mul_nonneg::<F>(b.mul(e), d);
+    // Need (ac)² ≤ (bed)²
+    // From a² ≤ b²d, multiply by c² ≥ 0: a²c² ≤ (b²d)c²
+    ordered_ring_lemmas::lemma_square_nonneg::<F>(c);
+    F::axiom_le_mul_nonneg_monotone(a.mul(a), b.mul(b).mul(d), c.mul(c));
+    // a²c² ≤ (b²d)·c²
+    // From c² ≤ e²d, multiply by b²d ≥ 0: (b²d)c² ≤ (b²d)(e²d)
+    ordered_ring_lemmas::lemma_square_nonneg::<F>(b);
+    ordered_ring_lemmas::lemma_nonneg_mul_nonneg::<F>(b.mul(b), d);
+    F::axiom_le_mul_nonneg_monotone(c.mul(c), e.mul(e).mul(d), b.mul(b).mul(d));
+    // c²·(b²d) ≤ (e²d)·(b²d)
+    F::axiom_mul_commutative(c.mul(c), b.mul(b).mul(d));
+    ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+        c.mul(c).mul(b.mul(b).mul(d)),
+        b.mul(b).mul(d).mul(c.mul(c)),
+        e.mul(e).mul(d).mul(b.mul(b).mul(d)),
+    );
+    // (b²d)c² ≤ (e²d)(b²d)
+    F::axiom_le_transitive(
+        a.mul(a).mul(c.mul(c)),
+        b.mul(b).mul(d).mul(c.mul(c)),
+        e.mul(e).mul(d).mul(b.mul(b).mul(d)),
+    );
+    // a²c² ≤ (e²d)(b²d) = (bed)²
+    // (ac)² ≡ a²c² by square_mul
+    lemma_square_mul::<F>(a, c);
+    F::axiom_eqv_symmetric(a.mul(c).mul(a.mul(c)), a.mul(a).mul(c.mul(c)));
+    ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+        a.mul(a).mul(c.mul(c)),
+        a.mul(c).mul(a.mul(c)),
+        e.mul(e).mul(d).mul(b.mul(b).mul(d)),
+    );
+    // (e²d)(b²d) ≡ (bed)² by sq_d_product
+    lemma_sq_d_product::<F>(b, e, d);
+    F::axiom_eqv_symmetric(b.mul(b).mul(d).mul(e.mul(e).mul(d)), b.mul(e).mul(d).mul(b.mul(e).mul(d)));
+    // swap order
+    F::axiom_mul_commutative(e.mul(e).mul(d), b.mul(b).mul(d));
+    ordered_ring_lemmas::lemma_le_congruence_right::<F>(
+        a.mul(c).mul(a.mul(c)),
+        e.mul(e).mul(d).mul(b.mul(b).mul(d)),
+        b.mul(b).mul(d).mul(e.mul(e).mul(d)),
+    );
+    ordered_ring_lemmas::lemma_le_congruence_right::<F>(
+        a.mul(c).mul(a.mul(c)),
+        b.mul(b).mul(d).mul(e.mul(e).mul(d)),
+        b.mul(e).mul(d).mul(b.mul(e).mul(d)),
+    );
+    // (ac)² ≤ (bed)²
+    // bed ≥ 0 → square_dominance_sum(bed, ac) → 0 ≤ bed + ac
+    lemma_square_dominance_sum::<F>(b.mul(e).mul(d), a.mul(c));
+    // 0 ≤ bed + ac ≡ ac + bed by commutativity
+    F::axiom_add_commutative(b.mul(e).mul(d), a.mul(c));
+    ordered_ring_lemmas::lemma_le_congruence_right::<F>(
+        F::zero(),
+        b.mul(e).mul(d).add(a.mul(c)),
+        a.mul(c).add(b.mul(e).mul(d)),
+    );
+}
+
+/// Extract norm ≤ 0 from !(0 ≤ nx): nx ≤ 0, then le_neg_flip + neg_zero to get 0 ≤ -nx,
+/// then sub_antisymmetric to get a² ≤ b²d.
+proof fn lemma_norm_nonpos_to_le<F: OrderedField>(
+    a2: F, b2d: F, nx: F,
+)
+    requires
+        nx === a2.sub(b2d),
+        !F::zero().le(nx),
+    ensures
+        a2.le(b2d),
+{
+    // Derive a2 ≤ b2d from !0.le(nx) where nx = a2 - b2d
+    // !0.le(nx) → nx.le(0) from le_total
+    F::axiom_le_total(F::zero(), nx);
+    // nx + b2d ≤ 0 + b2d by add_monotone
+    F::axiom_le_add_monotone(nx, F::zero(), b2d);
+    // nx + b2d ≡ a2 by sub_then_add_cancel
+    additive_group_lemmas::lemma_sub_then_add_cancel::<F>(a2, b2d);
+    ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+        nx.add(b2d), a2, F::zero().add(b2d),
+    );
+    // 0 + b2d ≡ b2d
+    additive_group_lemmas::lemma_add_zero_left::<F>(b2d);
+    ordered_ring_lemmas::lemma_le_congruence_right::<F>(
+        a2, F::zero().add(b2d), b2d,
+    );
+}
+
+/// Extract b ≥ 0 from nonneg(x) + !(0 ≤ nx): by contradiction.
+proof fn lemma_extract_im_nonneg<F: OrderedField, R: PositiveRadicand<F>>(
+    x: SpecQuadExt<F, R>,
+)
+    requires
+        qe_nonneg::<F, R>(x),
+        !F::zero().le(x.re.mul(x.re).sub(x.im.mul(x.im).mul(R::value()))),
+    ensures
+        F::zero().le(x.im),
+{
+    let b = x.im;
+    let d = R::value();
+    R::axiom_value_positive();
+    F::axiom_lt_iff_le_and_not_eqv(F::zero(), d);
+    F::axiom_le_total(F::zero(), b);
+    if !F::zero().le(b) {
+        // b ≤ 0 (and ¬(0 ≤ b)).
+        // C1: requires 0≤b → false.
+        // C3: requires 0<b → 0≤b → false.
+        // C2: requires b<0 and b²d≤a² → nx≥0 → 0.le(nx). But !(0.le(nx)). Contradiction.
+        F::axiom_lt_iff_le_and_not_eqv(F::zero(), b);
+        ordered_ring_lemmas::lemma_le_iff_sub_nonneg::<F>(
+            b.mul(b).mul(d), x.re.mul(x.re),
+        );
+        // If b²d ≤ a²: 0 ≤ a²-b²d = nx. But !(0≤nx). So b²d > a² in the C2 case.
+        // But C2 requires b²d ≤ a². If that held, we'd have 0 ≤ nx, contradiction.
+        // So C2 is impossible. All 3 cases impossible → nonneg(x) false → contradiction.
+        assert(false);
+    }
+}
+
+/// Product of two nonneg quadratic extension elements is nonneg.
+///
+/// Dispatches on le_total(0, x.re) × le_total(0, y.re), then sub-dispatches on norm signs.
+/// Case A×A: 0≤a, 0≤c — 4 norm sub-cases.
+/// Case A×B: 0≤a, c<0 — nonneg(y) C3 gives e>0.
+/// Case B×A: a<0, 0≤c — nonneg(x) C3 gives b>0.
+/// Case B×B: a<0, c<0 — both C3, trivial (ac>0, bed>0).
+#[verifier::rlimit(40)]
+pub proof fn lemma_nonneg_mul_closed<F: OrderedField, R: PositiveRadicand<F>>(
+    x: SpecQuadExt<F, R>,
+    y: SpecQuadExt<F, R>,
+)
+    requires
+        qe_nonneg::<F, R>(x),
+        qe_nonneg::<F, R>(y),
+    ensures
+        qe_nonneg::<F, R>(qe_mul::<F, R>(x, y)),
+{
+    let a = x.re; let b = x.im;
+    let c = y.re; let e = y.im;
+    let d = R::value();
+    let z = qe_mul::<F, R>(x, y);
+    let a2 = a.mul(a);
+    let b2d = b.mul(b).mul(d);
+    let c2 = c.mul(c);
+    let e2d = e.mul(e).mul(d);
+    let nx = a2.sub(b2d);
+    let ny = c2.sub(e2d);
+
+    R::axiom_value_positive();
+    F::axiom_lt_iff_le_and_not_eqv(F::zero(), d);
+
+    // Norm multiplicativity: nz ≡ nx · ny
+    lemma_norm_mul::<F, R>(x, y);
+
+    F::axiom_le_total(F::zero(), a);
+    F::axiom_le_total(F::zero(), c);
+
+    if F::zero().le(a) && F::zero().le(c) {
+        // ═══ Case A×A: 0 ≤ a, 0 ≤ c ═══
+        F::axiom_le_total(b2d, a2);
+        F::axiom_le_total(e2d, c2);
+
+        if b2d.le(a2) && e2d.le(c2) {
+            // Both re-dominant. z.re ≥ 0, norm ≥ 0.
+            lemma_dominant_product::<F>(a, b, c, e, d);
+            ordered_ring_lemmas::lemma_le_iff_sub_nonneg::<F>(b2d, a2);
+            ordered_ring_lemmas::lemma_le_iff_sub_nonneg::<F>(e2d, c2);
+            ordered_ring_lemmas::lemma_nonneg_mul_nonneg::<F>(nx, ny);
+            // norm(z) ≡ nx·ny [from lemma_norm_mul], need symmetric direction
+            F::axiom_eqv_symmetric(qe_norm::<F, R>(z), nx.mul(ny));
+            ordered_ring_lemmas::lemma_le_congruence_right::<F>(
+                F::zero(), nx.mul(ny), qe_norm::<F, R>(z),
+            );
+            lemma_nonneg_conclude_re::<F, R>(z);
+        } else if b2d.le(a2) && !e2d.le(c2) {
+            // x re-dominant, y im-dominant. norm ≤ 0.
+            // Extract e ≥ 0: nonneg(y)+0≤c → C1(e≥0) or C2(e<0 + e²d≤c², but c²<e²d, boundary).
+            F::axiom_le_total(F::zero(), e);
+            if F::zero().le(e) {
+                // ae ≥ 0 dominant. Use cross_dominance.
+                ordered_ring_lemmas::lemma_le_iff_sub_nonneg::<F>(b2d, a2);
+                // c² ≤ e²d: !(e2d ≤ c2) + totality → c2 ≤ e2d... wait, le_total gives c2.le(e2d) || e2d.le(c2).
+                // We're in !(e2d.le(c2)), so c2.le(e2d).
+                // Hmm actually le_total(e2d, c2) gives e2d.le(c2) || c2.le(e2d). We're in !e2d.le(c2).
+                // Wait, I called axiom_le_total(e2d, c2) which is NOT what I did. Let me re-check.
+                // I called F::axiom_le_total(e2d, c2) — this should give e2d.le(c2) || c2.le(e2d).
+                // If !e2d.le(c2): c2.le(e2d). ✓
+                lemma_cross_dominance::<F>(a, b, c, e, d);
+                // z.im ≥ 0. norm ≤ 0.
+                // norm(z) ≡ nx · ny. nx ≥ 0 (b2d ≤ a2), ny ≤ 0 (c2 ≤ e2d → 0 ≤ e2d - c2 → ny ≤ 0).
+                ordered_ring_lemmas::lemma_le_iff_sub_nonneg::<F>(b2d, a2);
+                // 0 ≤ nx. And !(e2d.le(c2)) + totality → c2.le(e2d).
+                ordered_ring_lemmas::lemma_le_iff_sub_nonneg::<F>(c2, e2d);
+                // 0 ≤ e2d - c2. This means c2 - e2d ≤ 0, i.e., ny ≤ 0.
+                additive_group_lemmas::lemma_sub_antisymmetric::<F>(c2, e2d);
+                // c2.sub(e2d).eqv(e2d.sub(c2).neg())
+                // 0 ≤ e2d.sub(c2) → (e2d.sub(c2)).neg() ≤ 0.neg() ≡ 0
+                ordered_ring_lemmas::lemma_le_neg_flip::<F>(F::zero(), e2d.sub(c2));
+                additive_group_lemmas::lemma_neg_zero::<F>();
+                ordered_ring_lemmas::lemma_le_congruence_right::<F>(
+                    e2d.sub(c2).neg(), F::zero().neg(), F::zero(),
+                );
+                // (e2d-c2).neg() ≤ 0. ny ≡ (e2d-c2).neg() → ny ≤ 0.
+                F::axiom_eqv_symmetric(c2.sub(e2d), e2d.sub(c2).neg());
+                ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+                    e2d.sub(c2).neg(), c2.sub(e2d), F::zero(),
+                );
+                // ny ≤ 0. nx ≥ 0, ny ≤ 0 → nx*ny ≤ 0.
+                // Actually: 0 ≤ nx and ny ≤ 0 → nx*ny ≤ 0.
+                // axiom_le_mul_nonneg_monotone(ny, 0, nx): ny ≤ 0 and 0 ≤ nx → ny*nx ≤ 0*nx = 0.
+                F::axiom_le_mul_nonneg_monotone(ny, F::zero(), nx);
+                ring_lemmas::lemma_mul_zero_left::<F>(nx);
+                ordered_ring_lemmas::lemma_le_congruence_right::<F>(
+                    ny.mul(nx), F::zero().mul(nx), F::zero(),
+                );
+                F::axiom_mul_commutative(ny, nx);
+                ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+                    ny.mul(nx), nx.mul(ny), F::zero(),
+                );
+                // nx*ny ≤ 0. nz ≡ nx*ny. So nz ≤ 0.
+                F::axiom_eqv_symmetric(qe_norm::<F, R>(z), nx.mul(ny));
+                ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+                    nx.mul(ny), qe_norm::<F, R>(z), F::zero(),
+                );
+                lemma_nonneg_conclude_im::<F, R>(z);
+            } else {
+                // e < 0, boundary: ny ≡ 0 (from C2 of y: e²d ≤ c², combined with c² ≤ e²d).
+                // norm(z) ≡ nx * 0 ≡ 0. Both z.re² ≡ z.im²d.
+                // Since c ≥ 0 and b²d ≤ a² (nx ≥ 0): use dominant_product for z.re ≥ 0.
+                // Wait: dominant_product needs e²d ≤ c². We have c² ≤ e²d AND e²d ≤ c² (from C2).
+                // So e²d ≡ c² (boundary). e²d ≤ c² holds (from C2 of y: b²d ≤ a² form).
+                // Hmm, the precondition of C2 for y: F::zero().le(c) && e.lt(F::zero()) && e²d.le(c²).
+                // So e²d ≤ c² from C2. And we're in the !(e2d.le(c2)) branch... contradiction!
+                // Wait: I checked axiom_le_total(e2d, c2). We're in !e2d.le(c2) branch.
+                // But C2 of y requires e2d.le(c2). If !(e2d.le(c2)), C2 fails.
+                // C1 requires e ≥ 0 → fails (e < 0).
+                // C3 requires c < 0 → fails (c ≥ 0).
+                // So nonneg(y) is false! Contradiction with requires.
+                F::axiom_lt_iff_le_and_not_eqv(F::zero(), e);
+                assert(false);
+            }
+        } else if !b2d.le(a2) && e2d.le(c2) {
+            // x im-dominant, y re-dominant. Symmetric to above.
+            F::axiom_le_total(F::zero(), b);
+            if F::zero().le(b) {
+                // bc ≥ 0 dominant. Use cross dominance (dual version — bc dominates ae).
+                // a² ≤ b²d (from !b2d.le(a2) → a² ≤ b²d by totality)
+                // e²d ≤ c²
+                // Need: 0 ≤ ae + bc where bc ≥ 0 dominates.
+                // (ae)² ≤ (bc)²: from a²≤b²d (×e²) and e²d≤c² (×b²).
+                // a²e² ≤ b²de² ≡ b²(e²d) ≤ b²c². So (ae)² ≤ (bc)².
+                // bc ≥ 0 → square_dominance_sum(bc, ae) → 0 ≤ bc + ae ≡ ae + bc.
+                ordered_ring_lemmas::lemma_nonneg_mul_nonneg::<F>(b, c);
+                // (ae)² ≤ (bc)²
+                ordered_ring_lemmas::lemma_square_nonneg::<F>(e);
+                F::axiom_le_mul_nonneg_monotone(a.mul(a), b.mul(b).mul(d), e.mul(e));
+                // a²e² ≤ (b²d)e²
+                // (b²d)e² ≡ b²(e²d): commute
+                F::axiom_mul_commutative(e.mul(e), d);
+                ring_lemmas::lemma_mul_congruence_right::<F>(
+                    b.mul(b), e.mul(e).mul(d), d.mul(e.mul(e)),
+                );
+                lemma_mul_assoc_rev::<F>(b.mul(b), d, e.mul(e));
+                F::axiom_eqv_transitive(
+                    b.mul(b).mul(e.mul(e).mul(d)),
+                    b.mul(b).mul(d.mul(e.mul(e))),
+                    b.mul(b).mul(d).mul(e.mul(e)),
+                );
+                F::axiom_mul_commutative(b.mul(b).mul(d), e.mul(e));
+                F::axiom_eqv_transitive(
+                    b.mul(b).mul(e.mul(e).mul(d)),
+                    b.mul(b).mul(d).mul(e.mul(e)),
+                    e.mul(e).mul(b.mul(b).mul(d)),
+                );
+                // Now: a²e² ≤ (b²d)e² and (b²d)e² ≡ b²(e²d)... hmm this is getting long.
+                // Let me just do: a.mul(a).mul(e.mul(e)) ≤ b.mul(b).mul(d).mul(e.mul(e)).
+                // b²d·e² ≡ e²·b²d by commut. And e²·(b²d) = e.mul(e).mul(b.mul(b).mul(d)).
+                // axiom_le_mul_nonneg_monotone gave a²·e² ≤ b²d·e². OK.
+                // Commute: b²d·e² ≡ e²·(b²d).
+                // Then: e²·(b²d) ≤ ? b²c² (which is (bc)²).
+                // e²d ≤ c². Multiply by b²: b²·(e²d) ≤ b²·c².
+                // But we need e²·(b²d) ≤ b²c². e²·(b²d) ≡ b²·(e²d) ≡ b²d·e² (by commuting).
+                // So b²·(e²d) ≤ b²·c² [from e²d ≤ c², multiply by b² ≥ 0].
+                ordered_ring_lemmas::lemma_square_nonneg::<F>(b);
+                F::axiom_le_mul_nonneg_monotone(e.mul(e).mul(d), c.mul(c), b.mul(b));
+                // (e²d)·b² ≤ c²·b². Commute both:
+                F::axiom_mul_commutative(e.mul(e).mul(d), b.mul(b));
+                F::axiom_mul_commutative(c.mul(c), b.mul(b));
+                ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+                    e.mul(e).mul(d).mul(b.mul(b)),
+                    b.mul(b).mul(e.mul(e).mul(d)),
+                    c.mul(c).mul(b.mul(b)),
+                );
+                ordered_ring_lemmas::lemma_le_congruence_right::<F>(
+                    b.mul(b).mul(e.mul(e).mul(d)),
+                    c.mul(c).mul(b.mul(b)),
+                    b.mul(b).mul(c.mul(c)),
+                );
+                // b²(e²d) ≤ b²c²
+                // Chain: a²e² ≤ b²d·e² ≡... hmm this is really long.
+                // Let me try a different approach. I'll just use the same structure as cross_dominance
+                // but with swapped roles. Actually, this IS cross_dominance_dual (b≥0, c≥0, a²≤b²d, e²d≤c²).
+                // But I don't have that helper yet. Let me inline the key steps.
+                // Actually the cleanest thing: I notice that z.im = ae + bc = bc + ae (by add_commutative).
+                // And I can use cross_dominance with arguments (c, e, a, b, d):
+                //   requires 0≤c, 0≤b, 0≤d, e²d ≤ c², a² ≤ b²d.
+                //   ensures 0 ≤ c·b + e·a = bc + ea.
+                // Wait: cross_dominance(a,b,c,e,d) ensures 0≤ae+bc with 0≤a, 0≤e, b²d≤a², c²≤e²d.
+                // So cross_dominance(c, e, a, b, d) ensures 0≤ce+ea... no that's wrong.
+                // cross_dominance signature: (a,b,c,e,d) → 0 ≤ a*e + b*c. With 0≤a,0≤e,b²d≤a²,c²≤e²d.
+                // If I call cross_dominance(c, e, a, b, d): 0≤c, 0≤b (as e), e²d≤c²(as b²d≤a²), a²≤b²d(as c²≤e²d).
+                // Wait: params are (a=c, b=e, c=a, e=b, d=d). Then:
+                //   requires 0≤c (our c ≥ 0 ✓), 0≤b (our b ≥ 0 ✓), 0≤d ✓,
+                //   b²d≤a² → e²d≤c² ✓ (we have e²d ≤ c²),
+                //   c²≤e²d → a²≤b²d ✓ (we have a² ≤ b²d from !b2d.le(a2) → a2.le(b2d))
+                //   ensures 0 ≤ a*e + b*c → 0 ≤ c*b + e*a = cb + ea.
+                // But I need 0 ≤ ae + bc, not 0 ≤ cb + ea.
+                // cb + ea = bc + ae (by mul_commut + add_commut).
+                // So: cross_dominance(c, e, a, b, d) gives 0 ≤ cb + ea, and cb+ea ≡ ae+bc. ✓
+                // But wait: the condition c²≤e²d maps to a²≤b²d. In our call: "c" in the cross_dominance
+                // is our "a", and "e" is our "b". So condition c²≤e²d becomes a²≤b²d. ✓
+                // And b²d≤a² becomes e²d≤c². ✓
+                // Great! Let me just call cross_dominance with swapped args.
+                lemma_cross_dominance::<F>(c, e, a, b, d);
+                // 0 ≤ c*b + e*a = cb + ea
+                // cb ≡ bc and ea ≡ ae by mul_commut
+                F::axiom_mul_commutative(c, b);
+                F::axiom_mul_commutative(e, a);
+                additive_group_lemmas::lemma_add_congruence::<F>(
+                    c.mul(b), b.mul(c), e.mul(a), a.mul(e),
+                );
+                // cb + ea ≡ bc + ae
+                F::axiom_add_commutative(b.mul(c), a.mul(e));
+                F::axiom_eqv_transitive(
+                    c.mul(b).add(e.mul(a)),
+                    b.mul(c).add(a.mul(e)),
+                    a.mul(e).add(b.mul(c)),
+                );
+                ordered_ring_lemmas::lemma_le_congruence_right::<F>(
+                    F::zero(),
+                    c.mul(b).add(e.mul(a)),
+                    a.mul(e).add(b.mul(c)),
+                );
+                // 0 ≤ ae + bc = z.im. ✓
+                // norm ≤ 0: symmetric argument to the b2d≤a2 && !e2d≤c2 case above.
+                // nx ≤ 0 (a² ≤ b²d) and ny ≥ 0 (e²d ≤ c²).
+                // nx·ny ≤ 0 → nz ≤ 0.
+                ordered_ring_lemmas::lemma_le_iff_sub_nonneg::<F>(e2d, c2);
+                // ny = c2.sub(e2d). 0 ≤ ny.
+                // nx: !(b2d.le(a2)) + totality → a2.le(b2d).
+                ordered_ring_lemmas::lemma_le_iff_sub_nonneg::<F>(a2, b2d);
+                // 0 ≤ b2d.sub(a2). nx = a2.sub(b2d). nx ≡ -(b2d.sub(a2)) ≤ 0.
+                additive_group_lemmas::lemma_sub_antisymmetric::<F>(a2, b2d);
+                ordered_ring_lemmas::lemma_le_neg_flip::<F>(F::zero(), b2d.sub(a2));
+                additive_group_lemmas::lemma_neg_zero::<F>();
+                ordered_ring_lemmas::lemma_le_congruence_right::<F>(
+                    b2d.sub(a2).neg(), F::zero().neg(), F::zero(),
+                );
+                // (b2d-a2).neg() ≤ 0. And nx ≡ (b2d-a2).neg() [from sub_antisymmetric].
+                F::axiom_eqv_symmetric(a2.sub(b2d), b2d.sub(a2).neg());
+                ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+                    b2d.sub(a2).neg(), a2.sub(b2d), F::zero(),
+                );
+                // nx ≤ 0. ny ≥ 0. nx*ny ≤ 0.
+                F::axiom_le_mul_nonneg_monotone(nx, F::zero(), ny);
+                ring_lemmas::lemma_mul_zero_left::<F>(ny);
+                ordered_ring_lemmas::lemma_le_congruence_right::<F>(
+                    nx.mul(ny), F::zero().mul(ny), F::zero(),
+                );
+                // nz ≡ nx*ny ≤ 0.
+                F::axiom_eqv_symmetric(qe_norm::<F, R>(z), nx.mul(ny));
+                ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+                    nx.mul(ny), qe_norm::<F, R>(z), F::zero(),
+                );
+                lemma_nonneg_conclude_im::<F, R>(z);
+            } else {
+                // b < 0, boundary: nonneg(x) C2 requires b²d ≤ a². But !(b2d.le(a2)). So C2 fails.
+                // C1: 0≤b → false. C3: 0<b → false. All cases fail → contradiction.
+                F::axiom_lt_iff_le_and_not_eqv(F::zero(), b);
+                assert(false);
+            }
+        } else {
+            // Both im-dominant: !(b2d.le(a2)) && !(e2d.le(c2)).
+            // a² ≤ b²d and c² ≤ e²d.
+            // Extract b ≥ 0 and e ≥ 0.
+            F::axiom_le_total(F::zero(), b);
+            F::axiom_le_total(F::zero(), e);
+            if F::zero().le(b) && F::zero().le(e) {
+                // b ≥ 0, e ≥ 0, a ≥ 0, c ≥ 0, d > 0. All components nonneg.
+                // z.re = ac + bed ≥ 0 (all terms nonneg).
+                ordered_ring_lemmas::lemma_nonneg_mul_nonneg::<F>(a, c);
+                ordered_ring_lemmas::lemma_nonneg_mul_nonneg::<F>(b, e);
+                ordered_ring_lemmas::lemma_nonneg_mul_nonneg::<F>(b.mul(e), d);
+                lemma_nonneg_add::<F>(a.mul(c), b.mul(e).mul(d));
+                // norm = nx*ny ≥ 0 (both ≤ 0, product ≥ 0).
+                // nx ≤ 0, ny ≤ 0. nx*ny ≥ 0.
+                // From !(b2d.le(a2)) + totality: a2.le(b2d). le_iff_sub_nonneg: 0 ≤ b2d-a2.
+                // nx = a2-b2d. nx ≡ -(b2d-a2) ≤ 0.
+                // Similarly ny ≤ 0.
+                // nx ≤ 0 and ny ≤ 0 (from !(b2d.le(a2)) → a2.le(b2d), etc.)
+                lemma_sub_nonpos::<F>(a2, b2d);
+                lemma_sub_nonpos::<F>(c2, e2d);
+                // neg_mul_neg: nx.neg()*ny.neg() ≡ nx*ny.
+                ring_lemmas::lemma_neg_mul_neg::<F>(nx, ny);
+                // 0 ≤ nx.neg() and 0 ≤ ny.neg() via le_neg_flip + neg_zero:
+                additive_group_lemmas::lemma_neg_zero::<F>();
+                ordered_ring_lemmas::lemma_le_neg_flip::<F>(nx, F::zero());
+                ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+                    F::zero().neg(), F::zero(), nx.neg(),
+                );
+                // 0 ≤ nx.neg() ✓
+                ordered_ring_lemmas::lemma_le_neg_flip::<F>(ny, F::zero());
+                ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+                    F::zero().neg(), F::zero(), ny.neg(),
+                );
+                // 0 ≤ ny.neg() ✓
+                ordered_ring_lemmas::lemma_nonneg_mul_nonneg::<F>(nx.neg(), ny.neg());
+                // 0 ≤ nx.neg()*ny.neg() ≡ nx*ny.
+                ordered_ring_lemmas::lemma_le_congruence_right::<F>(
+                    F::zero(), nx.neg().mul(ny.neg()), nx.mul(ny),
+                );
+                // 0 ≤ nx*ny ≡ nz.
+                F::axiom_eqv_symmetric(qe_norm::<F, R>(z), nx.mul(ny));
+                ordered_ring_lemmas::lemma_le_congruence_right::<F>(
+                    F::zero(), nx.mul(ny), qe_norm::<F, R>(z),
+                );
+                lemma_nonneg_conclude_re::<F, R>(z);
+            } else if !F::zero().le(b) {
+                // b < 0. nonneg(x) C2: b<0, b²d≤a². But !(b2d.le(a2)). Contradiction.
+                F::axiom_lt_iff_le_and_not_eqv(F::zero(), b);
+                assert(false);
+            } else {
+                // e < 0. nonneg(y) C2: e<0, e²d≤c². But !(e2d.le(c2)). Contradiction.
+                F::axiom_lt_iff_le_and_not_eqv(F::zero(), e);
+                assert(false);
+            }
+        }
+    } else if !F::zero().le(a) && !F::zero().le(c) {
+        // ═══ Case B×B: a < 0, c < 0 ═══
+        // nonneg(x) C3: a<0, b>0, a²≤b²d. nonneg(y) C3: c<0, e>0, c²≤e²d.
+        // z.re = ac + bed. ac = (neg)(neg) > 0. bed = (pos)(pos)(pos) > 0. z.re > 0 → z.re ≥ 0.
+        F::axiom_lt_iff_le_and_not_eqv(F::zero(), x.im);
+        F::axiom_lt_iff_le_and_not_eqv(F::zero(), y.im);
+        // b > 0, e > 0 from C3 for both.
+        // But we need to extract b > 0 from qe_nonneg. Z3 should see C3 since a < 0 rules out C1/C2.
+        // a < 0: axiom_lt_iff_le_and_not_eqv(a, 0): a.le(0) && !a.eqv(0).
+        F::axiom_lt_iff_le_and_not_eqv(a, F::zero());
+        F::axiom_lt_iff_le_and_not_eqv(c, F::zero());
+
+        // ac > 0: (-a)(-c) ≡ ac by neg_mul_neg. And (-a) > 0, (-c) > 0.
+        // (-a) ≥ 0 and (-c) ≥ 0:
+        ordered_ring_lemmas::lemma_le_neg_flip::<F>(a, F::zero());
+        additive_group_lemmas::lemma_neg_zero::<F>();
+        // 0.neg().le(a.neg()) from neg_flip, 0.neg() ≡ 0 from neg_zero → 0.le(a.neg())
+        ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+            F::zero().neg(), F::zero(), a.neg(),
+        );
+        // 0 ≤ a.neg(). Similarly:
+        ordered_ring_lemmas::lemma_le_neg_flip::<F>(c, F::zero());
+        ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+            F::zero().neg(), F::zero(), c.neg(),
+        );
+        // 0 ≤ c.neg().
+        ordered_ring_lemmas::lemma_nonneg_mul_nonneg::<F>(a.neg(), c.neg());
+        ring_lemmas::lemma_neg_mul_neg::<F>(a, c);
+        ordered_ring_lemmas::lemma_le_congruence_right::<F>(
+            F::zero(), a.neg().mul(c.neg()), a.mul(c),
+        );
+        // 0 ≤ ac ✓
+
+        // Extract b ≥ 0 and e ≥ 0 from C3 (a < 0 rules out C1/C2, so C3 gives 0.lt(b)):
+        F::axiom_lt_iff_le_and_not_eqv(F::zero(), b);
+        F::axiom_lt_iff_le_and_not_eqv(F::zero(), e);
+        // bed ≥ 0:
+        ordered_ring_lemmas::lemma_nonneg_mul_nonneg::<F>(b, e);
+        ordered_ring_lemmas::lemma_nonneg_mul_nonneg::<F>(b.mul(e), d);
+
+        // z.re ≥ 0
+        lemma_nonneg_add::<F>(a.mul(c), b.mul(e).mul(d));
+
+        // norm ≥ 0: nx ≤ 0, ny ≤ 0 → nx*ny ≥ 0.
+        // nx ≤ 0: a² ≤ b²d from C3. le_iff_sub_nonneg: 0 ≤ b2d - a2.
+        // So a2.sub(b2d) ≡ (b2d.sub(a2)).neg() ≤ 0.
+        // Extract nx ≤ 0 from nonneg + a < 0 (C3):
+        // C3 gives a² ≤ b²d and c² ≤ e²d. So nx = a²-b²d ≤ 0, ny = c²-e²d ≤ 0.
+        lemma_sub_nonpos::<F>(a2, b2d);
+        lemma_sub_nonpos::<F>(c2, e2d);
+        // neg_mul_neg + nonneg_mul_nonneg:
+        ordered_ring_lemmas::lemma_le_neg_flip::<F>(nx, F::zero());
+        ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+            F::zero().neg(), F::zero(), nx.neg(),
+        );
+        ordered_ring_lemmas::lemma_le_neg_flip::<F>(ny, F::zero());
+        ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+            F::zero().neg(), F::zero(), ny.neg(),
+        );
+        ordered_ring_lemmas::lemma_nonneg_mul_nonneg::<F>(nx.neg(), ny.neg());
+        ring_lemmas::lemma_neg_mul_neg::<F>(nx, ny);
+        ordered_ring_lemmas::lemma_le_congruence_right::<F>(
+            F::zero(), nx.neg().mul(ny.neg()), nx.mul(ny),
+        );
+        F::axiom_eqv_symmetric(qe_norm::<F, R>(z), nx.mul(ny));
+        ordered_ring_lemmas::lemma_le_congruence_right::<F>(
+            F::zero(), nx.mul(ny), qe_norm::<F, R>(z),
+        );
+        lemma_nonneg_conclude_re::<F, R>(z);
+    } else if F::zero().le(a) && !F::zero().le(c) {
+        // ═══ Case A×B: 0 ≤ a, c < 0 ═══
+        // nonneg(y) C3: c<0, e>0, c²≤e²d.
+        // e > 0 from C3. ae ≥ 0 (a≥0, e≥0).
+        F::axiom_lt_iff_le_and_not_eqv(F::zero(), y.im);
+        // le_total(b²d, a²):
+        F::axiom_le_total(b2d, a2);
+        if b2d.le(a2) {
+            // nx ≥ 0, ny ≤ 0. norm ≤ 0. Need z.im ≥ 0.
+            // cross_dominance(a,b,c,e,d): ae dominant.
+            lemma_cross_dominance::<F>(a, b, c, e, d);
+            // z.im ≥ 0 ✓
+            // Show norm ≤ 0: nx ≥ 0, ny ≤ 0 → nx*ny ≤ 0.
+            ordered_ring_lemmas::lemma_le_iff_sub_nonneg::<F>(b2d, a2);
+            // C3 of y: c² ≤ e²d. ny = c²-e²d ≤ 0.
+            lemma_sub_nonpos::<F>(c2, e2d);
+            // ny ≤ 0 ✓, nx ≥ 0 ✓
+            F::axiom_le_mul_nonneg_monotone(ny, F::zero(), nx);
+            ring_lemmas::lemma_mul_zero_left::<F>(nx);
+            ordered_ring_lemmas::lemma_le_congruence_right::<F>(
+                ny.mul(nx), F::zero().mul(nx), F::zero(),
+            );
+            F::axiom_mul_commutative(ny, nx);
+            ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+                ny.mul(nx), nx.mul(ny), F::zero(),
+            );
+            F::axiom_eqv_symmetric(qe_norm::<F, R>(z), nx.mul(ny));
+            ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+                nx.mul(ny), qe_norm::<F, R>(z), F::zero(),
+            );
+            lemma_nonneg_conclude_im::<F, R>(z);
+        } else {
+            // a² ≤ b²d (nx ≤ 0). ny ≤ 0 (from C3 of y). norm ≥ 0 (neg*neg).
+            // Need z.re ≥ 0. b ≥ 0 (extract from nonneg(x) + !(b2d.le(a2))):
+            // If b < 0: C2 requires b²d ≤ a² → contradicts !(b2d.le(a2)). C1: b≥0→contradiction. C3: b>0→b≥0.
+            // So if !(b≥0): all cases of nonneg(x) fail → contradiction.
+            // b ≥ 0: nonneg(x) with 0.le(a) → C1 or C2. C2 requires b2d.le(a2), contradicts !b2d.le(a2). So C1: b≥0.
+            if !F::zero().le(b) {
+                // Rule out C3: a.lt(0) is false since 0.le(a).
+                F::axiom_lt_iff_le_and_not_eqv(a, F::zero());
+                F::axiom_le_total(a, F::zero());
+                if a.le(F::zero()) {
+                    F::axiom_le_antisymmetric(a, F::zero());
+                    // a.eqv(0) contradicts !a.eqv(0) from lt_iff. So a.lt(0) false.
+                }
+                // C1 fails (!0.le(b)), C2 fails (!b2d.le(a2)), C3 fails (!a.lt(0)).
+                assert(false);
+            }
+            // b ≥ 0 ✓. e > 0 ≥ 0 from C3 of y.
+            // dominant_product_dual(a,b,c,e,d): 0≤b, 0≤e, 0≤d, a²≤b²d, c²≤e²d → 0≤ac+bed.
+            lemma_dominant_product_dual::<F>(a, b, c, e, d);
+            // z.re ≥ 0 ✓
+            // norm ≥ 0: both nx ≤ 0 and ny ≤ 0 → neg_mul_neg.
+            lemma_sub_nonpos::<F>(c2, e2d);
+            lemma_sub_nonpos::<F>(a2, b2d);
+            ring_lemmas::lemma_neg_mul_neg::<F>(nx, ny);
+            additive_group_lemmas::lemma_neg_zero::<F>();
+            ordered_ring_lemmas::lemma_le_neg_flip::<F>(nx, F::zero());
+            ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+                F::zero().neg(), F::zero(), nx.neg(),
+            );
+            ordered_ring_lemmas::lemma_le_neg_flip::<F>(ny, F::zero());
+            ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+                F::zero().neg(), F::zero(), ny.neg(),
+            );
+            ordered_ring_lemmas::lemma_nonneg_mul_nonneg::<F>(nx.neg(), ny.neg());
+            ordered_ring_lemmas::lemma_le_congruence_right::<F>(
+                F::zero(), nx.neg().mul(ny.neg()), nx.mul(ny),
+            );
+            F::axiom_eqv_symmetric(qe_norm::<F, R>(z), nx.mul(ny));
+            ordered_ring_lemmas::lemma_le_congruence_right::<F>(
+                F::zero(), nx.mul(ny), qe_norm::<F, R>(z),
+            );
+            lemma_nonneg_conclude_re::<F, R>(z);
+        }
+    } else {
+        // ═══ Case B×A: a < 0, 0 ≤ c ═══
+        // nonneg(x) C3: a<0, b>0, a²≤b²d.
+        F::axiom_lt_iff_le_and_not_eqv(F::zero(), x.im);
+        F::axiom_le_total(e2d, c2);
+        if e2d.le(c2) {
+            // ny ≥ 0, nx ≤ 0. norm ≤ 0. Need z.im ≥ 0.
+            // bc ≥ 0 (b>0→b≥0, c≥0). cross_dominance with swapped args:
+            // cross_dominance(c, e, a, b, d): 0≤c, 0≤b, e²d≤c², a²≤b²d → 0 ≤ c*b + e*a.
+            // 0 ≤ b from C3 (lt_iff above gives le + not_eqv).
+            lemma_cross_dominance::<F>(c, e, a, b, d);
+            // 0 ≤ cb + ea ≡ ae + bc
+            F::axiom_mul_commutative(c, b);
+            F::axiom_mul_commutative(e, a);
+            additive_group_lemmas::lemma_add_congruence::<F>(
+                c.mul(b), b.mul(c), e.mul(a), a.mul(e),
+            );
+            F::axiom_add_commutative(b.mul(c), a.mul(e));
+            F::axiom_eqv_transitive(
+                c.mul(b).add(e.mul(a)),
+                b.mul(c).add(a.mul(e)),
+                a.mul(e).add(b.mul(c)),
+            );
+            ordered_ring_lemmas::lemma_le_congruence_right::<F>(
+                F::zero(),
+                c.mul(b).add(e.mul(a)),
+                a.mul(e).add(b.mul(c)),
+            );
+            // z.im ≥ 0 ✓
+            // norm ≤ 0: nx ≤ 0 (from C3: a²≤b²d), ny ≥ 0.
+            lemma_sub_nonpos::<F>(a2, b2d);
+            // nx ≤ 0 ✓
+            ordered_ring_lemmas::lemma_le_iff_sub_nonneg::<F>(e2d, c2);
+            // ny ≥ 0 ✓
+            F::axiom_le_mul_nonneg_monotone(nx, F::zero(), ny);
+            ring_lemmas::lemma_mul_zero_left::<F>(ny);
+            ordered_ring_lemmas::lemma_le_congruence_right::<F>(
+                nx.mul(ny), F::zero().mul(ny), F::zero(),
+            );
+            // nx*ny ≤ 0 ✓. Transfer to qe_norm(z) ≤ 0:
+            F::axiom_eqv_symmetric(qe_norm::<F, R>(z), nx.mul(ny));
+            ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+                nx.mul(ny), qe_norm::<F, R>(z), F::zero(),
+            );
+            lemma_nonneg_conclude_im::<F, R>(z);
+        } else {
+            // c² ≤ e²d, nx ≤ 0, ny ≤ 0. norm ≥ 0. Need z.re ≥ 0.
+            // b ≥ 0 from C3 of x (lt_iff at line above gives 0.le(b)).
+            // e ≥ 0: nonneg(y) with 0.le(c) → C1 or C2. C2 needs e2d.le(c2), contradicts !e2d.le(c2). So C1: e≥0.
+            if !F::zero().le(y.im) {
+                // Rule out C3 of y: c.lt(0) is false since 0.le(c).
+                F::axiom_lt_iff_le_and_not_eqv(c, F::zero());
+                F::axiom_le_total(c, F::zero());
+                if c.le(F::zero()) {
+                    F::axiom_le_antisymmetric(c, F::zero());
+                }
+                // C1 fails (!0.le(e)), C2 fails (!e2d.le(c2)), C3 fails (!c.lt(0)).
+                assert(false);
+            }
+            // b ≥ 0, e ≥ 0.
+            // dominant_product_dual: 0≤b, 0≤e, 0≤d, a²≤b²d, c²≤e²d → 0≤ac+bed.
+            lemma_dominant_product_dual::<F>(a, b, c, e, d);
+            // z.re ≥ 0 ✓
+            // norm ≥ 0: both nx ≤ 0 and ny ≤ 0 → neg_mul_neg.
+            lemma_sub_nonpos::<F>(a2, b2d);
+            lemma_sub_nonpos::<F>(c2, e2d);
+            ring_lemmas::lemma_neg_mul_neg::<F>(nx, ny);
+            additive_group_lemmas::lemma_neg_zero::<F>();
+            ordered_ring_lemmas::lemma_le_neg_flip::<F>(nx, F::zero());
+            ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+                F::zero().neg(), F::zero(), nx.neg(),
+            );
+            ordered_ring_lemmas::lemma_le_neg_flip::<F>(ny, F::zero());
+            ordered_ring_lemmas::lemma_le_congruence_left::<F>(
+                F::zero().neg(), F::zero(), ny.neg(),
+            );
+            ordered_ring_lemmas::lemma_nonneg_mul_nonneg::<F>(nx.neg(), ny.neg());
+            ordered_ring_lemmas::lemma_le_congruence_right::<F>(
+                F::zero(), nx.neg().mul(ny.neg()), nx.mul(ny),
+            );
+            F::axiom_eqv_symmetric(qe_norm::<F, R>(z), nx.mul(ny));
+            ordered_ring_lemmas::lemma_le_congruence_right::<F>(
+                F::zero(), nx.mul(ny), qe_norm::<F, R>(z),
+            );
+            lemma_nonneg_conclude_re::<F, R>(z);
+        }
     }
 }
 

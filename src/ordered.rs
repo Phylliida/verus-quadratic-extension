@@ -1066,14 +1066,39 @@ impl<F: OrderedField, R: PositiveRadicand<F>> OrderedRing for SpecQuadExt<F, R> 
     // This is a substantial case analysis (~300+ lines).
 
     proof fn axiom_le_mul_nonneg_monotone(a: Self, b: Self, c: Self) {
-        // Proof strategy:
-        // 1. Let diff = b - a. We have nonneg(diff).
-        // 2. 0 <= c means nonneg(c - 0) = nonneg(c).
-        // 3. b*c - a*c ≡ diff * c (by distributivity).
-        // 4. Need: nonneg(diff) && nonneg(c) → nonneg(diff * c).
-        // Step 4 is the hard part — product of nonneg quadratic extension elements is nonneg.
-        // This requires expanding the multiplication and checking all 9 case combinations.
-        assume(false);
+        // Step 1: diff = b - a is nonneg (from a.le(b)).
+        let diff = qe_sub::<F, R>(b, a);
+
+        // Step 2: c is nonneg (from 0.le(c) = qe_nonneg(c - 0)).
+        // Show c.re.sub(0).eqv(c.re) and c.im.sub(0).eqv(c.im):
+        let c_sub_0 = qe_sub::<F, R>(c, Self::zero());
+        // re component: c.re.sub(0) ≡ c.re.add(0.neg()) ≡ c.re.add(0) ≡ c.re
+        F::axiom_sub_is_add_neg(c.re, F::zero());
+        additive_group_lemmas::lemma_neg_zero::<F>();
+        additive_group_lemmas::lemma_add_congruence_right::<F>(c.re, F::zero().neg(), F::zero());
+        F::axiom_add_zero_right(c.re);
+        F::axiom_eqv_transitive(c.re.sub(F::zero()), c.re.add(F::zero().neg()), c.re.add(F::zero()));
+        F::axiom_eqv_transitive(c.re.sub(F::zero()), c.re.add(F::zero()), c.re);
+        // im component: same chain
+        F::axiom_sub_is_add_neg(c.im, F::zero());
+        additive_group_lemmas::lemma_add_congruence_right::<F>(c.im, F::zero().neg(), F::zero());
+        F::axiom_add_zero_right(c.im);
+        F::axiom_eqv_transitive(c.im.sub(F::zero()), c.im.add(F::zero().neg()), c.im.add(F::zero()));
+        F::axiom_eqv_transitive(c.im.sub(F::zero()), c.im.add(F::zero()), c.im);
+        // Transfer nonneg from c_sub_0 to c:
+        lemma_nonneg_congruence::<F, R>(c_sub_0, c);
+
+        // Step 3: nonneg(diff) && nonneg(c) → nonneg(diff * c)
+        crate::lemmas::lemma_nonneg_mul_closed::<F, R>(diff, c);
+
+        // Step 4: (b - a) * c ≡ b*c - a*c (distributivity at SpecQuadExt level)
+        ring_lemmas::lemma_sub_mul_right::<Self>(b, a, c);
+        // diff.mul(c).eqv(b.mul(c).sub(a.mul(c))) — component-wise eqv
+
+        // Step 5: Transfer nonneg from diff*c to b*c - a*c
+        let prod = qe_mul::<F, R>(diff, c);
+        let target = qe_sub::<F, R>(qe_mul::<F, R>(b, c), qe_mul::<F, R>(a, c));
+        lemma_nonneg_congruence::<F, R>(prod, target);
     }
 }
 
