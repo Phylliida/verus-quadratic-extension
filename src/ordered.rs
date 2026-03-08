@@ -134,7 +134,7 @@ proof fn lemma_sub_self_nonneg<F: OrderedField, R: PositiveRadicand<F>>(
 ///   (b1 - a1).re = b1.re - a1.re ≡ b2.re - a2.re = (b2 - a2).re
 ///   (b1 - a1).im = b1.im - a1.im ≡ b2.im - a2.im = (b2 - a2).im
 /// and all the F-level comparisons in qe_nonneg are preserved by F's le_congruence.
-proof fn lemma_nonneg_congruence<F: OrderedField, R: PositiveRadicand<F>>(
+pub proof fn lemma_nonneg_congruence<F: OrderedField, R: PositiveRadicand<F>>(
     x: SpecQuadExt<F, R>,
     y: SpecQuadExt<F, R>,
 )
