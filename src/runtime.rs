@@ -8,7 +8,11 @@ use verus_rational::rational::Rational;
 #[cfg(verus_keep_ghost)]
 use crate::radicand::Radicand;
 #[cfg(verus_keep_ghost)]
+use crate::radicand::PositiveRadicand;
+#[cfg(verus_keep_ghost)]
 use crate::spec::*;
+#[cfg(verus_keep_ghost)]
+use crate::ordered::*;
 #[cfg(verus_keep_ghost)]
 use crate::instances::*;
 
@@ -319,6 +323,131 @@ impl<R: Radicand<Rational>> RuntimeQExtRat<R> {
         let b_sq_d = b_sq.mul(&d_rt);
         // a^2 - b^2*d
         a_sq.sub(&b_sq_d)
+    }
+
+    /// Reciprocal: (a + b√d)⁻¹ = (a - b√d) / (a² - b²d)
+    ///           = (a·n⁻¹) + (-b·n⁻¹)√d  where n = a² - b²d.
+    ///
+    /// Requires self ≢ 0 (otherwise norm would be 0).
+    pub fn recip_exec<RR: RuntimeRadicand<R>>(&self) -> (out: Self)
+        requires
+            self.wf_spec(),
+            !qe_eqv::<Rational, R>(self@, qe_zero::<Rational, R>()),
+        ensures
+            out.wf_spec(),
+            out@ == qe_recip::<Rational, R>(self@),
+    {
+        // Compute norm = a² - b²d
+        let norm = self.norm_exec::<RR>();
+
+        // Prove norm ≠ 0 via lemma_norm_nonzero
+        proof {
+            crate::lemmas::lemma_norm_nonzero::<Rational, R>(self@);
+        }
+
+        // Get norm⁻¹
+        let norm_inv = norm.recip().unwrap();
+
+        // re_out = a * norm⁻¹
+        let re = self.re.mul(&norm_inv);
+        // im_out = (-b) * norm⁻¹
+        let neg_im = self.im.neg();
+        let im = neg_im.mul(&norm_inv);
+
+        let ghost model = qe_recip::<Rational, R>(self@);
+        RuntimeQExtRat { re, im, model: Ghost(model) }
+    }
+
+    /// Division: x / y = x * y⁻¹.
+    ///
+    /// Requires y ≢ 0.
+    pub fn div_exec<RR: RuntimeRadicand<R>>(&self, rhs: &Self) -> (out: Self)
+        requires
+            self.wf_spec(),
+            rhs.wf_spec(),
+            !qe_eqv::<Rational, R>(rhs@, qe_zero::<Rational, R>()),
+        ensures
+            out.wf_spec(),
+            out@ == qe_div::<Rational, R>(self@, rhs@),
+    {
+        let rhs_inv = rhs.recip_exec::<RR>();
+        self.mul_exec::<RR>(&rhs_inv)
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  Ordering operations (require PositiveRadicand)
+// ═══════════════════════════════════════════════════════════════════
+
+impl<R: PositiveRadicand<Rational>> RuntimeQExtRat<R> {
+    /// Non-negativity check: a + b√d ≥ 0.
+    ///
+    /// Evaluates the 3-case predicate from qe_nonneg:
+    /// 1. a ≥ 0 and b ≥ 0
+    /// 2. a ≥ 0, b < 0, b²d ≤ a²
+    /// 3. a < 0, b > 0, a² ≤ b²d
+    pub fn nonneg_exec<RR: RuntimeRadicand<R>>(&self) -> (out: bool)
+        requires
+            self.wf_spec(),
+        ensures
+            out == qe_nonneg::<Rational, R>(self@),
+    {
+        let zero = RuntimeRational::from_int(0);
+
+        let a_nonneg = zero.le(&self.re);   // 0 ≤ a
+        let b_nonneg = zero.le(&self.im);   // 0 ≤ b
+
+        if a_nonneg && b_nonneg {
+            // Case 1: both non-negative
+            return true;
+        }
+
+        // Compute a² and b²d for cases 2 and 3
+        let a_sq = self.re.mul(&self.re);
+        let b_sq = self.im.mul(&self.im);
+        let d_rt = RR::exec_value();
+        let b2d = b_sq.mul(&d_rt);
+
+        let b_neg = self.im.lt(&zero);      // b < 0
+        let a_neg = self.re.lt(&zero);       // a < 0
+        let b_pos = zero.lt(&self.im);       // 0 < b
+
+        if a_nonneg && b_neg && b2d.le(&a_sq) {
+            // Case 2: a ≥ 0, b < 0, b²d ≤ a²
+            return true;
+        }
+
+        if a_neg && b_pos && a_sq.le(&b2d) {
+            // Case 3: a < 0, b > 0, a² ≤ b²d
+            return true;
+        }
+
+        false
+    }
+
+    /// Less-than-or-equal: x ≤ y iff y - x ≥ 0.
+    pub fn le_exec<RR: RuntimeRadicand<R>>(&self, rhs: &Self) -> (out: bool)
+        requires
+            self.wf_spec(),
+            rhs.wf_spec(),
+        ensures
+            out == qe_le::<Rational, R>(self@, rhs@),
+    {
+        let diff = rhs.sub_exec(self);
+        diff.nonneg_exec::<RR>()
+    }
+
+    /// Strict less-than: x < y iff x ≤ y and x ≢ y.
+    pub fn lt_exec<RR: RuntimeRadicand<R>>(&self, rhs: &Self) -> (out: bool)
+        requires
+            self.wf_spec(),
+            rhs.wf_spec(),
+        ensures
+            out == qe_lt::<Rational, R>(self@, rhs@),
+    {
+        let le = self.le_exec::<RR>(rhs);
+        let eq = self.eq_exec(rhs);
+        le && !eq
     }
 }
 
