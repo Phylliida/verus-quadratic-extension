@@ -36,3 +36,6 @@ pub mod runtime_qext;
 
 #[cfg(verus_keep_ghost)]
 pub mod dyn_tower;
+
+#[cfg(verus_keep_ghost)]
+pub mod dyn_tower_lemmas;

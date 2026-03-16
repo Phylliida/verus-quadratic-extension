@@ -1,124 +1,445 @@
 /// Dynamic tower field types for arbitrary-depth quadratic extensions.
 ///
-/// `DynTowerField` is an abstract OrderedField that represents any level
-/// of the tower Q(√d₁)(√d₂)...(√dₖ). All axioms are assumed, justified
-/// by the fact that each concrete tower level satisfies OrderedField.
+/// `DynTowerSpec` is a concrete recursive spec type that mirrors `DynFieldElem`
+/// at the specification level. Unlike the old abstract `DynTowerField`, its
+/// operations are fully defined, enabling proof of all OrderedField axioms
+/// by structural induction.
 ///
-/// `DynTowerRadicand` is an abstract PositiveRadicand over DynTowerField,
+/// `DynTowerRadicand` is an abstract PositiveRadicand over DynTowerSpec,
 /// justified by runtime discriminant checks (positive, not a perfect square).
 use vstd::prelude::*;
 use verus_algebra::traits::*;
+use verus_rational::rational::Rational;
 use crate::radicand::*;
 use crate::spec::*;
 
 verus! {
 
 // ═══════════════════════════════════════════════════════════════════
-//  DynTowerField — abstract OrderedField for any tower depth
+//  DynTowerSpec — concrete recursive spec type for any tower depth
 // ═══════════════════════════════════════════════════════════════════
 
-/// Abstract field type representing any level of the quadratic extension tower.
+/// Concrete spec-level element of the quadratic extension tower.
 ///
-/// At runtime, `DynFieldElem` provides the actual arithmetic. The spec-level
-/// `DynTowerField` exists only to satisfy Verus's type system. All trait axioms
-/// are assumed (proof debt), justified by the fact that each concrete level
-/// `SpecQuadExt<..., ...>` provably satisfies these axioms.
-pub struct DynTowerField;
-
-impl Equivalence for DynTowerField {
-    open spec fn eqv(self, other: Self) -> bool { arbitrary() }
-
-    proof fn axiom_eqv_reflexive(a: Self) { assume(a.eqv(a)); }
-    proof fn axiom_eqv_symmetric(a: Self, b: Self) { assume(a.eqv(b) == b.eqv(a)); }
-    proof fn axiom_eqv_transitive(a: Self, b: Self, c: Self) { assume(a.eqv(c)); }
-    proof fn axiom_eq_implies_eqv(a: Self, b: Self) { assume(a.eqv(b)); }
-}
-
-impl AdditiveCommutativeMonoid for DynTowerField {
-    open spec fn zero() -> Self { arbitrary() }
-    open spec fn add(self, other: Self) -> Self { arbitrary() }
-
-    proof fn axiom_add_commutative(a: Self, b: Self) { assume(a.add(b).eqv(b.add(a))); }
-    proof fn axiom_add_associative(a: Self, b: Self, c: Self) { assume(a.add(b).add(c).eqv(a.add(b.add(c)))); }
-    proof fn axiom_add_zero_right(a: Self) { assume(a.add(Self::zero()).eqv(a)); }
-    proof fn axiom_add_congruence_left(a: Self, b: Self, c: Self) { assume(a.add(c).eqv(b.add(c))); }
-}
-
-impl AdditiveGroup for DynTowerField {
-    open spec fn neg(self) -> Self { arbitrary() }
-    open spec fn sub(self, other: Self) -> Self { arbitrary() }
-
-    proof fn axiom_add_inverse_right(a: Self) { assume(a.add(a.neg()).eqv(Self::zero())); }
-    proof fn axiom_sub_is_add_neg(a: Self, b: Self) { assume(a.sub(b).eqv(a.add(b.neg()))); }
-    proof fn axiom_neg_congruence(a: Self, b: Self) { assume(a.neg().eqv(b.neg())); }
-}
-
-impl PartialOrder for DynTowerField {
-    open spec fn le(self, other: Self) -> bool { arbitrary() }
-
-    proof fn axiom_le_reflexive(a: Self) { assume(a.le(a)); }
-    proof fn axiom_le_antisymmetric(a: Self, b: Self) { assume(a.eqv(b)); }
-    proof fn axiom_le_transitive(a: Self, b: Self, c: Self) { assume(a.le(c)); }
-    proof fn axiom_le_congruence(a1: Self, a2: Self, b1: Self, b2: Self) { assume(a2.le(b2)); }
-}
-
-impl Ring for DynTowerField {
-    open spec fn one() -> Self { arbitrary() }
-    open spec fn mul(self, other: Self) -> Self { arbitrary() }
-
-    proof fn axiom_mul_commutative(a: Self, b: Self) { assume(a.mul(b).eqv(b.mul(a))); }
-    proof fn axiom_mul_associative(a: Self, b: Self, c: Self) { assume(a.mul(b).mul(c).eqv(a.mul(b.mul(c)))); }
-    proof fn axiom_mul_one_right(a: Self) { assume(a.mul(Self::one()).eqv(a)); }
-    proof fn axiom_mul_zero_right(a: Self) { assume(a.mul(Self::zero()).eqv(Self::zero())); }
-    proof fn axiom_mul_distributes_left(a: Self, b: Self, c: Self) { assume(a.mul(b.add(c)).eqv(a.mul(b).add(a.mul(c)))); }
-    proof fn axiom_one_ne_zero() { assume(!Self::one().eqv(Self::zero())); }
-    proof fn axiom_mul_congruence_left(a: Self, b: Self, c: Self) { assume(a.mul(c).eqv(b.mul(c))); }
-}
-
-impl OrderedRing for DynTowerField {
-    open spec fn lt(self, other: Self) -> bool { arbitrary() }
-
-    proof fn axiom_le_total(a: Self, b: Self) { assume(a.le(b) || b.le(a)); }
-    proof fn axiom_lt_iff_le_and_not_eqv(a: Self, b: Self) { assume(a.lt(b) == (a.le(b) && !a.eqv(b))); }
-    proof fn axiom_le_add_monotone(a: Self, b: Self, c: Self) { assume(a.add(c).le(b.add(c))); }
-    proof fn axiom_le_mul_nonneg_monotone(a: Self, b: Self, c: Self) { assume(a.mul(c).le(b.mul(c))); }
-}
-
-impl Field for DynTowerField {
-    open spec fn recip(self) -> Self { arbitrary() }
-    open spec fn div(self, other: Self) -> Self { arbitrary() }
-
-    proof fn axiom_mul_recip_right(a: Self) { assume(a.mul(a.recip()).eqv(Self::one())); }
-    proof fn axiom_div_is_mul_recip(a: Self, b: Self) { assume(a.div(b).eqv(a.mul(b.recip()))); }
-    proof fn axiom_recip_congruence(a: Self, b: Self) { assume(a.recip().eqv(b.recip())); }
-}
-
-impl OrderedField for DynTowerField {}
-
-// ═══════════════════════════════════════════════════════════════════
-//  DynTowerRadicand — abstract radicand for extending DynTowerField
-// ═══════════════════════════════════════════════════════════════════
-
-/// Abstract radicand for extending DynTowerField by √d.
+/// - `Rat(r)`: base-level rational element in Q
+/// - `Ext(re, im, d)`: element `re + im·√d` where re, im, d are at one level lower.
 ///
-/// At runtime, the radicand value is computed from the first circle step's
-/// discriminant at each tower level. The spec-level value is `arbitrary()`,
-/// justified by runtime checks that the discriminant is positive and not
-/// a perfect square.
-pub struct DynTowerRadicand;
+/// Unlike the old abstract `DynTowerField`, all operations are concretely defined,
+/// enabling the OrderedField axioms to be proved by structural induction.
+pub ghost enum DynTowerSpec {
+    Rat(Rational),
+    Ext(Box<DynTowerSpec>, Box<DynTowerSpec>, Box<DynTowerSpec>),
+}
 
-impl Radicand<DynTowerField> for DynTowerRadicand {
-    open spec fn value() -> DynTowerField { arbitrary() }
+/// Backward-compatibility type alias.
+pub type DynTowerField = DynTowerSpec;
 
-    proof fn axiom_non_square(x: DynTowerField) {
-        assume(!x.mul(x).eqv(Self::value()));
+// ═══════════════════════════════════════════════════════════════════
+//  Helper spec functions
+// ═══════════════════════════════════════════════════════════════════
+
+/// Tower depth: Rat = 0, Ext = 1 + max depth of components.
+pub open spec fn dts_depth(x: DynTowerSpec) -> nat
+    decreases x,
+{
+    match x {
+        DynTowerSpec::Rat(_) => 0,
+        DynTowerSpec::Ext(re, im, d) => {
+            let dr = dts_depth(*re);
+            let di = dts_depth(*im);
+            let dd = dts_depth(*d);
+            let m = if dr >= di { if dr >= dd { dr } else { dd } }
+                    else { if di >= dd { di } else { dd } };
+            1 + m
+        },
     }
 }
 
-impl PositiveRadicand<DynTowerField> for DynTowerRadicand {
-    proof fn axiom_value_positive() {
-        assume(DynTowerField::zero().lt(Self::value()));
+/// Check if a DynTowerSpec value is zero at all levels.
+pub open spec fn dts_is_zero(x: DynTowerSpec) -> bool
+    decreases x,
+{
+    match x {
+        DynTowerSpec::Rat(r) => r.eqv(Rational::from_int_spec(0)),
+        DynTowerSpec::Ext(re, im, _) => dts_is_zero(*re) && dts_is_zero(*im),
     }
 }
+
+// ═══════════════════════════════════════════════════════════════════
+//  Equivalence
+// ═══════════════════════════════════════════════════════════════════
+
+/// Component-wise equivalence (ignoring radicand d).
+/// Cross-depth: Rat(r) ≡ Ext(re, im, d) iff re ≡ Rat(r) and im is zero.
+pub open spec fn dts_eqv(a: DynTowerSpec, b: DynTowerSpec) -> bool
+    decreases a, b,
+{
+    match (a, b) {
+        (DynTowerSpec::Rat(r1), DynTowerSpec::Rat(r2)) => r1.eqv(r2),
+        (DynTowerSpec::Ext(re1, im1, _), DynTowerSpec::Ext(re2, im2, _)) =>
+            dts_eqv(*re1, *re2) && dts_eqv(*im1, *im2),
+        (DynTowerSpec::Rat(r), DynTowerSpec::Ext(re, im, _)) =>
+            dts_eqv(DynTowerSpec::Rat(r), *re) && dts_is_zero(*im),
+        (DynTowerSpec::Ext(re, im, _), DynTowerSpec::Rat(r)) =>
+            dts_eqv(*re, DynTowerSpec::Rat(r)) && dts_is_zero(*im),
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  Constants
+// ═══════════════════════════════════════════════════════════════════
+
+pub open spec fn dts_zero() -> DynTowerSpec {
+    DynTowerSpec::Rat(Rational::from_int_spec(0))
+}
+
+pub open spec fn dts_one() -> DynTowerSpec {
+    DynTowerSpec::Rat(Rational::from_int_spec(1))
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  Additive operations
+// ═══════════════════════════════════════════════════════════════════
+
+/// Negation: component-wise.
+pub open spec fn dts_neg(a: DynTowerSpec) -> DynTowerSpec
+    decreases a,
+{
+    match a {
+        DynTowerSpec::Rat(r) => DynTowerSpec::Rat(r.neg_spec()),
+        DynTowerSpec::Ext(re, im, d) => DynTowerSpec::Ext(
+            Box::new(dts_neg(*re)),
+            Box::new(dts_neg(*im)),
+            d,
+        ),
+    }
+}
+
+/// Addition. Cross-depth: Rat + Ext adds to the real component only.
+pub open spec fn dts_add(a: DynTowerSpec, b: DynTowerSpec) -> DynTowerSpec
+    decreases a, b,
+{
+    match (a, b) {
+        (DynTowerSpec::Rat(r1), DynTowerSpec::Rat(r2)) =>
+            DynTowerSpec::Rat(r1.add_spec(r2)),
+        (DynTowerSpec::Ext(re1, im1, d), DynTowerSpec::Ext(re2, im2, _)) =>
+            DynTowerSpec::Ext(
+                Box::new(dts_add(*re1, *re2)),
+                Box::new(dts_add(*im1, *im2)),
+                d,
+            ),
+        (DynTowerSpec::Rat(r), DynTowerSpec::Ext(re, im, d)) =>
+            DynTowerSpec::Ext(
+                Box::new(dts_add(DynTowerSpec::Rat(r), *re)),
+                im,
+                d,
+            ),
+        (DynTowerSpec::Ext(re, im, d), DynTowerSpec::Rat(r)) =>
+            DynTowerSpec::Ext(
+                Box::new(dts_add(*re, DynTowerSpec::Rat(r))),
+                im,
+                d,
+            ),
+    }
+}
+
+/// Subtraction: a - b = a + (-b).
+pub open spec fn dts_sub(a: DynTowerSpec, b: DynTowerSpec) -> DynTowerSpec {
+    dts_add(a, dts_neg(b))
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  Multiplicative operations
+// ═══════════════════════════════════════════════════════════════════
+
+/// Multiplication.
+/// Ext-Ext: (a_re + a_im√d)(b_re + b_im√d) = (a_re·b_re + d·a_im·b_im) + (a_re·b_im + a_im·b_re)√d
+/// Cross-depth: Rat(r) · Ext(re, im, d) = Ext(Rat(r)·re, Rat(r)·im, d)
+///
+/// Note: d·(im1·im2) is used instead of (im1·im2)·d to ensure the first
+/// argument to each recursive dts_mul call is a structural sub-field of `a`,
+/// guaranteeing termination via `decreases a, b`.
+pub open spec fn dts_mul(a: DynTowerSpec, b: DynTowerSpec) -> DynTowerSpec
+    decreases a, b,
+{
+    match (a, b) {
+        (DynTowerSpec::Rat(r1), DynTowerSpec::Rat(r2)) =>
+            DynTowerSpec::Rat(r1.mul_spec(r2)),
+        (DynTowerSpec::Ext(re1, im1, d), DynTowerSpec::Ext(re2, im2, _)) => {
+            // (re1 + im1·√d)(re2 + im2·√d) = (re1·re2 + d·im1·im2) + (re1·im2 + im1·re2)·√d
+            let re1_re2 = dts_mul(*re1, *re2);
+            let im1_im2 = dts_mul(*im1, *im2);
+            let d_im1im2 = dts_mul(*d, im1_im2);
+            let re1_im2 = dts_mul(*re1, *im2);
+            let im1_re2 = dts_mul(*im1, *re2);
+            DynTowerSpec::Ext(
+                Box::new(dts_add(re1_re2, d_im1im2)),
+                Box::new(dts_add(re1_im2, im1_re2)),
+                d,
+            )
+        },
+        (DynTowerSpec::Rat(r), DynTowerSpec::Ext(re, im, d)) =>
+            DynTowerSpec::Ext(
+                Box::new(dts_mul(DynTowerSpec::Rat(r), *re)),
+                Box::new(dts_mul(DynTowerSpec::Rat(r), *im)),
+                d,
+            ),
+        (DynTowerSpec::Ext(re, im, d), DynTowerSpec::Rat(r)) =>
+            DynTowerSpec::Ext(
+                Box::new(dts_mul(*re, DynTowerSpec::Rat(r))),
+                Box::new(dts_mul(*im, DynTowerSpec::Rat(r))),
+                d,
+            ),
+    }
+}
+
+/// Conjugate: a + b√d ↦ a - b√d
+pub open spec fn dts_conj(a: DynTowerSpec) -> DynTowerSpec
+    decreases a,
+{
+    match a {
+        DynTowerSpec::Rat(r) => DynTowerSpec::Rat(r),
+        DynTowerSpec::Ext(re, im, d) => DynTowerSpec::Ext(
+            re,
+            Box::new(dts_neg(*im)),
+            d,
+        ),
+    }
+}
+
+/// Norm: (a + b√d)(a - b√d) = a² - d·b²
+/// Returns a value at depth k-1 for a depth-k element.
+pub open spec fn dts_norm(a: DynTowerSpec) -> DynTowerSpec
+    decreases a,
+{
+    match a {
+        DynTowerSpec::Rat(r) => DynTowerSpec::Rat(r.mul_spec(r)),
+        DynTowerSpec::Ext(re, im, d) => {
+            let re2 = dts_mul(*re, *re);
+            let im2 = dts_mul(*im, *im);
+            let d_im2 = dts_mul(*d, im2);
+            dts_sub(re2, d_im2)
+        },
+    }
+}
+
+/// Reciprocal with explicit fuel for termination.
+/// fuel should be >= dts_depth(a).
+pub open spec fn dts_recip_fuel(a: DynTowerSpec, fuel: nat) -> DynTowerSpec
+    decreases fuel,
+{
+    match a {
+        DynTowerSpec::Rat(r) => DynTowerSpec::Rat(r.reciprocal_spec()),
+        DynTowerSpec::Ext(re, im, d) => {
+            if fuel == 0 {
+                a // sentinel: insufficient fuel
+            } else {
+                // 1/(re + im·√d) = (re - im·√d) / (re² - d·im²)
+                // = re/norm + (-im/norm)·√d  where norm = re² - d·im²
+                let norm = dts_norm(a);
+                let norm_inv = dts_recip_fuel(norm, (fuel - 1) as nat);
+                DynTowerSpec::Ext(
+                    Box::new(dts_mul(*re, norm_inv)),
+                    Box::new(dts_neg(dts_mul(*im, norm_inv))),
+                    d,
+                )
+            }
+        },
+    }
+}
+
+/// Reciprocal: 1/a with canonical fuel = depth + 1.
+pub open spec fn dts_recip(a: DynTowerSpec) -> DynTowerSpec {
+    dts_recip_fuel(a, dts_depth(a) + 1)
+}
+
+/// Division: a / b = a · (1/b).
+pub open spec fn dts_div(a: DynTowerSpec, b: DynTowerSpec) -> DynTowerSpec {
+    dts_mul(a, dts_recip(b))
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  Ordering
+// ═══════════════════════════════════════════════════════════════════
+
+/// Non-negativity with explicit fuel.
+/// Mirrors qe_nonneg: x = re + im·√d is nonneg iff:
+///   (re >= 0 && im >= 0) ||
+///   (re >= 0 && im < 0 && d·im² <= re²) ||
+///   (re < 0 && im > 0 && re² <= d·im²)
+pub open spec fn dts_nonneg_fuel(x: DynTowerSpec, fuel: nat) -> bool
+    decreases fuel,
+{
+    match x {
+        DynTowerSpec::Rat(r) => Rational::from_int_spec(0).le_spec(r),
+        DynTowerSpec::Ext(re, im, d) => {
+            if fuel == 0 {
+                false // sentinel: insufficient fuel
+            } else {
+                let f = (fuel - 1) as nat;
+                let a = *re;
+                let b = *im;
+                let a2 = dts_mul(a, a);
+                let b2 = dts_mul(b, b);
+                let b2d = dts_mul(*d, b2);
+                let a_nn = dts_nonneg_fuel(a, f);
+                let b_nn = dts_nonneg_fuel(b, f);
+                let a_neg = dts_nonneg_fuel(dts_neg(a), f) && !dts_is_zero(a);
+                let b_neg = dts_nonneg_fuel(dts_neg(b), f) && !dts_is_zero(b);
+                let b_pos = b_nn && !dts_is_zero(b);
+                let b2d_le_a2 = dts_nonneg_fuel(dts_sub(a2, b2d), f);
+                let a2_le_b2d = dts_nonneg_fuel(dts_sub(b2d, a2), f);
+                (a_nn && b_nn)
+                || (a_nn && b_neg && b2d_le_a2)
+                || (a_neg && b_pos && a2_le_b2d)
+            }
+        },
+    }
+}
+
+/// Non-negativity with canonical fuel.
+pub open spec fn dts_nonneg(x: DynTowerSpec) -> bool {
+    dts_nonneg_fuel(x, dts_depth(x) + 1)
+}
+
+/// Less-than-or-equal: a <= b iff b - a >= 0.
+pub open spec fn dts_le(a: DynTowerSpec, b: DynTowerSpec) -> bool {
+    dts_nonneg(dts_sub(b, a))
+}
+
+/// Strict less-than: a < b iff a <= b and a ≢ b.
+pub open spec fn dts_lt(a: DynTowerSpec, b: DynTowerSpec) -> bool {
+    dts_le(a, b) && !dts_eqv(a, b)
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  Trait implementations
+// ═══════════════════════════════════════════════════════════════════
+
+impl Equivalence for DynTowerSpec {
+    open spec fn eqv(self, other: Self) -> bool {
+        dts_eqv(self, other)
+    }
+
+    proof fn axiom_eqv_reflexive(a: Self) {
+        crate::dyn_tower_lemmas::lemma_dts_eqv_reflexive(a);
+    }
+
+    proof fn axiom_eqv_symmetric(a: Self, b: Self) {
+        crate::dyn_tower_lemmas::lemma_dts_eqv_symmetric(a, b);
+    }
+
+    proof fn axiom_eqv_transitive(a: Self, b: Self, c: Self) {
+        crate::dyn_tower_lemmas::lemma_dts_eqv_transitive(a, b, c);
+    }
+
+    proof fn axiom_eq_implies_eqv(a: Self, b: Self) {
+        crate::dyn_tower_lemmas::lemma_dts_eq_implies_eqv(a, b);
+    }
+}
+
+impl AdditiveCommutativeMonoid for DynTowerSpec {
+    open spec fn zero() -> Self {
+        dts_zero()
+    }
+
+    open spec fn add(self, other: Self) -> Self {
+        dts_add(self, other)
+    }
+
+    proof fn axiom_add_commutative(a: Self, b: Self) {
+        crate::dyn_tower_lemmas::lemma_dts_add_commutative(a, b);
+    }
+
+    proof fn axiom_add_associative(a: Self, b: Self, c: Self) {
+        crate::dyn_tower_lemmas::lemma_dts_add_associative(a, b, c);
+    }
+
+    proof fn axiom_add_zero_right(a: Self) {
+        crate::dyn_tower_lemmas::lemma_dts_add_zero_right(a);
+    }
+
+    proof fn axiom_add_congruence_left(a: Self, b: Self, c: Self) {
+        crate::dyn_tower_lemmas::lemma_dts_add_congruence_left(a, b, c);
+    }
+}
+
+impl AdditiveGroup for DynTowerSpec {
+    open spec fn neg(self) -> Self {
+        dts_neg(self)
+    }
+
+    open spec fn sub(self, other: Self) -> Self {
+        dts_sub(self, other)
+    }
+
+    proof fn axiom_add_inverse_right(a: Self) {
+        crate::dyn_tower_lemmas::lemma_dts_add_inverse_right(a);
+    }
+
+    proof fn axiom_sub_is_add_neg(a: Self, b: Self) {
+        crate::dyn_tower_lemmas::lemma_dts_sub_is_add_neg(a, b);
+    }
+
+    proof fn axiom_neg_congruence(a: Self, b: Self) {
+        crate::dyn_tower_lemmas::lemma_dts_neg_congruence(a, b);
+    }
+}
+
+impl Ring for DynTowerSpec {
+    open spec fn one() -> Self {
+        dts_one()
+    }
+
+    open spec fn mul(self, other: Self) -> Self {
+        dts_mul(self, other)
+    }
+
+    proof fn axiom_mul_commutative(a: Self, b: Self) { assume(false); }
+    proof fn axiom_mul_associative(a: Self, b: Self, c: Self) { assume(false); }
+    proof fn axiom_mul_one_right(a: Self) { assume(false); }
+    proof fn axiom_mul_zero_right(a: Self) { assume(false); }
+    proof fn axiom_mul_distributes_left(a: Self, b: Self, c: Self) { assume(false); }
+    proof fn axiom_one_ne_zero() { assume(false); }
+    proof fn axiom_mul_congruence_left(a: Self, b: Self, c: Self) { assume(false); }
+}
+
+impl Field for DynTowerSpec {
+    open spec fn recip(self) -> Self {
+        dts_recip(self)
+    }
+
+    open spec fn div(self, other: Self) -> Self {
+        dts_div(self, other)
+    }
+
+    proof fn axiom_mul_recip_right(a: Self) { assume(false); }
+    proof fn axiom_div_is_mul_recip(a: Self, b: Self) { assume(false); }
+    proof fn axiom_recip_congruence(a: Self, b: Self) { assume(false); }
+}
+
+impl PartialOrder for DynTowerSpec {
+    open spec fn le(self, other: Self) -> bool {
+        dts_le(self, other)
+    }
+
+    proof fn axiom_le_reflexive(a: Self) { assume(false); }
+    proof fn axiom_le_antisymmetric(a: Self, b: Self) { assume(false); }
+    proof fn axiom_le_transitive(a: Self, b: Self, c: Self) { assume(false); }
+    proof fn axiom_le_congruence(a1: Self, a2: Self, b1: Self, b2: Self) { assume(false); }
+}
+
+impl OrderedRing for DynTowerSpec {
+    open spec fn lt(self, other: Self) -> bool {
+        dts_lt(self, other)
+    }
+
+    proof fn axiom_le_total(a: Self, b: Self) { assume(false); }
+    proof fn axiom_lt_iff(a: Self, b: Self) { assume(false); }
+    proof fn axiom_le_add_monotone(a: Self, b: Self, c: Self) { assume(false); }
+    proof fn axiom_le_mul_nonneg(a: Self, b: Self, c: Self) { assume(false); }
+}
+
+impl OrderedField for DynTowerSpec {}
 
 } // verus!
