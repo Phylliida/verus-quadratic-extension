@@ -8,6 +8,7 @@ use verus_rational::rational::Rational;
 use crate::radicand::Radicand;
 use crate::radicand::PositiveRadicand;
 use crate::spec::*;
+use crate::ordered::*;
 
 verus! {
 
@@ -323,5 +324,113 @@ impl Radicand<QSqrt2> for SqrtOfSqrt2 {
 
 /// Type alias for ℚ(⁴√2) = ℚ(√2)(√(√2)) — the second-level extension.
 pub type QFourthRoot2 = SpecQuadExt<QSqrt2, SqrtOfSqrt2>;
+
+// ═══════════════════════════════════════════════════════════════════
+//  Dynamic radicands for arbitrary-depth circle chains
+// ═══════════════════════════════════════════════════════════════════
+//
+// These radicands have spec-level values determined by `arbitrary()`.
+// At runtime, the actual discriminant is computed from circle intersections.
+// The connection between spec and runtime is made via `assume` in the
+// pipeline proof block. Non-square and positivity are justified by runtime
+// checks (discriminant > 0, not a perfect square in the base field).
+//
+// Adding depth k+1: define DynRadicandK+1, impl Radicand + PositiveRadicand
+// for the appropriate base field, add type aliases. ~30 lines each.
+
+// ── Level 1: dynamic radicand over ℚ ─────────────────────────────
+
+/// Dynamic radicand for level-1 circle intersections.
+///
+/// The radicand value is not known at compile time — it's the discriminant
+/// of a circle-circle or circle-line intersection, determined at runtime.
+/// `arbitrary()` produces a fixed but unknown spec value; the pipeline
+/// connects it to the actual discriminant via `assume`.
+pub struct DynRadicand1;
+
+impl Radicand<Rational> for DynRadicand1 {
+    open spec fn value() -> Rational {
+        arbitrary()
+    }
+
+    /// Non-square: justified by runtime check that the discriminant
+    /// is not a perfect square in ℚ.
+    proof fn axiom_non_square(x: Rational) {
+        assume(!x.mul_spec(x).eqv_spec(Self::value()));
+    }
+}
+
+impl PositiveRadicand<Rational> for DynRadicand1 {
+    /// Positivity: justified by runtime check that the discriminant > 0.
+    proof fn axiom_value_positive() {
+        assume(Rational::from_int_spec(0).lt_spec(Self::value()));
+    }
+}
+
+/// Level-1 dynamic extension type: ℚ(√d₁)
+pub type DynLevel1 = SpecQuadExt<Rational, DynRadicand1>;
+
+// ── Level 2: dynamic radicand over DynLevel1 ────────────────────
+
+/// Dynamic radicand for level-2 circle intersections.
+///
+/// The radicand lives in DynLevel1 = ℚ(√d₁). Its value is the discriminant
+/// of a circle intersection where the circles have ℚ(√d₁)-valued coordinates.
+pub struct DynRadicand2;
+
+impl Radicand<DynLevel1> for DynRadicand2 {
+    open spec fn value() -> DynLevel1 {
+        arbitrary()
+    }
+
+    proof fn axiom_non_square(x: DynLevel1) {
+        assume(!qe_eqv::<Rational, DynRadicand1>(
+            qe_mul::<Rational, DynRadicand1>(x, x),
+            Self::value(),
+        ));
+    }
+}
+
+impl PositiveRadicand<DynLevel1> for DynRadicand2 {
+    proof fn axiom_value_positive() {
+        assume(qe_lt::<Rational, DynRadicand1>(
+            qe_zero::<Rational, DynRadicand1>(),
+            Self::value(),
+        ));
+    }
+}
+
+/// Level-2 dynamic extension type: ℚ(√d₁)(√d₂)
+pub type DynLevel2 = SpecQuadExt<DynLevel1, DynRadicand2>;
+
+// ── Level 3: dynamic radicand over DynLevel2 ────────────────────
+
+/// Dynamic radicand for level-3 circle intersections.
+pub struct DynRadicand3;
+
+impl Radicand<DynLevel2> for DynRadicand3 {
+    open spec fn value() -> DynLevel2 {
+        arbitrary()
+    }
+
+    proof fn axiom_non_square(x: DynLevel2) {
+        assume(!qe_eqv::<DynLevel1, DynRadicand2>(
+            qe_mul::<DynLevel1, DynRadicand2>(x, x),
+            Self::value(),
+        ));
+    }
+}
+
+impl PositiveRadicand<DynLevel2> for DynRadicand3 {
+    proof fn axiom_value_positive() {
+        assume(qe_lt::<DynLevel1, DynRadicand2>(
+            qe_zero::<DynLevel1, DynRadicand2>(),
+            Self::value(),
+        ));
+    }
+}
+
+/// Level-3 dynamic extension type: ℚ(√d₁)(√d₂)(√d₃)
+pub type DynLevel3 = SpecQuadExt<DynLevel2, DynRadicand3>;
 
 } // verus!
