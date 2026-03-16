@@ -435,9 +435,9 @@ impl OrderedRing for DynTowerSpec {
     }
 
     proof fn axiom_le_total(a: Self, b: Self) { assume(false); }
-    proof fn axiom_lt_iff(a: Self, b: Self) { assume(false); }
+    proof fn axiom_lt_iff_le_and_not_eqv(a: Self, b: Self) { assume(false); }
     proof fn axiom_le_add_monotone(a: Self, b: Self, c: Self) { assume(false); }
-    proof fn axiom_le_mul_nonneg(a: Self, b: Self, c: Self) { assume(false); }
+    proof fn axiom_le_mul_nonneg_monotone(a: Self, b: Self, c: Self) { assume(false); }
 }
 
 impl OrderedField for DynTowerSpec {}
