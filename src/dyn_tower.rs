@@ -397,10 +397,16 @@ impl Ring for DynTowerSpec {
 
     proof fn axiom_mul_commutative(a: Self, b: Self) { assume(false); }
     proof fn axiom_mul_associative(a: Self, b: Self, c: Self) { assume(false); }
-    proof fn axiom_mul_one_right(a: Self) { assume(false); }
-    proof fn axiom_mul_zero_right(a: Self) { assume(false); }
+    proof fn axiom_mul_one_right(a: Self) {
+        crate::dyn_tower_lemmas::lemma_dts_mul_one_right(a);
+    }
+    proof fn axiom_mul_zero_right(a: Self) {
+        crate::dyn_tower_lemmas::lemma_dts_mul_zero_right(a);
+    }
     proof fn axiom_mul_distributes_left(a: Self, b: Self, c: Self) { assume(false); }
-    proof fn axiom_one_ne_zero() { assume(false); }
+    proof fn axiom_one_ne_zero() {
+        crate::dyn_tower_lemmas::lemma_dts_one_ne_zero();
+    }
     proof fn axiom_mul_congruence_left(a: Self, b: Self, c: Self) { assume(false); }
 }
 
@@ -414,7 +420,9 @@ impl Field for DynTowerSpec {
     }
 
     proof fn axiom_mul_recip_right(a: Self) { assume(false); }
-    proof fn axiom_div_is_mul_recip(a: Self, b: Self) { assume(false); }
+    proof fn axiom_div_is_mul_recip(a: Self, b: Self) {
+        crate::dyn_tower_lemmas::lemma_dts_div_is_mul_recip(a, b);
+    }
     proof fn axiom_recip_congruence(a: Self, b: Self) { assume(false); }
 }
 
@@ -423,7 +431,9 @@ impl PartialOrder for DynTowerSpec {
         dts_le(self, other)
     }
 
-    proof fn axiom_le_reflexive(a: Self) { assume(false); }
+    proof fn axiom_le_reflexive(a: Self) {
+        crate::dyn_tower_lemmas::lemma_dts_le_reflexive(a);
+    }
     proof fn axiom_le_antisymmetric(a: Self, b: Self) { assume(false); }
     proof fn axiom_le_transitive(a: Self, b: Self, c: Self) { assume(false); }
     proof fn axiom_le_congruence(a1: Self, a2: Self, b1: Self, b2: Self) { assume(false); }
@@ -435,11 +445,33 @@ impl OrderedRing for DynTowerSpec {
     }
 
     proof fn axiom_le_total(a: Self, b: Self) { assume(false); }
-    proof fn axiom_lt_iff_le_and_not_eqv(a: Self, b: Self) { assume(false); }
+    proof fn axiom_lt_iff_le_and_not_eqv(a: Self, b: Self) {
+        crate::dyn_tower_lemmas::lemma_dts_lt_iff(a, b);
+    }
     proof fn axiom_le_add_monotone(a: Self, b: Self, c: Self) { assume(false); }
     proof fn axiom_le_mul_nonneg_monotone(a: Self, b: Self, c: Self) { assume(false); }
 }
 
 impl OrderedField for DynTowerSpec {}
+
+// ═══════════════════════════════════════════════════════════════════
+//  DynTowerRadicand — abstract positive radicand for dynamic towers
+// ═══════════════════════════════════════════════════════════════════
+
+/// Abstract marker type implementing PositiveRadicand<DynTowerSpec>.
+///
+/// At runtime, the radicand value is stored dynamically in each
+/// DynFieldElem::Extension node. The axioms are assumed because the
+/// runtime solver checks positivity and non-squareness before use.
+pub struct DynTowerRadicand;
+
+impl Radicand<DynTowerSpec> for DynTowerRadicand {
+    open spec fn value() -> DynTowerSpec { arbitrary() }
+    proof fn axiom_non_square(x: DynTowerSpec) { assume(false); }
+}
+
+impl PositiveRadicand<DynTowerSpec> for DynTowerRadicand {
+    proof fn axiom_value_positive() { assume(false); }
+}
 
 } // verus!

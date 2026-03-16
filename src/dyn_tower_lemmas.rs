@@ -569,4 +569,150 @@ pub proof fn lemma_dts_sub_is_add_neg(a: DynTowerSpec, b: DynTowerSpec)
     lemma_dts_eqv_reflexive(dts_sub(a, b));
 }
 
+// ═══════════════════════════════════════════════════════════════════
+//  Ring lemmas (radicand-independent)
+// ═══════════════════════════════════════════════════════════════════
+
+/// mul(a, one()) ≡ a.
+pub proof fn lemma_dts_mul_one_right(a: DynTowerSpec)
+    ensures dts_eqv(dts_mul(a, dts_one()), a),
+    decreases a,
+{
+    match a {
+        DynTowerSpec::Rat(r) => {
+            // mul(Rat(r), Rat(1)) = Rat(r * 1)
+            Rational::axiom_mul_one_right(r);
+        },
+        DynTowerSpec::Ext(re, im, _) => {
+            // mul(Ext(re,im,d), Rat(1)) = Ext(mul(*re, Rat(1)), mul(*im, Rat(1)), d)
+            // Need: eqv(mul(*re,Rat(1)), *re) && eqv(mul(*im,Rat(1)), *im)
+            lemma_dts_mul_one_right(*re);
+            lemma_dts_mul_one_right(*im);
+        },
+    }
+}
+
+/// mul(a, zero()) ≡ zero().
+pub proof fn lemma_dts_mul_zero_right(a: DynTowerSpec)
+    ensures dts_eqv(dts_mul(a, dts_zero()), dts_zero()),
+    decreases a,
+{
+    match a {
+        DynTowerSpec::Rat(r) => {
+            // mul(Rat(r), Rat(0)) = Rat(r * 0)
+            Rational::axiom_mul_zero_right(r);
+        },
+        DynTowerSpec::Ext(re, im, _) => {
+            // mul(Ext(re,im,d), Rat(0)) = Ext(mul(*re, Rat(0)), mul(*im, Rat(0)), d)
+            // Need: eqv(Ext(mul(*re,R0), mul(*im,R0), d), Rat(0))
+            //      = eqv(mul(*re,R0), Rat(0)) && is_zero(mul(*im,R0))
+            lemma_dts_mul_zero_right(*re);
+            // eqv(mul(*re, Rat(0)), Rat(0)) ✓
+            lemma_dts_mul_zero_right(*im);
+            // eqv(mul(*im, Rat(0)), Rat(0)) → is_zero(mul(*im, Rat(0)))
+            lemma_dts_eqv_zero_implies_is_zero(dts_mul(*im, dts_zero()));
+        },
+    }
+}
+
+/// one() ≢ zero().
+pub proof fn lemma_dts_one_ne_zero()
+    ensures !dts_eqv(dts_one(), dts_zero()),
+{
+    // dts_one() = Rat(from_int_spec(1)), dts_zero() = Rat(from_int_spec(0))
+    // dts_eqv(Rat(1), Rat(0)) = from_int_spec(1).eqv(from_int_spec(0))
+    Rational::axiom_one_ne_zero();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  Field lemma (definitional)
+// ═══════════════════════════════════════════════════════════════════
+
+/// div(a, b) ≡ mul(a, recip(b)).
+pub proof fn lemma_dts_div_is_mul_recip(a: DynTowerSpec, b: DynTowerSpec)
+    ensures dts_eqv(dts_div(a, b), dts_mul(a, dts_recip(b))),
+{
+    // dts_div(a, b) = dts_mul(a, dts_recip(b)) by definition
+    lemma_dts_eqv_reflexive(dts_div(a, b));
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  Ordering lemmas
+// ═══════════════════════════════════════════════════════════════════
+
+/// Helper: if dts_eqv(x, zero()), then dts_nonneg_fuel(x, fuel) for sufficient fuel.
+///
+/// Base case: 0 ≤ r follows from r ≡ 0 via le_congruence.
+/// Inductive case: both re and im are zero-equivalent, so (a_nn && b_nn) holds.
+pub proof fn lemma_dts_nonneg_fuel_zero(x: DynTowerSpec, fuel: nat)
+    requires
+        dts_eqv(x, dts_zero()),
+        fuel >= dts_depth(x) + 1,
+    ensures dts_nonneg_fuel(x, fuel),
+    decreases x,
+{
+    match x {
+        DynTowerSpec::Rat(r) => {
+            // nonneg_fuel(Rat(r), fuel) = 0.le_spec(r)
+            // r ≡ 0, so 0 ≡ r by symmetry, and 0 ≤ 0 by reflexivity, so 0 ≤ r by congruence
+            let zero = Rational::from_int_spec(0);
+            Rational::axiom_le_reflexive(zero);
+            Rational::axiom_eqv_reflexive(zero);
+            Rational::axiom_eqv_symmetric(r, zero);
+            Rational::axiom_le_congruence(zero, zero, zero, r);
+        },
+        DynTowerSpec::Ext(re, im, d) => {
+            // eqv(Ext(re,im,d), Rat(0)) = eqv(*re, Rat(0)) && is_zero(*im)
+            // nonneg_fuel needs fuel > 0: depth(Ext) >= 1, so fuel >= 2 > 0 ✓
+            let f = (fuel - 1) as nat;
+            // For *re: eqv(*re, Rat(0)), depth(*re) < depth(x), f >= depth(*re) + 1
+            assert(f >= dts_depth(*re) + 1) by {
+                // depth(x) = 1 + max(depth(*re), depth(*im), depth(*d))
+                // f = fuel - 1 >= depth(x) = 1 + max(...) >= 1 + depth(*re)
+            }
+            lemma_dts_nonneg_fuel_zero(*re, f);
+            // For *im: is_zero(*im) → eqv(*im, Rat(0))
+            lemma_dts_is_zero_implies_eqv_zero(*im);
+            assert(f >= dts_depth(*im) + 1) by {
+                // same reasoning: f >= 1 + depth(*im)
+            }
+            lemma_dts_nonneg_fuel_zero(*im, f);
+            // Now nonneg_fuel(*re, f) && nonneg_fuel(*im, f) → first disjunct true
+        },
+    }
+}
+
+/// If x is zero-equivalent, then x is nonneg.
+pub proof fn lemma_dts_nonneg_zero(x: DynTowerSpec)
+    requires dts_eqv(x, dts_zero()),
+    ensures dts_nonneg(x),
+{
+    // dts_nonneg(x) = dts_nonneg_fuel(x, dts_depth(x) + 1)
+    lemma_dts_nonneg_fuel_zero(x, dts_depth(x) + 1);
+}
+
+/// le(a, a) — reflexivity of ordering.
+///
+/// Proof: sub(a, a) = add(a, neg(a)) ≡ zero() (by add_inverse_right),
+/// and zero-equivalent values are nonneg.
+pub proof fn lemma_dts_le_reflexive(a: DynTowerSpec)
+    ensures dts_le(a, a),
+{
+    // dts_le(a, a) = dts_nonneg(dts_sub(a, a))
+    // dts_sub(a, a) = dts_add(a, dts_neg(a))
+    lemma_dts_add_inverse_right(a);
+    // dts_eqv(dts_add(a, dts_neg(a)), dts_zero())
+    // = dts_eqv(dts_sub(a, a), dts_zero())
+    lemma_dts_nonneg_zero(dts_sub(a, a));
+    // dts_nonneg(dts_sub(a, a)) = dts_le(a, a)
+}
+
+/// lt(a, b) ⟺ le(a, b) ∧ ¬eqv(a, b) — definitional.
+pub proof fn lemma_dts_lt_iff(a: DynTowerSpec, b: DynTowerSpec)
+    ensures dts_lt(a, b) == (dts_le(a, b) && !dts_eqv(a, b)),
+{
+    // dts_lt(a, b) is defined as dts_le(a, b) && !dts_eqv(a, b)
+    // Nothing to prove — definitional unfolding.
+}
+
 } // verus!
