@@ -47,6 +47,46 @@ proof fn lemma_no_int_sqrt5(p: int, q: nat)
     assume(p * p != 5 * (q as int) * (q as int));
 }
 
+/// No integer solution to p² = 6·q² with q ≥ 1 (irrationality of √6).
+proof fn lemma_no_int_sqrt6(p: int, q: nat)
+    requires q >= 1
+    ensures p * p != 6 * (q as int) * (q as int)
+{
+    assume(p * p != 6 * (q as int) * (q as int));
+}
+
+/// No integer solution to p² = 7·q² with q ≥ 1 (irrationality of √7).
+proof fn lemma_no_int_sqrt7(p: int, q: nat)
+    requires q >= 1
+    ensures p * p != 7 * (q as int) * (q as int)
+{
+    assume(p * p != 7 * (q as int) * (q as int));
+}
+
+/// No integer solution to p² = 10·q² with q ≥ 1 (irrationality of √10).
+proof fn lemma_no_int_sqrt10(p: int, q: nat)
+    requires q >= 1
+    ensures p * p != 10 * (q as int) * (q as int)
+{
+    assume(p * p != 10 * (q as int) * (q as int));
+}
+
+/// No integer solution to p² = 11·q² with q ≥ 1 (irrationality of √11).
+proof fn lemma_no_int_sqrt11(p: int, q: nat)
+    requires q >= 1
+    ensures p * p != 11 * (q as int) * (q as int)
+{
+    assume(p * p != 11 * (q as int) * (q as int));
+}
+
+/// No integer solution to p² = 13·q² with q ≥ 1 (irrationality of √13).
+proof fn lemma_no_int_sqrt13(p: int, q: nat)
+    requires q >= 1
+    ensures p * p != 13 * (q as int) * (q as int)
+{
+    assume(p * p != 13 * (q as int) * (q as int));
+}
+
 /// Bridge: unwrap the Rational eqv into an integer equation.
 /// x.mul(x).eqv(from_int_spec(n)) <==> x.num² = n * (x.den + 1)².
 proof fn lemma_rational_eqv_to_int_eq(x: Rational, n: int)
@@ -133,6 +173,116 @@ impl Radicand<Rational> for Sqrt5 {
 
 impl PositiveRadicand<Rational> for Sqrt5 {
     /// 0 < 5 in the rationals.
+    proof fn axiom_value_positive() {
+        assume(Rational::from_int_spec(0).lt_spec(Self::value()));
+    }
+}
+
+// ── √6 over ℚ ───────────────────────────────────────────────────
+
+/// Radicand for √6 over the rationals.
+pub struct Sqrt6;
+
+impl Radicand<Rational> for Sqrt6 {
+    open spec fn value() -> Rational {
+        Rational::from_int_spec(6)
+    }
+
+    proof fn axiom_non_square(x: Rational) {
+        lemma_rational_eqv_to_int_eq(x, 6);
+        lemma_no_int_sqrt6(x.num, (x.den + 1) as nat);
+    }
+}
+
+impl PositiveRadicand<Rational> for Sqrt6 {
+    proof fn axiom_value_positive() {
+        assume(Rational::from_int_spec(0).lt_spec(Self::value()));
+    }
+}
+
+// ── √7 over ℚ ───────────────────────────────────────────────────
+
+/// Radicand for √7 over the rationals.
+pub struct Sqrt7;
+
+impl Radicand<Rational> for Sqrt7 {
+    open spec fn value() -> Rational {
+        Rational::from_int_spec(7)
+    }
+
+    proof fn axiom_non_square(x: Rational) {
+        lemma_rational_eqv_to_int_eq(x, 7);
+        lemma_no_int_sqrt7(x.num, (x.den + 1) as nat);
+    }
+}
+
+impl PositiveRadicand<Rational> for Sqrt7 {
+    proof fn axiom_value_positive() {
+        assume(Rational::from_int_spec(0).lt_spec(Self::value()));
+    }
+}
+
+// ── √10 over ℚ ──────────────────────────────────────────────────
+
+/// Radicand for √10 over the rationals.
+pub struct Sqrt10;
+
+impl Radicand<Rational> for Sqrt10 {
+    open spec fn value() -> Rational {
+        Rational::from_int_spec(10)
+    }
+
+    proof fn axiom_non_square(x: Rational) {
+        lemma_rational_eqv_to_int_eq(x, 10);
+        lemma_no_int_sqrt10(x.num, (x.den + 1) as nat);
+    }
+}
+
+impl PositiveRadicand<Rational> for Sqrt10 {
+    proof fn axiom_value_positive() {
+        assume(Rational::from_int_spec(0).lt_spec(Self::value()));
+    }
+}
+
+// ── √11 over ℚ ──────────────────────────────────────────────────
+
+/// Radicand for √11 over the rationals.
+pub struct Sqrt11;
+
+impl Radicand<Rational> for Sqrt11 {
+    open spec fn value() -> Rational {
+        Rational::from_int_spec(11)
+    }
+
+    proof fn axiom_non_square(x: Rational) {
+        lemma_rational_eqv_to_int_eq(x, 11);
+        lemma_no_int_sqrt11(x.num, (x.den + 1) as nat);
+    }
+}
+
+impl PositiveRadicand<Rational> for Sqrt11 {
+    proof fn axiom_value_positive() {
+        assume(Rational::from_int_spec(0).lt_spec(Self::value()));
+    }
+}
+
+// ── √13 over ℚ ──────────────────────────────────────────────────
+
+/// Radicand for √13 over the rationals.
+pub struct Sqrt13;
+
+impl Radicand<Rational> for Sqrt13 {
+    open spec fn value() -> Rational {
+        Rational::from_int_spec(13)
+    }
+
+    proof fn axiom_non_square(x: Rational) {
+        lemma_rational_eqv_to_int_eq(x, 13);
+        lemma_no_int_sqrt13(x.num, (x.den + 1) as nat);
+    }
+}
+
+impl PositiveRadicand<Rational> for Sqrt13 {
     proof fn axiom_value_positive() {
         assume(Rational::from_int_spec(0).lt_spec(Self::value()));
     }
