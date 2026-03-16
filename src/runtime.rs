@@ -76,6 +76,66 @@ impl RuntimeRadicand<Sqrt5> for RuntimeSqrt5 {
     }
 }
 
+pub struct RuntimeSqrt6;
+
+impl RuntimeRadicand<Sqrt6> for RuntimeSqrt6 {
+    fn exec_value() -> (out: RuntimeRational)
+        ensures
+            out.wf_spec(),
+            out@ == Sqrt6::value(),
+    {
+        RuntimeRational::from_int(6)
+    }
+}
+
+pub struct RuntimeSqrt7;
+
+impl RuntimeRadicand<Sqrt7> for RuntimeSqrt7 {
+    fn exec_value() -> (out: RuntimeRational)
+        ensures
+            out.wf_spec(),
+            out@ == Sqrt7::value(),
+    {
+        RuntimeRational::from_int(7)
+    }
+}
+
+pub struct RuntimeSqrt10;
+
+impl RuntimeRadicand<Sqrt10> for RuntimeSqrt10 {
+    fn exec_value() -> (out: RuntimeRational)
+        ensures
+            out.wf_spec(),
+            out@ == Sqrt10::value(),
+    {
+        RuntimeRational::from_int(10)
+    }
+}
+
+pub struct RuntimeSqrt11;
+
+impl RuntimeRadicand<Sqrt11> for RuntimeSqrt11 {
+    fn exec_value() -> (out: RuntimeRational)
+        ensures
+            out.wf_spec(),
+            out@ == Sqrt11::value(),
+    {
+        RuntimeRational::from_int(11)
+    }
+}
+
+pub struct RuntimeSqrt13;
+
+impl RuntimeRadicand<Sqrt13> for RuntimeSqrt13 {
+    fn exec_value() -> (out: RuntimeRational)
+        ensures
+            out.wf_spec(),
+            out@ == Sqrt13::value(),
+    {
+        RuntimeRational::from_int(13)
+    }
+}
+
 // ═══════════════════════════════════════════════════════════════════
 //  Copy helper
 // ═══════════════════════════════════════════════════════════════════
