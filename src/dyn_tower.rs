@@ -81,13 +81,23 @@ pub open spec fn dts_eqv(a: DynTowerSpec, b: DynTowerSpec) -> bool
 }
 
 /// Two DynTowerSpec values have the same radicand structure:
-/// both Rat, or both Ext with structurally equal radicands.
+/// both Rat, or both Ext with structurally equal radicands AND
+/// recursively same-radicand re and im components.
 /// Required for mul_congruence (dts_mul uses the radicand from its arguments,
 /// but dts_eqv ignores radicands).
-pub open spec fn dts_same_radicand(a: DynTowerSpec, b: DynTowerSpec) -> bool {
+///
+/// NOTE: mul_congruence_right using this predicate is partially proved
+/// but requires additional lemmas (mul preserves same_radicand, same_radicand
+/// holds for all dts_model outputs from the same tower). The existential
+/// witness approach in constraint_satisfied_dts is fully verified and avoids
+/// needing these lemmas.
+pub open spec fn dts_same_radicand(a: DynTowerSpec, b: DynTowerSpec) -> bool
+    decreases a, b,
+{
     match (a, b) {
         (DynTowerSpec::Rat(_), DynTowerSpec::Rat(_)) => true,
-        (DynTowerSpec::Ext(_, _, d1), DynTowerSpec::Ext(_, _, d2)) => *d1 == *d2,
+        (DynTowerSpec::Ext(re1, im1, d1), DynTowerSpec::Ext(re2, im2, d2)) =>
+            *d1 == *d2 && dts_same_radicand(*re1, *re2) && dts_same_radicand(*im1, *im2),
         _ => true, // cross-depth: no radicand conflict in mul
     }
 }

@@ -542,13 +542,48 @@ pub proof fn lemma_dts_neg_preserves_is_zero(x: DynTowerSpec)
     }
 }
 
-// NOTE: lemma_dts_mul_congruence_left (mul congruence) is NOT needed for
-// the constraint_satisfied_dts connection — the dyn_* methods provide
-// structural == ensures (not just dts_eqv), so Z3 resolves the checker
-// ensures automatically. Mul congruence would require solving the
-// radicand-matching issue in dts_eqv for the Ext×Ext case (dts_eqv
-// ignores radicands but dts_mul uses them, so congruence needs a
-// "same radicand" precondition for full generality).
+// TODO: mul_congruence_right and mul_is_zero_right require proving that
+// mul preserves same_radicand and that same_radicand holds for all dts_model
+// outputs from the same tower. These are non-trivial structural induction proofs.
+// The existential witness approach in constraint_satisfied_dts is fully verified
+// and avoids needing these lemmas. See dts_same_radicand in dyn_tower.rs.
+
+/// If both are zero, their add is zero.
+proof fn lemma_dts_add_both_zero(a: DynTowerSpec, b: DynTowerSpec)
+    requires dts_is_zero(a), dts_is_zero(b),
+    ensures dts_is_zero(dts_add(a, b)),
+{
+    lemma_dts_is_zero_implies_eqv_zero(b);
+    lemma_dts_add_is_zero_left(a, b);
+    lemma_dts_eqv_transitive(dts_add(a, b), b, dts_zero());
+    lemma_dts_eqv_zero_implies_is_zero(dts_add(a, b));
+}
+
+/// If x is zero, then add(y, x) ≡ y.
+proof fn lemma_dts_add_is_zero_right(y: DynTowerSpec, x: DynTowerSpec)
+    requires dts_is_zero(x),
+    ensures dts_eqv(dts_add(y, x), y),
+{
+    lemma_dts_add_commutative(y, x);
+    lemma_dts_add_is_zero_left(x, y);
+    lemma_dts_eqv_transitive(dts_add(y, x), dts_add(x, y), y);
+}
+
+/// Add congruence (right): if eqv(a, b) then eqv(add(c, a), add(c, b)).
+pub proof fn lemma_dts_add_congruence_right(c: DynTowerSpec, a: DynTowerSpec, b: DynTowerSpec)
+    requires dts_eqv(a, b),
+    ensures dts_eqv(dts_add(c, a), dts_add(c, b)),
+{
+    // add(c, a) ≡ add(a, c) by commutativity
+    lemma_dts_add_commutative(c, a);
+    // add(a, c) ≡ add(b, c) by congruence_left
+    lemma_dts_add_congruence_left(a, b, c);
+    // add(b, c) ≡ add(c, b) by commutativity
+    lemma_dts_add_commutative(b, c);
+    // Chain: add(c,a) ≡ add(a,c) ≡ add(b,c) ≡ add(c,b)
+    lemma_dts_eqv_transitive(dts_add(c, a), dts_add(a, c), dts_add(b, c));
+    lemma_dts_eqv_transitive(dts_add(c, a), dts_add(b, c), dts_add(c, b));
+}
 
 pub proof fn lemma_dts_add_inverse_right(a: DynTowerSpec)
     ensures dts_eqv(dts_add(a, dts_neg(a)), dts_zero()),
