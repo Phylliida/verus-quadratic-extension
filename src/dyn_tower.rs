@@ -98,7 +98,7 @@ pub open spec fn dts_same_radicand(a: DynTowerSpec, b: DynTowerSpec) -> bool
         (DynTowerSpec::Rat(_), DynTowerSpec::Rat(_)) => true,
         (DynTowerSpec::Ext(re1, im1, d1), DynTowerSpec::Ext(re2, im2, d2)) =>
             *d1 == *d2 && dts_same_radicand(*re1, *re2) && dts_same_radicand(*im1, *im2),
-        _ => true, // cross-depth: no radicand conflict in mul
+        _ => false, // cross-depth: incompatible structure for mul congruence
     }
 }
 
