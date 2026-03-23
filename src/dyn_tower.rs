@@ -80,6 +80,18 @@ pub open spec fn dts_eqv(a: DynTowerSpec, b: DynTowerSpec) -> bool
     }
 }
 
+/// Two DynTowerSpec values have the same radicand structure:
+/// both Rat, or both Ext with structurally equal radicands.
+/// Required for mul_congruence (dts_mul uses the radicand from its arguments,
+/// but dts_eqv ignores radicands).
+pub open spec fn dts_same_radicand(a: DynTowerSpec, b: DynTowerSpec) -> bool {
+    match (a, b) {
+        (DynTowerSpec::Rat(_), DynTowerSpec::Rat(_)) => true,
+        (DynTowerSpec::Ext(_, _, d1), DynTowerSpec::Ext(_, _, d2)) => *d1 == *d2,
+        _ => true, // cross-depth: no radicand conflict in mul
+    }
+}
+
 // ═══════════════════════════════════════════════════════════════════
 //  Constants
 // ═══════════════════════════════════════════════════════════════════
