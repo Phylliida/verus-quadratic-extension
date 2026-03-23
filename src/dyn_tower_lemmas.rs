@@ -658,49 +658,41 @@ pub proof fn lemma_dts_add_preserves_same_radicand_both(
     ensures dts_same_radicand(dts_add(a1, b1), dts_add(a2, b2)),
     decreases a1, a2, b1, b2,
 {
-    // add produces: Rat+Rat=Rat, Ext+Ext=Ext(add re, add im, d from first),
-    // Rat+Ext=Ext, Ext+Rat=Ext.
-    // same_radicand checks: Rat×Rat=true, Ext×Ext: d1==d2 && recursive, cross=true.
-    // Key: add(a1,b1) and add(a2,b2) use d from FIRST arg (a1 or a2).
-    // If same_radicand(a1,a2) and both Ext: d_a1==d_a2.
-    // Result both Ext with d from a1/a2 respectively → same.
-    match (a1, a2, b1, b2) {
-        (DynTowerSpec::Rat(_), DynTowerSpec::Rat(_), DynTowerSpec::Rat(_), DynTowerSpec::Rat(_)) => {},
-        (DynTowerSpec::Rat(_), DynTowerSpec::Rat(_), DynTowerSpec::Ext(_, _, _), DynTowerSpec::Ext(re_b2, im_b2, _)) => {
-            // add(Rat, Ext_b1) = Ext(add(Rat, re_b1), im_b1, d_b1)
-            // add(Rat, Ext_b2) = Ext(add(Rat, re_b2), im_b2, d_b2)
-            // same_radicand(b1, b2): d_b1 == d_b2 ✓
-            // re: same_radicand(add(Rat_a1, re_b1), add(Rat_a2, re_b2))
-            // These are just Rat+something, always Rat or Ext depending on re_b.
-            // Actually add(Rat(r), Ext(re,im,d)) = Ext(add(Rat(r), re), im, d)
-            // So result is always Ext with d from b. Both have same d. ✓
-            // sub: same_radicand(add(Rat_a1, re_b1), add(Rat_a2, re_b2)) — recurse
-            let ra1 = match a1 { DynTowerSpec::Rat(r) => r, _ => arbitrary() };
-            let ra2 = match a2 { DynTowerSpec::Rat(r) => r, _ => arbitrary() };
-            let (re_b1, im_b1) = match b1 { DynTowerSpec::Ext(re, im, _) => (*re, *im), _ => arbitrary() };
-            lemma_dts_add_preserves_same_radicand_both(
-                DynTowerSpec::Rat(ra1), DynTowerSpec::Rat(ra2), re_b1, *re_b2);
+    // same_radicand is false for cross-depth, so a1/a2 must be same variant
+    // and b1/b2 must be same variant. This gives 4 cases.
+    match (a1, a2) {
+        (DynTowerSpec::Rat(ra1), DynTowerSpec::Rat(ra2)) => {
+            match (b1, b2) {
+                (DynTowerSpec::Rat(_), DynTowerSpec::Rat(_)) => {
+                    // Rat+Rat=Rat × Rat+Rat=Rat → same_radicand(Rat,Rat)=true ✓
+                },
+                (DynTowerSpec::Ext(re_b1, _, _), DynTowerSpec::Ext(re_b2, _, _)) => {
+                    // add(Rat,Ext) = Ext(add(Rat,re_b), im_b, d_b) for both
+                    // d_b1 == d_b2 from same_radicand(b1,b2) ✓
+                    lemma_dts_add_preserves_same_radicand_both(
+                        DynTowerSpec::Rat(ra1), DynTowerSpec::Rat(ra2), *re_b1, *re_b2);
+                },
+                _ => {}, // cross-depth b: unreachable (same_radicand = false)
+            }
         },
-        (DynTowerSpec::Ext(re_a1, im_a1, _), DynTowerSpec::Ext(re_a2, im_a2, _),
-         DynTowerSpec::Rat(_), DynTowerSpec::Rat(_)) => {
-            // add(Ext_a1, Rat_b1) = Ext(add(re_a1, Rat_b1), im_a1, d_a1)
-            // add(Ext_a2, Rat_b2) = Ext(add(re_a2, Rat_b2), im_a2, d_a2)
-            // d_a1 == d_a2 from same_radicand(a1,a2) ✓
-            let rb1 = match b1 { DynTowerSpec::Rat(r) => r, _ => arbitrary() };
-            let rb2 = match b2 { DynTowerSpec::Rat(r) => r, _ => arbitrary() };
-            lemma_dts_add_preserves_same_radicand_both(
-                *re_a1, *re_a2, DynTowerSpec::Rat(rb1), DynTowerSpec::Rat(rb2));
+        (DynTowerSpec::Ext(re_a1, im_a1, _), DynTowerSpec::Ext(re_a2, im_a2, _)) => {
+            match (b1, b2) {
+                (DynTowerSpec::Rat(rb1), DynTowerSpec::Rat(rb2)) => {
+                    // add(Ext,Rat) = Ext(add(re_a,Rat), im_a, d_a) for both
+                    // d_a1 == d_a2 ✓
+                    lemma_dts_add_preserves_same_radicand_both(
+                        *re_a1, *re_a2, DynTowerSpec::Rat(rb1), DynTowerSpec::Rat(rb2));
+                },
+                (DynTowerSpec::Ext(re_b1, im_b1, _), DynTowerSpec::Ext(re_b2, im_b2, _)) => {
+                    // add(Ext,Ext) = Ext(add(re_a,re_b), add(im_a,im_b), d_a) for both
+                    // d_a1 == d_a2 ✓
+                    lemma_dts_add_preserves_same_radicand_both(*re_a1, *re_a2, *re_b1, *re_b2);
+                    lemma_dts_add_preserves_same_radicand_both(*im_a1, *im_a2, *im_b1, *im_b2);
+                },
+                _ => {}, // cross-depth b: unreachable
+            }
         },
-        (DynTowerSpec::Ext(re_a1, im_a1, _), DynTowerSpec::Ext(re_a2, im_a2, _),
-         DynTowerSpec::Ext(re_b1, im_b1, _), DynTowerSpec::Ext(re_b2, im_b2, _)) => {
-            // add(Ext_a1, Ext_b1) = Ext(add(re_a1, re_b1), add(im_a1, im_b1), d_a1)
-            // add(Ext_a2, Ext_b2) = Ext(add(re_a2, re_b2), add(im_a2, im_b2), d_a2)
-            // d_a1 == d_a2 ✓
-            lemma_dts_add_preserves_same_radicand_both(*re_a1, *re_a2, *re_b1, *re_b2);
-            lemma_dts_add_preserves_same_radicand_both(*im_a1, *im_a2, *im_b1, *im_b2);
-        },
-        // All cross-depth cases: result is cross-depth → same_radicand = true
-        _ => {},
+        _ => {}, // cross-depth a: unreachable (same_radicand = false)
     }
 }
 
@@ -712,45 +704,307 @@ pub proof fn lemma_dts_mul_preserves_same_radicand_right(
     ensures dts_same_radicand(dts_mul(c, a), dts_mul(c, b)),
     decreases c, a, b,
 {
-    match (c, a, b) {
-        (DynTowerSpec::Rat(_), DynTowerSpec::Rat(_), DynTowerSpec::Rat(_)) => {},
-        (DynTowerSpec::Rat(rc), DynTowerSpec::Ext(re_a, im_a, _), DynTowerSpec::Ext(re_b, im_b, _)) => {
-            // mul(Rat(rc), Ext_a) = Ext(mul(Rat(rc), re_a), mul(Rat(rc), im_a), d_a)
-            // mul(Rat(rc), Ext_b) = Ext(mul(Rat(rc), re_b), mul(Rat(rc), im_b), d_b)
-            lemma_dts_mul_preserves_same_radicand_right(*re_a, *re_b, DynTowerSpec::Rat(rc));
-            lemma_dts_mul_preserves_same_radicand_right(*im_a, *im_b, DynTowerSpec::Rat(rc));
+    // same_radicand(a, b) with cross-depth = false means a,b are same variant.
+    match (a, b) {
+        (DynTowerSpec::Rat(ra), DynTowerSpec::Rat(rb)) => {
+            match c {
+                DynTowerSpec::Rat(_) => {
+                    // mul(Rat,Rat)=Rat for both → same_radicand(Rat,Rat)=true ✓
+                },
+                DynTowerSpec::Ext(re_c, im_c, _) => {
+                    // mul(Ext_c, Rat_a) = Ext(mul(re_c,Rat_a), mul(im_c,Rat_a), d_c)
+                    // mul(Ext_c, Rat_b) = Ext(mul(re_c,Rat_b), mul(im_c,Rat_b), d_c)
+                    // same d_c ✓
+                    lemma_dts_mul_preserves_same_radicand_right(
+                        DynTowerSpec::Rat(ra), DynTowerSpec::Rat(rb), *re_c);
+                    lemma_dts_mul_preserves_same_radicand_right(
+                        DynTowerSpec::Rat(ra), DynTowerSpec::Rat(rb), *im_c);
+                },
+            }
         },
-        (DynTowerSpec::Rat(_), DynTowerSpec::Rat(_), DynTowerSpec::Ext(_, _, _)) => {},
-        (DynTowerSpec::Rat(_), DynTowerSpec::Ext(_, _, _), DynTowerSpec::Rat(_)) => {},
-        (DynTowerSpec::Ext(re_c, im_c, d_c), DynTowerSpec::Rat(_), DynTowerSpec::Rat(_)) => {
-            let ra = match a { DynTowerSpec::Rat(r) => r, _ => arbitrary() };
-            let rb = match b { DynTowerSpec::Rat(r) => r, _ => arbitrary() };
-            lemma_dts_mul_preserves_same_radicand_right(
-                DynTowerSpec::Rat(ra), DynTowerSpec::Rat(rb), *re_c);
-            lemma_dts_mul_preserves_same_radicand_right(
-                DynTowerSpec::Rat(ra), DynTowerSpec::Rat(rb), *im_c);
+        (DynTowerSpec::Ext(re_a, im_a, _), DynTowerSpec::Ext(re_b, im_b, _)) => {
+            // same_radicand: d_a == d_b, same_radicand(re_a, re_b), same_radicand(im_a, im_b)
+            match c {
+                DynTowerSpec::Rat(rc) => {
+                    // mul(Rat, Ext_a) = Ext(mul(Rat,re_a), mul(Rat,im_a), d_a)
+                    // mul(Rat, Ext_b) = Ext(mul(Rat,re_b), mul(Rat,im_b), d_b)
+                    // d_a == d_b ✓
+                    lemma_dts_mul_preserves_same_radicand_right(
+                        *re_a, *re_b, DynTowerSpec::Rat(rc));
+                    lemma_dts_mul_preserves_same_radicand_right(
+                        *im_a, *im_b, DynTowerSpec::Rat(rc));
+                },
+                DynTowerSpec::Ext(re_c, im_c, d_c) => {
+                    // mul(Ext_c, Ext_a) = Ext(add(re_c*re_a, d_c*(im_c*im_a)),
+                    //                         add(re_c*im_a, im_c*re_a), d_c)
+                    // mul(Ext_c, Ext_b) = Ext(add(re_c*re_b, d_c*(im_c*im_b)),
+                    //                         add(re_c*im_b, im_c*re_b), d_c)
+                    // same d_c ✓. Need same_radicand for re and im sub-components.
+                    // re sub-terms:
+                    lemma_dts_mul_preserves_same_radicand_right(*re_a, *re_b, *re_c);
+                    lemma_dts_mul_preserves_same_radicand_right(*im_a, *im_b, *im_c);
+                    lemma_dts_mul_preserves_same_radicand_right(
+                        dts_mul(*im_c, *im_a), dts_mul(*im_c, *im_b), *d_c);
+                    lemma_dts_add_preserves_same_radicand_both(
+                        dts_mul(*re_c, *re_a), dts_mul(*re_c, *re_b),
+                        dts_mul(*d_c, dts_mul(*im_c, *im_a)),
+                        dts_mul(*d_c, dts_mul(*im_c, *im_b)));
+                    // im sub-terms:
+                    lemma_dts_mul_preserves_same_radicand_right(*im_a, *im_b, *re_c);
+                    lemma_dts_mul_preserves_same_radicand_right(*re_a, *re_b, *im_c);
+                    lemma_dts_add_preserves_same_radicand_both(
+                        dts_mul(*re_c, *im_a), dts_mul(*re_c, *im_b),
+                        dts_mul(*im_c, *re_a), dts_mul(*im_c, *re_b));
+                },
+            }
         },
-        (DynTowerSpec::Ext(re_c, im_c, d_c), DynTowerSpec::Ext(re_a, im_a, _), DynTowerSpec::Ext(re_b, im_b, _)) => {
-            // mul(Ext_c, Ext_a) = Ext(add(re_c*re_a, d_c*(im_c*im_a)), add(re_c*im_a, im_c*re_a), d_c)
-            // mul(Ext_c, Ext_b) = Ext(add(re_c*re_b, d_c*(im_c*im_b)), add(re_c*im_b, im_c*re_b), d_c)
-            // same d_c ✓. Need same_radicand for re and im sub-components.
-            lemma_dts_mul_preserves_same_radicand_right(*re_a, *re_b, *re_c);
-            lemma_dts_mul_preserves_same_radicand_right(*im_a, *im_b, *im_c);
-            lemma_dts_mul_preserves_same_radicand_right(
-                dts_mul(*im_c, *im_a), dts_mul(*im_c, *im_b), *d_c);
-            // re: same_radicand(add(re_c*re_a, d_c*(im_c*im_a)), add(re_c*re_b, d_c*(im_c*im_b)))
-            lemma_dts_add_preserves_same_radicand_both(
-                dts_mul(*re_c, *re_a), dts_mul(*re_c, *re_b),
-                dts_mul(*d_c, dts_mul(*im_c, *im_a)), dts_mul(*d_c, dts_mul(*im_c, *im_b)));
-            // im: same_radicand(add(re_c*im_a, im_c*re_a), add(re_c*im_b, im_c*re_b))
-            lemma_dts_mul_preserves_same_radicand_right(*im_a, *im_b, *re_c);
-            lemma_dts_mul_preserves_same_radicand_right(*re_a, *re_b, *im_c);
-            lemma_dts_add_preserves_same_radicand_both(
-                dts_mul(*re_c, *im_a), dts_mul(*re_c, *im_b),
-                dts_mul(*im_c, *re_a), dts_mul(*im_c, *re_b));
+        _ => {}, // cross-depth: unreachable (same_radicand = false)
+    }
+}
+
+/// Multiplication congruence (right): if eqv(a, b) && same_radicand(a, b)
+/// then eqv(mul(c, a), mul(c, b)).
+pub proof fn lemma_dts_mul_congruence_right(
+    a: DynTowerSpec, b: DynTowerSpec, c: DynTowerSpec,
+)
+    requires dts_eqv(a, b), dts_same_radicand(a, b),
+    ensures dts_eqv(dts_mul(c, a), dts_mul(c, b)),
+    decreases c, a, b,
+{
+    // same_radicand false for cross-depth, so a,b are same variant.
+    match (a, b) {
+        (DynTowerSpec::Rat(ra), DynTowerSpec::Rat(rb)) => {
+            // eqv(Rat(ra), Rat(rb)): ra.eqv(rb)
+            match c {
+                DynTowerSpec::Rat(rc) => {
+                    // mul(Rat(rc), Rat(ra)) = Rat(rc*ra), mul(Rat(rc), Rat(rb)) = Rat(rc*rb)
+                    // Need: eqv(rc*ra, rc*rb)
+                    Rational::axiom_mul_commutative(rc, ra);
+                    Rational::axiom_mul_commutative(rc, rb);
+                    Rational::axiom_mul_congruence_left(ra, rb, rc);
+                    // ra*rc ≡ rb*rc, rc*ra ≡ ra*rc, rc*rb ≡ rb*rc
+                    Rational::axiom_eqv_transitive(rc.mul_spec(ra), ra.mul_spec(rc), rb.mul_spec(rc));
+                    Rational::axiom_eqv_transitive(rc.mul_spec(ra), rb.mul_spec(rc), rc.mul_spec(rb));
+                },
+                DynTowerSpec::Ext(re_c, im_c, _) => {
+                    // mul(Ext_c, Rat_a) = Ext(mul(re_c,Rat_a), mul(im_c,Rat_a), d_c)
+                    // mul(Ext_c, Rat_b) = Ext(mul(re_c,Rat_b), mul(im_c,Rat_b), d_c)
+                    lemma_dts_mul_congruence_right(
+                        DynTowerSpec::Rat(ra), DynTowerSpec::Rat(rb), *re_c);
+                    lemma_dts_mul_congruence_right(
+                        DynTowerSpec::Rat(ra), DynTowerSpec::Rat(rb), *im_c);
+                },
+            }
         },
-        (DynTowerSpec::Ext(_, _, _), DynTowerSpec::Rat(_), DynTowerSpec::Ext(_, _, _)) => {},
-        (DynTowerSpec::Ext(_, _, _), DynTowerSpec::Ext(_, _, _), DynTowerSpec::Rat(_)) => {},
+        (DynTowerSpec::Ext(re_a, im_a, _), DynTowerSpec::Ext(re_b, im_b, _)) => {
+            // eqv: eqv(re_a, re_b) && eqv(im_a, im_b)
+            // same_radicand: d_a == d_b, same_radicand(re_a, re_b), same_radicand(im_a, im_b)
+            match c {
+                DynTowerSpec::Rat(rc) => {
+                    // mul(Rat(rc), Ext_a) = Ext(mul(Rat(rc),re_a), mul(Rat(rc),im_a), d_a)
+                    // mul(Rat(rc), Ext_b) = Ext(mul(Rat(rc),re_b), mul(Rat(rc),im_b), d_b)
+                    // d_a == d_b ✓
+                    lemma_dts_mul_congruence_right(
+                        *re_a, *re_b, DynTowerSpec::Rat(rc));
+                    lemma_dts_mul_congruence_right(
+                        *im_a, *im_b, DynTowerSpec::Rat(rc));
+                },
+                DynTowerSpec::Ext(re_c, im_c, d_c) => {
+                    // mul(Ext_c, Ext_a) = Ext(
+                    //   add(mul(re_c,re_a), mul(d_c, mul(im_c,im_a))),
+                    //   add(mul(re_c,im_a), mul(im_c,re_a)),
+                    //   d_c)
+                    // mul(Ext_c, Ext_b) = similar with re_b, im_b
+                    // same d_c on both sides ✓
+
+                    // re component congruence:
+                    // eqv(mul(re_c,re_a), mul(re_c,re_b)) by recursive congruence
+                    lemma_dts_mul_congruence_right(*re_a, *re_b, *re_c);
+                    // eqv(mul(im_c,im_a), mul(im_c,im_b)) by recursive congruence
+                    lemma_dts_mul_congruence_right(*im_a, *im_b, *im_c);
+                    // same_radicand preserved for d_c * (im_c*im_...)
+                    lemma_dts_mul_preserves_same_radicand_right(*im_a, *im_b, *im_c);
+                    // eqv(mul(d_c, mul(im_c,im_a)), mul(d_c, mul(im_c,im_b)))
+                    lemma_dts_mul_congruence_right(
+                        dts_mul(*im_c, *im_a), dts_mul(*im_c, *im_b), *d_c);
+                    // add congruence for re
+                    lemma_dts_mul_preserves_same_radicand_right(*re_a, *re_b, *re_c);
+                    lemma_dts_mul_preserves_same_radicand_right(
+                        dts_mul(*im_c, *im_a), dts_mul(*im_c, *im_b), *d_c);
+                    lemma_dts_add_congruence_left(
+                        dts_mul(*re_c, *re_a), dts_mul(*re_c, *re_b),
+                        dts_mul(*d_c, dts_mul(*im_c, *im_a)));
+                    lemma_dts_add_congruence_right(
+                        dts_mul(*re_c, *re_b),
+                        dts_mul(*d_c, dts_mul(*im_c, *im_a)),
+                        dts_mul(*d_c, dts_mul(*im_c, *im_b)));
+                    lemma_dts_eqv_transitive(
+                        dts_add(dts_mul(*re_c, *re_a), dts_mul(*d_c, dts_mul(*im_c, *im_a))),
+                        dts_add(dts_mul(*re_c, *re_b), dts_mul(*d_c, dts_mul(*im_c, *im_a))),
+                        dts_add(dts_mul(*re_c, *re_b), dts_mul(*d_c, dts_mul(*im_c, *im_b))));
+
+                    // im component congruence:
+                    lemma_dts_mul_congruence_right(*im_a, *im_b, *re_c);
+                    lemma_dts_mul_congruence_right(*re_a, *re_b, *im_c);
+                    lemma_dts_mul_preserves_same_radicand_right(*im_a, *im_b, *re_c);
+                    lemma_dts_mul_preserves_same_radicand_right(*re_a, *re_b, *im_c);
+                    lemma_dts_add_congruence_left(
+                        dts_mul(*re_c, *im_a), dts_mul(*re_c, *im_b),
+                        dts_mul(*im_c, *re_a));
+                    lemma_dts_add_congruence_right(
+                        dts_mul(*re_c, *im_b),
+                        dts_mul(*im_c, *re_a),
+                        dts_mul(*im_c, *re_b));
+                    lemma_dts_eqv_transitive(
+                        dts_add(dts_mul(*re_c, *im_a), dts_mul(*im_c, *re_a)),
+                        dts_add(dts_mul(*re_c, *im_b), dts_mul(*im_c, *re_a)),
+                        dts_add(dts_mul(*re_c, *im_b), dts_mul(*im_c, *re_b)));
+                },
+            }
+        },
+        _ => {}, // cross-depth: unreachable
+    }
+}
+
+/// Multiplication congruence (left): if eqv(a, b) && same_radicand(a, b)
+/// then eqv(mul(a, c), mul(b, c)).
+pub proof fn lemma_dts_mul_congruence_left(
+    a: DynTowerSpec, b: DynTowerSpec, c: DynTowerSpec,
+)
+    requires dts_eqv(a, b), dts_same_radicand(a, b),
+    ensures dts_eqv(dts_mul(a, c), dts_mul(b, c)),
+    decreases a, b, c,
+{
+    match (a, b) {
+        (DynTowerSpec::Rat(ra), DynTowerSpec::Rat(rb)) => {
+            match c {
+                DynTowerSpec::Rat(rc) => {
+                    Rational::axiom_mul_congruence_left(ra, rb, rc);
+                },
+                DynTowerSpec::Ext(re_c, im_c, _) => {
+                    // mul(Rat_a, Ext_c) = Ext(mul(Rat_a,re_c), mul(Rat_a,im_c), d_c)
+                    // mul(Rat_b, Ext_c) = Ext(mul(Rat_b,re_c), mul(Rat_b,im_c), d_c)
+                    lemma_dts_mul_congruence_left(
+                        DynTowerSpec::Rat(ra), DynTowerSpec::Rat(rb), *re_c);
+                    lemma_dts_mul_congruence_left(
+                        DynTowerSpec::Rat(ra), DynTowerSpec::Rat(rb), *im_c);
+                },
+            }
+        },
+        (DynTowerSpec::Ext(re_a, im_a, d_a), DynTowerSpec::Ext(re_b, im_b, _)) => {
+            // d_a == d_b, same_radicand(re_a, re_b), same_radicand(im_a, im_b)
+            match c {
+                DynTowerSpec::Rat(rc) => {
+                    // mul(Ext_a, Rat) = Ext(mul(re_a,Rat), mul(im_a,Rat), d_a)
+                    // mul(Ext_b, Rat) = Ext(mul(re_b,Rat), mul(im_b,Rat), d_b)
+                    lemma_dts_mul_congruence_left(
+                        *re_a, *re_b, DynTowerSpec::Rat(rc));
+                    lemma_dts_mul_congruence_left(
+                        *im_a, *im_b, DynTowerSpec::Rat(rc));
+                },
+                DynTowerSpec::Ext(re_c, im_c, _) => {
+                    // mul(Ext_a, Ext_c) = Ext(
+                    //   add(mul(re_a,re_c), mul(d_a, mul(im_a,im_c))),
+                    //   add(mul(re_a,im_c), mul(im_a,re_c)),
+                    //   d_a)
+                    // mul(Ext_b, Ext_c) = similar with d_b == d_a
+
+                    // re: congruence of re_a*re_c vs re_b*re_c
+                    lemma_dts_mul_congruence_left(*re_a, *re_b, *re_c);
+                    // re: congruence of im_a*im_c vs im_b*im_c
+                    lemma_dts_mul_congruence_left(*im_a, *im_b, *im_c);
+                    // re: d_a * (im_a*im_c) vs d_a * (im_b*im_c) — d_a == d_b structurally
+                    lemma_dts_mul_preserves_same_radicand_left(*im_a, *im_b, *im_c);
+                    lemma_dts_mul_congruence_right(
+                        dts_mul(*im_a, *im_c), dts_mul(*im_b, *im_c), *d_a);
+                    // add congruence for re
+                    lemma_dts_mul_preserves_same_radicand_left(*re_a, *re_b, *re_c);
+                    lemma_dts_mul_preserves_same_radicand_right(
+                        dts_mul(*im_a, *im_c), dts_mul(*im_b, *im_c), *d_a);
+                    lemma_dts_add_congruence_left(
+                        dts_mul(*re_a, *re_c), dts_mul(*re_b, *re_c),
+                        dts_mul(*d_a, dts_mul(*im_a, *im_c)));
+                    lemma_dts_add_congruence_right(
+                        dts_mul(*re_b, *re_c),
+                        dts_mul(*d_a, dts_mul(*im_a, *im_c)),
+                        dts_mul(*d_a, dts_mul(*im_b, *im_c)));
+                    lemma_dts_eqv_transitive(
+                        dts_add(dts_mul(*re_a, *re_c), dts_mul(*d_a, dts_mul(*im_a, *im_c))),
+                        dts_add(dts_mul(*re_b, *re_c), dts_mul(*d_a, dts_mul(*im_a, *im_c))),
+                        dts_add(dts_mul(*re_b, *re_c), dts_mul(*d_a, dts_mul(*im_b, *im_c))));
+
+                    // im: congruence of re_a*im_c vs re_b*im_c
+                    lemma_dts_mul_congruence_left(*re_a, *re_b, *im_c);
+                    // im: congruence of im_a*re_c vs im_b*re_c
+                    lemma_dts_mul_congruence_left(*im_a, *im_b, *re_c);
+                    lemma_dts_mul_preserves_same_radicand_left(*re_a, *re_b, *im_c);
+                    lemma_dts_mul_preserves_same_radicand_left(*im_a, *im_b, *re_c);
+                    lemma_dts_add_congruence_left(
+                        dts_mul(*re_a, *im_c), dts_mul(*re_b, *im_c),
+                        dts_mul(*im_a, *re_c));
+                    lemma_dts_add_congruence_right(
+                        dts_mul(*re_b, *im_c),
+                        dts_mul(*im_a, *re_c),
+                        dts_mul(*im_b, *re_c));
+                    lemma_dts_eqv_transitive(
+                        dts_add(dts_mul(*re_a, *im_c), dts_mul(*im_a, *re_c)),
+                        dts_add(dts_mul(*re_b, *im_c), dts_mul(*im_a, *re_c)),
+                        dts_add(dts_mul(*re_b, *im_c), dts_mul(*im_b, *re_c)));
+                },
+            }
+        },
+        _ => {},
+    }
+}
+
+/// mul preserves same_radicand (left): if same_radicand(a, b) then same_radicand(mul(a, c), mul(b, c)).
+pub proof fn lemma_dts_mul_preserves_same_radicand_left(
+    a: DynTowerSpec, b: DynTowerSpec, c: DynTowerSpec,
+)
+    requires dts_same_radicand(a, b),
+    ensures dts_same_radicand(dts_mul(a, c), dts_mul(b, c)),
+    decreases a, b, c,
+{
+    match (a, b) {
+        (DynTowerSpec::Rat(ra), DynTowerSpec::Rat(rb)) => {
+            match c {
+                DynTowerSpec::Rat(_) => {},
+                DynTowerSpec::Ext(re_c, im_c, _) => {
+                    lemma_dts_mul_preserves_same_radicand_left(
+                        DynTowerSpec::Rat(ra), DynTowerSpec::Rat(rb), *re_c);
+                    lemma_dts_mul_preserves_same_radicand_left(
+                        DynTowerSpec::Rat(ra), DynTowerSpec::Rat(rb), *im_c);
+                },
+            }
+        },
+        (DynTowerSpec::Ext(re_a, im_a, d_a), DynTowerSpec::Ext(re_b, im_b, _)) => {
+            match c {
+                DynTowerSpec::Rat(rc) => {
+                    lemma_dts_mul_preserves_same_radicand_left(
+                        *re_a, *re_b, DynTowerSpec::Rat(rc));
+                    lemma_dts_mul_preserves_same_radicand_left(
+                        *im_a, *im_b, DynTowerSpec::Rat(rc));
+                },
+                DynTowerSpec::Ext(re_c, im_c, _) => {
+                    // re sub-terms:
+                    lemma_dts_mul_preserves_same_radicand_left(*re_a, *re_b, *re_c);
+                    lemma_dts_mul_preserves_same_radicand_left(*im_a, *im_b, *im_c);
+                    lemma_dts_mul_preserves_same_radicand_right(
+                        dts_mul(*im_a, *im_c), dts_mul(*im_b, *im_c), *d_a);
+                    lemma_dts_add_preserves_same_radicand_both(
+                        dts_mul(*re_a, *re_c), dts_mul(*re_b, *re_c),
+                        dts_mul(*d_a, dts_mul(*im_a, *im_c)),
+                        dts_mul(*d_a, dts_mul(*im_b, *im_c)));
+                    // im sub-terms:
+                    lemma_dts_mul_preserves_same_radicand_left(*re_a, *re_b, *im_c);
+                    lemma_dts_mul_preserves_same_radicand_left(*im_a, *im_b, *re_c);
+                    lemma_dts_add_preserves_same_radicand_both(
+                        dts_mul(*re_a, *im_c), dts_mul(*re_b, *im_c),
+                        dts_mul(*im_a, *re_c), dts_mul(*im_b, *re_c));
+                },
+            }
+        },
+        _ => {},
     }
 }
 
