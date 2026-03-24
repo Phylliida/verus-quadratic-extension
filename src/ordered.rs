@@ -1103,6 +1103,112 @@ impl<F: OrderedField, R: PositiveRadicand<F>> OrderedRing for SpecQuadExt<F, R> 
 }
 
 // ═══════════════════════════════════════════════════════════════════
+//  Pure imaginary non-negativity
+// ═══════════════════════════════════════════════════════════════════
+
+/// For a pure imaginary QExt value qext(0, im), non-negativity reduces to im ≥ 0.
+/// This is because with a=0: Case 1 is the only reachable case in qe_nonneg.
+/// Cases 2 and 3 require a<0 or im<0 with im²d ≤ 0, which can't hold for d > 0.
+#[verifier::rlimit(40)]
+pub proof fn lemma_qe_nonneg_pure_im<F: OrderedField, R: PositiveRadicand<F>>(
+    im: F,
+)
+    ensures
+        qe_nonneg::<F, R>(qext::<F, R>(F::zero(), im)) == F::zero().le(im),
+{
+    // For qext(0, im):
+    // a = 0, b = im, d = R::value() > 0
+    // a2 = 0*0, b2d = im*im*d
+    //
+    // Case 1: 0 ≤ 0 && 0 ≤ im → reduces to 0 ≤ im
+    // Case 2: 0 ≤ 0 && im < 0 && im*im*d ≤ 0*0
+    //   im*im ≥ 0 (square nonneg), d > 0, so im*im*d ≥ 0
+    //   0*0 = 0, so need im*im*d ≤ 0, i.e. im*im*d = 0
+    //   But if im < 0, im*im > 0 (strict), and d > 0, so im*im*d > 0. Contradiction.
+    // Case 3: 0 < 0 → false (0 is not strictly less than 0)
+    //
+    // So qe_nonneg(qext(0, im)) iff Case 1 iff 0 ≤ im.
+
+    F::axiom_le_reflexive(F::zero()); // 0 ≤ 0
+
+    if im.lt(F::zero()) {
+        // im < 0: show qe_nonneg is false
+        F::axiom_lt_iff_le_and_not_eqv(im, F::zero());
+        lemma_square_pos::<F>(im); // 0 < im*im
+        R::axiom_value_positive(); // 0 < d
+        verus_algebra::lemmas::ordered_field_lemmas::lemma_mul_pos_pos::<F>(
+            im.mul(im), R::value()); // 0 < im*im*d
+        // 0*0 ≡ 0
+        verus_algebra::lemmas::ring_lemmas::lemma_mul_zero_left::<F>(F::zero());
+        // Need: !(im*im*d ≤ 0*0). Since 0*0 ≡ 0, transfer via le_congruence.
+        // We know 0 < im*im*d, so !(im*im*d ≤ 0).
+        // If im*im*d.le(0*0) held, then by le_congruence with 0*0 ≡ 0:
+        //   im*im*d.le(0), contradicting 0 < im*im*d.
+        // Assert the contradiction path:
+        F::axiom_lt_iff_le_and_not_eqv(F::zero(), im.mul(im).mul(R::value()));
+        // 0 < 0 is false:
+        F::axiom_lt_iff_le_and_not_eqv(F::zero(), F::zero());
+        // Help Z3: connect 0*0.le facts to 0.le facts
+        F::axiom_eqv_reflexive(im.mul(im).mul(R::value()));
+        // Show contradiction if b2d ≤ 0*0:
+        // b2d.le(0*0) → b2d.le(0) by le_congruence (since 0*0 ≡ 0)
+        // b2d.le(0) and 0.le(b2d) → b2d.eqv(0) by le_antisymmetric
+        // But 0.lt(b2d) means !0.eqv(b2d), contradiction.
+        let b2d = im.mul(im).mul(R::value());
+        let a2 = F::zero().mul(F::zero());
+        if b2d.le(a2) {
+            F::axiom_le_congruence(b2d, b2d, a2, F::zero());
+            // Now b2d.le(zero) and zero.le(b2d) → antisymmetric
+            F::axiom_le_antisymmetric(F::zero(), b2d);
+            // zero.eqv(b2d) contradicts zero.lt(b2d)
+        }
+        assert(!b2d.le(a2));
+        // Case 1: 0.le(0) && 0.le(im) — false because !0.le(im) (im < 0)
+        // Derive: im < 0 → im.le(0) ∧ !im.eqv(0)
+        // le_total(0, im): 0.le(im) ∨ im.le(0)
+        // If 0.le(im) and im.le(0), then antisymmetric → 0.eqv(im)
+        // But im < 0 means !im.eqv(0), and by eqv_symmetric !0.eqv(im)
+        // Contradiction. So !0.le(im).
+        F::axiom_le_total(F::zero(), im);
+        if F::zero().le(im) {
+            F::axiom_le_antisymmetric(im, F::zero());
+            F::axiom_eqv_symmetric(im, F::zero());
+        }
+        assert(!F::zero().le(im));
+        // Case 2: 0.le(0) && im.lt(0) && b2d.le(a2) — false because !b2d.le(a2)
+        // Case 3: 0.lt(0) — always false (0.le(0) ∧ 0.eqv(0) → !0.lt(0))
+        F::axiom_eqv_reflexive(F::zero());
+        assert(!F::zero().lt(F::zero()));
+        // All three cases false → qe_nonneg is false
+        assert(!qe_nonneg::<F, R>(qext::<F, R>(F::zero(), im)));
+        // And 0.le(im) is also false
+        assert(!F::zero().le(im));
+    } else {
+        // !(im < 0): derive 0.le(im)
+        // lt(im, 0) == (im.le(0) && !im.eqv(0))
+        // !lt(im, 0) means !(im.le(0)) or im.eqv(0)
+        // le_total(0, im): 0.le(im) or im.le(0)
+        // If im.le(0) and im.eqv(0): then 0.le(im) by le_congruence/reflexive
+        // If !im.le(0): then 0.le(im) by le_total
+        F::axiom_le_total(F::zero(), im);
+        F::axiom_lt_iff_le_and_not_eqv(im, F::zero());
+        if im.le(F::zero()) {
+            // !im.lt(0) and im.le(0) → im.eqv(0)
+            // → 0.eqv(im) → 0.le(im)
+            // im.eqv(0) → 0.eqv(im) → 0.le(im)
+            F::axiom_eqv_symmetric(im, F::zero());
+            // 0.le(0) by reflexive, 0.eqv(0) trivially, 0.eqv(im) established
+            // le_congruence(0, 0, 0, im): 0.eqv(0) ∧ 0.eqv(im) ∧ 0.le(0) → 0.le(im)
+            F::axiom_eqv_reflexive(F::zero());
+            F::axiom_le_congruence(F::zero(), F::zero(), F::zero(), im);
+        }
+        assert(F::zero().le(im));
+        // Case 1 fires: 0.le(0) && 0.le(im) → qe_nonneg true
+        assert(qe_nonneg::<F, R>(qext::<F, R>(F::zero(), im)));
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════
 //  OrderedField implementation (marker trait, no additional axioms)
 // ═══════════════════════════════════════════════════════════════════
 
