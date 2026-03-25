@@ -415,4 +415,23 @@ impl AdditiveGroup for DynTowerSpec {
 // assume(false) for non_square/positive axioms. The pipeline stores radicands
 // dynamically in each DynFieldElem::Extension node.
 
+/// A DynTowerSpec value is well-formed when all sub-components at each
+/// depth level have the same radicand structure. This holds for all values
+/// constructed by the dyn solver (built from a single quadratic tower).
+///
+/// Formally: for Ext(re, im, d), both re and im must be well-formed,
+/// AND same_radicand(re, im) (they share the same radicand structure).
+pub open spec fn dts_well_formed(x: DynTowerSpec) -> bool
+    decreases x,
+{
+    match x {
+        DynTowerSpec::Rat(_) => true,
+        DynTowerSpec::Ext(re, im, d) =>
+            dts_well_formed(*re)
+            && dts_well_formed(*im)
+            && dts_well_formed(*d)
+            && dts_same_radicand(*re, *im),
+    }
+}
+
 } // verus!
