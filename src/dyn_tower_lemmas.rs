@@ -829,6 +829,42 @@ pub proof fn lemma_dts_neg_well_formed(a: DynTowerSpec)
 }
 
 
+/// neg(sub(a, b)) ≡ sub(b, a) (negation swaps subtraction order).
+pub proof fn lemma_dts_neg_sub_swap(a: DynTowerSpec, b: DynTowerSpec)
+    ensures dts_eqv(dts_neg(dts_sub(a, b)), dts_sub(b, a)),
+    decreases a, b,
+{
+    // neg(sub(a,b)) = neg(add(a, neg(b)))
+    lemma_dts_sub_is_add_neg(a, b);
+    lemma_dts_neg_congruence(dts_sub(a, b), dts_add(a, dts_neg(b)));
+    // neg(add(a, neg(b))) ≡ add(neg(a), neg(neg(b))) by neg_add... but we don't have neg_add for DTS
+    // Alternative: neg(add(a, neg(b))) ≡ add(neg(a), b) via:
+    //   add(a, neg(b)) + add(neg(a), b) = (a + neg(a)) + (neg(b) + b) = 0 + 0 = 0
+    //   So neg(add(a, neg(b))) ≡ add(neg(a), b) by uniqueness of additive inverse.
+    // This needs add_inverse + add_commutative + add_associative.
+    // Simpler: just use sub_is_add_neg on both sides and show structural eqv.
+    // sub(b, a) = add(b, neg(a)). And neg(sub(a,b))... hard without neg_add.
+    // Let me try: Z3 may unfold for small depth since all are open spec fn.
+    match (a, b) {
+        (DynTowerSpec::Rat(r1), DynTowerSpec::Rat(r2)) => {
+            verus_algebra::lemmas::additive_group_lemmas::lemma_neg_sub::<
+                verus_rational::rational::Rational>(r1, r2);
+        }
+        (DynTowerSpec::Ext(re1, im1, _), DynTowerSpec::Ext(re2, im2, _)) => {
+            lemma_dts_neg_sub_swap(*re1, *re2);
+            lemma_dts_neg_sub_swap(*im1, *im2);
+        }
+        (DynTowerSpec::Rat(r), DynTowerSpec::Ext(re, im, _)) => {
+            lemma_dts_neg_sub_swap(DynTowerSpec::Rat(r), *re);
+            lemma_dts_neg_involution(*im);
+        }
+        (DynTowerSpec::Ext(re, im, _), DynTowerSpec::Rat(r)) => {
+            lemma_dts_neg_sub_swap(*re, DynTowerSpec::Rat(r));
+            lemma_dts_neg_involution(*im);
+        }
+    }
+}
+
 /// neg(neg(x)) ≡ x (double negation / involution).
 pub proof fn lemma_dts_neg_involution(x: DynTowerSpec)
     ensures dts_eqv(dts_neg(dts_neg(x)), x),
@@ -2162,19 +2198,44 @@ pub proof fn lemma_dts_nonneg_or_neg_nonneg_fuel(x: DynTowerSpec, fuel: nat)
             if !a_nn && b_nn && dts_nonneg_fuel(
                 dts_sub(dts_mul(dd, dts_mul(b, b)), dts_mul(a, a)), f) { return; } // C3(x)
             if na_nn && !nb_nn && dts_nonneg_fuel(sub_nx, f) { return; } // C2(neg)
-            // Bridge: neg(sub(na², d*nb²)) ≡ sub(d*nb², na²) via neg_sub swap
-            // neg(sub(A,B)) = neg(add(A, neg(B))) ≡ add(neg(A), B) ≡ add(B, neg(A)) = sub(B,A)
-            lemma_dts_sub_is_add_neg(dts_mul(na, na), dts_mul(dd, dts_mul(nb, nb)));
-            use verus_algebra::lemmas::additive_group_lemmas::lemma_neg_add;
-            lemma_dts_neg_congruence(
-                dts_sub(dts_mul(na, na), dts_mul(dd, dts_mul(nb, nb))),
-                dts_add(dts_mul(na, na), dts_neg(dts_mul(dd, dts_mul(nb, nb)))));
-            // neg(sub) ≡ neg(add(A, neg(B))) ≡ add(neg(A), neg(neg(B))) ≡ add(neg(A), B)
-            // This is complex. Let me just transfer via nonneg_congruence if possible.
-            // Actually, the simplest: if !nonneg(sub_nx), then le_total gives nonneg(neg(sub_nx)).
-            // Then use nonneg_congruence to transfer to sub_nx_rev.
-            // Need: eqv(neg(sub_nx), sub_nx_rev) + same_radicand.
-            // For now, just check directly if sub_nx_rev is nonneg.
+            // Bridge for C3(neg): neg(sub_nx) ≡ sub_nx_rev via neg_sub_swap
+            lemma_dts_neg_sub_swap(dts_mul(na, na), dts_mul(dd, dts_mul(nb, nb)));
+            // If !nonneg(sub_nx): le_total gives nonneg(neg(sub_nx)).
+            // neg(sub_nx) ≡ sub_nx_rev. Transfer by nonneg_congruence.
+            if !dts_nonneg_fuel(sub_nx, f) {
+                // le_total gives nonneg_fuel(neg(sub_nx), f) since !nonneg_fuel(sub_nx, f)
+                let neg_sub_nx = dts_neg(sub_nx);
+                let sub_nx_rev = dts_sub(dts_mul(dd, dts_mul(nb, nb)), dts_mul(na, na));
+                // Build same_radicand(neg_sub_nx, sub_nx_rev):
+                //   neg_sub_nx ~ sub_nx ~ mul(na,na) ~ mul(dd,mul(nb,nb)) ~ sub_nx_rev
+                // (a) sub_nx ~ neg_sub_nx from neg
+                lemma_dts_same_radicand_neg(sub_nx);
+                lemma_dts_same_radicand_symmetric(sub_nx, neg_sub_nx);
+                // (b) sub_nx ~ mul(na,na) from add_closed (symmetric)
+                lemma_dts_same_radicand_symmetric(dts_mul(na, na), sub_nx);
+                // (c) neg_sub_nx ~ mul(na,na) by transitivity
+                lemma_dts_same_radicand_transitive(neg_sub_nx, sub_nx, dts_mul(na, na));
+                // Build add_closed for sub_nx_rev = add(mul(dd,mul(nb,nb)), neg(mul(na,na)))
+                lemma_dts_neg_well_formed(dts_mul(na, na));
+                lemma_dts_same_radicand_symmetric(
+                    dts_mul(na, na), dts_mul(dd, dts_mul(nb, nb)));
+                lemma_dts_same_radicand_neg(dts_mul(na, na));
+                lemma_dts_same_radicand_transitive(
+                    dts_mul(dd, dts_mul(nb, nb)),
+                    dts_mul(na, na),
+                    dts_neg(dts_mul(na, na)));
+                lemma_dts_add_closed(
+                    dts_mul(dd, dts_mul(nb, nb)),
+                    dts_neg(dts_mul(na, na)));
+                // (d) neg_sub_nx ~ mul(dd,mul(nb,nb)) by transitivity
+                lemma_dts_same_radicand_transitive(
+                    neg_sub_nx, dts_mul(na, na), dts_mul(dd, dts_mul(nb, nb)));
+                // (e) neg_sub_nx ~ sub_nx_rev by transitivity
+                lemma_dts_same_radicand_transitive(
+                    neg_sub_nx, dts_mul(dd, dts_mul(nb, nb)), sub_nx_rev);
+                // Transfer nonneg_fuel via congruence (no stabilization needed)
+                lemma_dts_nonneg_fuel_congruence(neg_sub_nx, sub_nx_rev, f);
+            }
             if !na_nn && nb_nn && dts_nonneg_fuel(
                 dts_sub(dts_mul(dd, dts_mul(nb, nb)), dts_mul(na, na)), f) {
                 // C3(neg): need nonneg_fuel(neg(na), f) && !is_zero(na) && nb_nn && !is_zero(nb)
