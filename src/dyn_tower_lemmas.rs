@@ -547,6 +547,23 @@ pub proof fn lemma_dts_neg_preserves_is_zero(x: DynTowerSpec)
 // ═══════════════════════════════════════════════════════════════════
 
 /// If x is zero, then mul(c, x) is zero.
+/// neg(neg(x)) ≡ x (double negation / involution).
+pub proof fn lemma_dts_neg_involution(x: DynTowerSpec)
+    ensures dts_eqv(dts_neg(dts_neg(x)), x),
+    decreases x,
+{
+    match x {
+        DynTowerSpec::Rat(r) => {
+            verus_algebra::lemmas::additive_group_lemmas::lemma_neg_involution::<
+                verus_rational::rational::Rational>(r);
+        }
+        DynTowerSpec::Ext(re, im, _) => {
+            lemma_dts_neg_involution(*re);
+            lemma_dts_neg_involution(*im);
+        }
+    }
+}
+
 pub proof fn lemma_dts_mul_is_zero_right(x: DynTowerSpec, c: DynTowerSpec)
     requires dts_is_zero(x),
     ensures dts_is_zero(dts_mul(c, x)),
@@ -1241,6 +1258,34 @@ pub proof fn lemma_dts_same_radicand_transitive(
     }
 }
 
+/// same_radicand is reflexive.
+pub proof fn lemma_dts_same_radicand_reflexive(a: DynTowerSpec)
+    ensures dts_same_radicand(a, a),
+    decreases a,
+{
+    match a {
+        DynTowerSpec::Rat(_) => {}
+        DynTowerSpec::Ext(re, im, _) => {
+            lemma_dts_same_radicand_reflexive(*re);
+            lemma_dts_same_radicand_reflexive(*im);
+        }
+    }
+}
+
+/// same_radicand(a, neg(a)) — negation preserves radicand structure.
+pub proof fn lemma_dts_same_radicand_neg(a: DynTowerSpec)
+    ensures dts_same_radicand(a, dts_neg(a)),
+    decreases a,
+{
+    match a {
+        DynTowerSpec::Rat(_) => {}
+        DynTowerSpec::Ext(re, im, _) => {
+            lemma_dts_same_radicand_neg(*re);
+            lemma_dts_same_radicand_neg(*im);
+        }
+    }
+}
+
 /// neg preserves same_radicand structure.
 pub proof fn lemma_dts_neg_preserves_same_radicand(a: DynTowerSpec, b: DynTowerSpec)
     requires dts_same_radicand(a, b),
@@ -1630,6 +1675,115 @@ pub proof fn lemma_dts_nonneg_congruence(
     lemma_dts_nonneg_fuel_congruence(x, y, fuel);
     // Stabilize: nonneg_fuel(y, fuel) == nonneg(y) since fuel >= fy
     lemma_dts_nonneg_fuel_stabilize(y, fuel);
+}
+
+/// Total ordering: every DynTowerSpec value is nonneg or its negation is.
+/// Requires sufficient fuel (≥ depth+1) to fully evaluate nonneg.
+#[verifier::rlimit(120)]
+pub proof fn lemma_dts_nonneg_or_neg_nonneg_fuel(x: DynTowerSpec, fuel: nat)
+    requires fuel >= dts_depth(x) + 1,
+    ensures dts_nonneg_fuel(x, fuel) || dts_nonneg_fuel(dts_neg(x), fuel),
+    decreases fuel,
+{
+    match x {
+        DynTowerSpec::Rat(r) => {
+            use verus_rational::rational::Rational;
+            Rational::axiom_le_total(Rational::from_int_spec(0), r);
+            if !Rational::from_int_spec(0).le_spec(r) {
+                verus_algebra::lemmas::ordered_ring_lemmas::lemma_neg_nonpos_iff::<Rational>(r);
+            }
+        }
+        DynTowerSpec::Ext(re, im, d) => {
+            // fuel >= depth(x) + 1 >= 2, so fuel > 0
+            let f = (fuel - 1) as nat;
+            let a = *re; let b = *im; let dd = *d;
+            let na = dts_neg(a); let nb = dts_neg(b);
+
+            // Depth bounds for all sub-terms and compound terms
+            lemma_dts_depth_neg(a); lemma_dts_depth_neg(b);
+            lemma_dts_depth_mul_le(a, a); lemma_dts_depth_mul_le(b, b);
+            lemma_dts_depth_mul_le(dd, dts_mul(b, b));
+            lemma_dts_depth_mul_le(na, na); lemma_dts_depth_mul_le(nb, nb);
+            lemma_dts_depth_mul_le(dd, dts_mul(nb, nb));
+            lemma_dts_depth_neg(dts_mul(a, a)); lemma_dts_depth_neg(dts_mul(dd, dts_mul(b, b)));
+            lemma_dts_depth_neg(dts_mul(na, na)); lemma_dts_depth_neg(dts_mul(dd, dts_mul(nb, nb)));
+            lemma_dts_depth_add_le(dts_mul(a, a), dts_neg(dts_mul(dd, dts_mul(b, b))));
+            lemma_dts_depth_add_le(dts_mul(dd, dts_mul(b, b)), dts_neg(dts_mul(a, a)));
+            lemma_dts_depth_add_le(dts_mul(na, na), dts_neg(dts_mul(dd, dts_mul(nb, nb))));
+            lemma_dts_depth_add_le(dts_mul(dd, dts_mul(nb, nb)), dts_neg(dts_mul(na, na)));
+
+            // Recursive le_total on sub-components
+            lemma_dts_nonneg_or_neg_nonneg_fuel(a, f);
+            lemma_dts_nonneg_or_neg_nonneg_fuel(b, f);
+            // le_total on x's squared comparison
+            lemma_dts_nonneg_or_neg_nonneg_fuel(
+                dts_sub(dts_mul(a, a), dts_mul(dd, dts_mul(b, b))), f);
+            // le_total on neg(x)'s squared comparison
+            lemma_dts_nonneg_or_neg_nonneg_fuel(
+                dts_sub(dts_mul(na, na), dts_mul(dd, dts_mul(nb, nb))), f);
+
+            // Zero/involution hints for is_zero and neg(neg(x))
+            if dts_is_zero(a) {
+                lemma_dts_is_zero_implies_eqv_zero(a);
+                lemma_dts_nonneg_fuel_zero(a, f);
+                lemma_dts_neg_preserves_is_zero(a);
+                lemma_dts_is_zero_implies_eqv_zero(na);
+                lemma_dts_nonneg_fuel_zero(na, f);
+            }
+            if dts_is_zero(b) {
+                lemma_dts_is_zero_implies_eqv_zero(b);
+                lemma_dts_nonneg_fuel_zero(b, f);
+                lemma_dts_neg_preserves_is_zero(b);
+                lemma_dts_is_zero_implies_eqv_zero(nb);
+                lemma_dts_nonneg_fuel_zero(nb, f);
+            }
+            if dts_is_zero(na) {
+                lemma_dts_is_zero_implies_eqv_zero(na);
+                lemma_dts_nonneg_fuel_zero(na, f);
+            }
+            if dts_is_zero(nb) {
+                lemma_dts_is_zero_implies_eqv_zero(nb);
+                lemma_dts_nonneg_fuel_zero(nb, f);
+            }
+
+            // neg(neg(a)) ≡ a and neg(neg(b)) ≡ b for C3(neg) conditions
+            lemma_dts_neg_involution(a);
+            lemma_dts_neg_involution(b);
+            // Transfer: nonneg(a, f) → nonneg(neg(neg(a)), f) and vice versa
+            if dts_nonneg_fuel(a, f) {
+                // nonneg(a) → nonneg(neg(neg(a))) by involution + congruence
+                lemma_dts_eqv_symmetric(dts_neg(dts_neg(a)), a);
+                lemma_dts_same_radicand_neg(a);
+                lemma_dts_same_radicand_neg(na);
+                lemma_dts_same_radicand_transitive(a, na, dts_neg(na));
+                lemma_dts_eqv_symmetric(a, dts_neg(na));
+                lemma_dts_nonneg_fuel_congruence(a, dts_neg(na), f);
+            }
+            if dts_nonneg_fuel(b, f) {
+                lemma_dts_eqv_symmetric(dts_neg(dts_neg(b)), b);
+                lemma_dts_same_radicand_neg(b);
+                lemma_dts_same_radicand_neg(nb);
+                lemma_dts_same_radicand_transitive(b, nb, dts_neg(nb));
+                lemma_dts_eqv_symmetric(b, dts_neg(nb));
+                lemma_dts_nonneg_fuel_congruence(b, dts_neg(nb), f);
+            }
+
+            // Provide ALL squared comparisons from le_total (both directions for x and neg(x))
+            lemma_dts_nonneg_or_neg_nonneg_fuel(
+                dts_sub(dts_mul(dd, dts_mul(b, b)), dts_mul(a, a)), f);
+            lemma_dts_nonneg_or_neg_nonneg_fuel(
+                dts_sub(dts_mul(dd, dts_mul(nb, nb)), dts_mul(na, na)), f);
+
+            // Explicit case dispatch with return-per-branch
+            let a_nn = dts_nonneg_fuel(a, f);
+            let b_nn = dts_nonneg_fuel(b, f);
+            let na_nn = dts_nonneg_fuel(na, f);
+            let nb_nn = dts_nonneg_fuel(nb, f);
+
+            if a_nn && b_nn { return; }       // C1(x)
+            if na_nn && nb_nn { return; }     // C1(neg(x))
+        }
+    }
 }
 
 } // verus!
