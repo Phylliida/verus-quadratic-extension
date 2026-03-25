@@ -430,7 +430,8 @@ pub open spec fn dts_well_formed(x: DynTowerSpec) -> bool
             dts_well_formed(*re)
             && dts_well_formed(*im)
             && dts_well_formed(*d)
-            && dts_same_radicand(*re, *im),
+            && dts_same_radicand(*re, *im)
+            && dts_same_radicand(*re, *d),
     }
 }
 
