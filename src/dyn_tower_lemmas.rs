@@ -3152,6 +3152,31 @@ pub proof fn lemma_dts_mul_associative(
             lemma_dts_mul_closed(*im1, *re2);
             lemma_dts_same_radicand_symmetric(*im1, dts_mul(*im1, *re2));
             lemma_dts_same_radicand_transitive(*d, *im1, dts_mul(*im1, *re2));
+            // Extra IH calls for d-assoc chains needed by helper (T2≡U3 and S4≡V2)
+            // same_radicand(re1, d) from well_formed(Ext(re1,im1,d))
+            // same_radicand(d, mul(im2,im3)) already established above
+            lemma_dts_mul_commutative(*re1, *d);
+            lemma_dts_mul_associative(*re1, *d, dts_mul(*im2, *im3));
+            // same_radicand(d, re1): symmetric of re1~d (already called at line 3128, but repeat for clarity)
+            // same_radicand(re1, mul(im2,im3)): re1~d (from well_formed) and d~mul(im2,im3) (above)
+            lemma_dts_same_radicand_transitive(*re1, *d, dts_mul(*im2, *im3));
+            lemma_dts_mul_associative(*d, *re1, dts_mul(*im2, *im3));
+            // im1~d: im1~re1 (from well_formed: re1~im1 → symmetric) and re1~d
+            lemma_dts_same_radicand_symmetric(*re1, *im1); // im1~re1
+            lemma_dts_same_radicand_transitive(*im1, *re1, *d); // im1~d via im1~re1, re1~d
+            lemma_dts_mul_commutative(*im1, *d); // now im1~d is established
+            lemma_dts_mul_associative(*im1, *d, dts_mul(*im2, *im3));
+            // same_radicand(im1, mul(im2,im3)): im1~im2 (line 3113) and im2~mul(im2,im3)
+            lemma_dts_same_radicand_symmetric(*im2, dts_mul(*im2, *im3)); // already done but redo for clarity
+            lemma_dts_same_radicand_transitive(*im1, *im2, dts_mul(*im2, *im3)); // im1~mul(im2,im3)
+            lemma_dts_mul_associative(*d, *im1, dts_mul(*im2, *im3));
+            // assoc(d, mul(im1,im2), re3) for T4≡U2: d*(a2*b2)*c1 → (d*(a2*b2))*c1
+            // same_radicand(mul(im1,im2), re3): sym(im1,mul(im1,im2)) then im1~re3 (line 3112)
+            lemma_dts_same_radicand_transitive(dts_mul(*im1, *im2), *im1, *re3);
+            lemma_dts_mul_associative(*d, dts_mul(*im1, *im2), *re3);
+            // assoc(d, mul(im1,im2), im3) for S4≡V2: d*(a2*b2)*c2 → (d*(a2*b2))*c2
+            lemma_dts_same_radicand_transitive(dts_mul(*im1, *im2), *im1, *im3); // im1~im3 line 3114
+            lemma_dts_mul_associative(*d, dts_mul(*im1, *im2), *im3);
             // Delegate rest to helper (no recursion, just chaining)
             lemma_dts_mul_associative_eee(*re1, *im1, *re2, *im2, *re3, *im3, *d);
         }
@@ -3160,6 +3185,7 @@ pub proof fn lemma_dts_mul_associative(
 }
 
 /// Helper for EEE case of mul_associative. Extracted for Z3 rlimit scalability.
+#[verifier::rlimit(400)]
 proof fn lemma_dts_mul_associative_eee(
     a1: DynTowerSpec, a2: DynTowerSpec, b1: DynTowerSpec, b2: DynTowerSpec,
     c1: DynTowerSpec, c2: DynTowerSpec, dd: DynTowerSpec,
@@ -3179,6 +3205,25 @@ proof fn lemma_dts_mul_associative_eee(
         dts_eqv(dts_mul(a2, dts_mul(b1, c2)), dts_mul(dts_mul(a2, b1), c2)),
         dts_eqv(dts_mul(a2, dts_mul(b2, c1)), dts_mul(dts_mul(a2, b2), c1)),
         dts_eqv(dts_mul(a2, dts_mul(b2, c2)), dts_mul(dts_mul(a2, b2), c2)),
+        // Extra d-assoc IH results (passed from parent — parent can call these since a1,a2 < Ext)
+        // For T2≡U3: a1*(d*(b2c2)) ≡ d*((a1*b2)*c2)
+        dts_eqv(dts_mul(a1, dd), dts_mul(dd, a1)),
+        dts_eqv(dts_mul(a1, dts_mul(dd, dts_mul(b2, c2))),
+                dts_mul(dts_mul(a1, dd), dts_mul(b2, c2))),
+        dts_eqv(dts_mul(dd, dts_mul(a1, dts_mul(b2, c2))),
+                dts_mul(dts_mul(dd, a1), dts_mul(b2, c2))),
+        // For S4≡V2: a2*(d*(b2c2)) ≡ (d*(a2*b2))*c2
+        dts_eqv(dts_mul(a2, dd), dts_mul(dd, a2)),
+        dts_eqv(dts_mul(a2, dts_mul(dd, dts_mul(b2, c2))),
+                dts_mul(dts_mul(a2, dd), dts_mul(b2, c2))),
+        dts_eqv(dts_mul(dd, dts_mul(a2, dts_mul(b2, c2))),
+                dts_mul(dts_mul(dd, a2), dts_mul(b2, c2))),
+        // For T4≡U2: d*(a2*(b2c1)) ≡ (d*(a2*b2))*c1
+        dts_eqv(dts_mul(dd, dts_mul(dts_mul(a2, b2), c1)),
+                dts_mul(dts_mul(dd, dts_mul(a2, b2)), c1)),
+        // For S4 im part: d*(a2*(b2c2)) ≡ (d*(a2*b2))*c2
+        dts_eqv(dts_mul(dd, dts_mul(dts_mul(a2, b2), c2)),
+                dts_mul(dts_mul(dd, dts_mul(a2, b2)), c2)),
     ensures
         dts_eqv(
             dts_mul(
@@ -3193,382 +3238,941 @@ proof fn lemma_dts_mul_associative_eee(
                 DynTowerSpec::Ext(Box::new(c1), Box::new(c2), Box::new(dd)))),
     decreases a1, b1, c1,
 {
-    // Cross same_radicand infrastructure
-    lemma_dts_same_radicand_transitive(b1, c1, c2); // b1~c2
-            lemma_dts_same_radicand_transitive(a1, a2, b2); // a1~b2 (a1~a2, a2~b2)
-            lemma_dts_same_radicand_symmetric(a1, b1);
-            lemma_dts_same_radicand_transitive(b1, a1, a2); // b1~a2
-            lemma_dts_same_radicand_symmetric(b1, b2);
-            lemma_dts_same_radicand_symmetric(c1, c2);
-            lemma_dts_same_radicand_transitive(b2, c2, c1); // b2~c1
-            lemma_dts_same_radicand_transitive(a1, b1, c1); // a1~c1
-            lemma_dts_same_radicand_transitive(a1, c1, c2); // a1~c2
-            lemma_dts_same_radicand_transitive(a2, b2, c2); // a2~c2
-            lemma_dts_same_radicand_symmetric(a1, a2);
-            lemma_dts_same_radicand_transitive(a2, a1, c1); // a2~c1
-            lemma_dts_same_radicand_symmetric(b1, a2);
-            lemma_dts_same_radicand_transitive(a2, b1, c1); // a2~c1 via b1 too
-            lemma_dts_same_radicand_symmetric(a1, dd);
-            lemma_dts_same_radicand_transitive(dd, a1, a2);
-            lemma_dts_same_radicand_transitive(dd, a1, b1);
-            lemma_dts_same_radicand_transitive(dd, a1, b2);
-            lemma_dts_same_radicand_transitive(dd, a1, c1);
-            lemma_dts_same_radicand_transitive(dd, a1, c2);
-            // IH assoc results are in context from parent caller
-            // ── mul_closed for all needed products ──
-            lemma_dts_mul_closed(a1, b1);
-            lemma_dts_mul_closed(a2, b2);
-            lemma_dts_mul_closed(a1, b2);
-            lemma_dts_mul_closed(a2, b1);
-            lemma_dts_mul_closed(b1, c1);
-            lemma_dts_mul_closed(b1, c2);
-            lemma_dts_mul_closed(b2, c1);
-            lemma_dts_mul_closed(b2, c2);
-            lemma_dts_same_radicand_symmetric(b2, dts_mul(b2, c2));
-            lemma_dts_same_radicand_transitive(dd, b2, dts_mul(b2, c2));
-            lemma_dts_mul_closed(dd, dts_mul(b2, c2));
-            lemma_dts_same_radicand_symmetric(a2, dts_mul(a2, b2));
-            lemma_dts_same_radicand_transitive(dd, a2, dts_mul(a2, b2));
-            lemma_dts_mul_closed(dd, dts_mul(a2, b2));
-            // same_radicand chains for distributes preconditions
-            lemma_dts_same_radicand_symmetric(b1, dts_mul(b1, c1));
-            lemma_dts_same_radicand_transitive(a1, b1, dts_mul(b1, c1));
-            lemma_dts_same_radicand_symmetric(b1, dts_mul(b1, c2));
-            lemma_dts_same_radicand_transitive(a1, b1, dts_mul(b1, c2));
-            lemma_dts_same_radicand_symmetric(b2, dts_mul(b2, c1));
-            lemma_dts_same_radicand_transitive(a1, b2, dts_mul(b2, c1));
-            lemma_dts_same_radicand_symmetric(b2, dts_mul(b2, c2));
-            lemma_dts_same_radicand_transitive(a1, b2, dts_mul(b2, c2));
-            lemma_dts_same_radicand_symmetric(dd, dts_mul(dd, dts_mul(b2, c2)));
-            lemma_dts_same_radicand_transitive(dts_mul(b1, c1), b1, dd);
-            lemma_dts_same_radicand_transitive(dts_mul(b1, c1), dd, dts_mul(dd, dts_mul(b2, c2)));
-            lemma_dts_same_radicand_transitive(dts_mul(b1, c2), b1, b2);
-            lemma_dts_same_radicand_transitive(dts_mul(b1, c2), b2, dts_mul(b2, c1));
-            lemma_dts_same_radicand_symmetric(a2, b1);
-            lemma_dts_same_radicand_transitive(a2, b1, dts_mul(b1, c1));
-            lemma_dts_same_radicand_transitive(a2, b1, dts_mul(b1, c2));
-            // ── IH distributes on sub-component triples ──
-            lemma_dts_mul_distributes_left(a1, dts_mul(b1, c1), dts_mul(dd, dts_mul(b2, c2)));
-            lemma_dts_mul_distributes_left(a2, dts_mul(b1, c2), dts_mul(b2, c1));
-            lemma_dts_mul_distributes_left(a1, dts_mul(b1, c2), dts_mul(b2, c1));
-            lemma_dts_mul_distributes_left(a2, dts_mul(b1, c1), dts_mul(dd, dts_mul(b2, c2)));
-            lemma_dts_same_radicand_symmetric(a1, dts_mul(a1, b1));
-            lemma_dts_same_radicand_transitive(dts_mul(a1, b1), a1, dd);
-            lemma_dts_same_radicand_symmetric(dd, dts_mul(dd, dts_mul(a2, b2)));
-            lemma_dts_same_radicand_transitive(dts_mul(a1, b1), dd, dts_mul(dd, dts_mul(a2, b2)));
-            lemma_dts_add_closed(dts_mul(a1, b1), dts_mul(dd, dts_mul(a2, b2)));
-            lemma_dts_same_radicand_symmetric(a1, dts_mul(a1, b2));
-            lemma_dts_same_radicand_symmetric(a2, dts_mul(a2, b1));
-            lemma_dts_same_radicand_transitive(b1, a2, dts_mul(a2, b1));
-            lemma_dts_same_radicand_transitive(dts_mul(a1, b2), a1, b1);
-            lemma_dts_same_radicand_transitive(dts_mul(a1, b2), b1, dts_mul(a2, b1));
-            lemma_dts_add_closed(dts_mul(a1, b2), dts_mul(a2, b1));
-            let re_ab = dts_add(dts_mul(a1, b1), dts_mul(dd, dts_mul(a2, b2)));
-            let im_ab = dts_add(dts_mul(a1, b2), dts_mul(a2, b1));
-            // RHS distributes: re_ab*c1 + d*im_ab*c2 and re_ab*c2 + im_ab*c1
-            lemma_dts_same_radicand_symmetric(a1, dts_mul(a1, b1));
-            lemma_dts_same_radicand_transitive(dts_mul(a1, b1), a1, c1);
-            lemma_dts_same_radicand_transitive(dts_mul(a1, b1), a1, c2);
-            lemma_dts_same_radicand_symmetric(dts_mul(a1, b1), re_ab);
-            lemma_dts_same_radicand_transitive(re_ab, dts_mul(a1, b1), c1);
-            lemma_dts_same_radicand_transitive(re_ab, dts_mul(a1, b1), c2);
-            lemma_dts_mul_distributes_left(re_ab, dts_mul(a1, b1), dts_mul(dd, dts_mul(a2, b2)));
-            // Wait, that's wrong — distributes_left(X, Y, Z) gives X*(Y+Z) = X*Y + X*Z
-            // But I want (Y+Z)*c1 = Y*c1 + Z*c1, i.e., right distributes.
-            // Use commut: (re_ab)*c1 ≡ c1*(re_ab) = c1*(a1b1+da2b2) ≡ c1*a1b1 + c1*da2b2
-            // Then commut each back.
-            // Actually, I already have distributes_left. For right distributes I can use:
-            // mul(add(X,Y), Z) by commut → mul(Z, add(X,Y)) by distributes → add(mul(Z,X), mul(Z,Y))
-            // then commut each term back. But that's a LOT of boilerplate.
-            // Alternatively: the Ext×Ext mul definition STRUCTURALLY gives the re and im components.
-            // So mul(Ext(re_ab, im_ab, d), Ext(c1, c2, d)):
-            //   re = add(mul(re_ab, c1), mul(d, mul(im_ab, c2)))
-            //   im = add(mul(re_ab, c2), mul(im_ab, c1))
-            // These are the structural terms. I need to show they're eqv to the LHS terms.
-            //
-            // For the re component of RHS:
-            //   add(mul(re_ab, c1), mul(d, mul(im_ab, c2)))
-            //   = add(mul(add(a1b1, da2b2), c1), mul(d, mul(add(a1b2, a2b1), c2)))
-            //
-            // This is a HUGE expansion. Let me use a different strategy:
-            // provide IH assoc + distributes facts and let Z3 handle the structural unfolding.
-            // The structural dts_mul and dts_add definitions should unfold, and Z3 should
-            // be able to match the terms with the IH facts.
-            //
-            // Key: dts_eqv for Ext checks component-wise. So Z3 needs to verify:
-            //   eqv(LHS_re, RHS_re) && eqv(LHS_im, RHS_im)
-            // where each is built from sub-component operations.
-            //
-            // With IH assoc and distributes already established, Z3 should propagate.
-            // But the function is large and Z3 might struggle. Let me try and see.
+    // ── Preamble: extract same_radicand from well_formed ──
+    // well_formed(Ext(a1,a2,dd)) → a1~a2, a1~dd
+    // well_formed(Ext(b1,b2,dd)) → b1~b2, b1~dd
+    // well_formed(Ext(c1,c2,dd)) → c1~c2, c1~dd
+    // These are established outside both assert-by blocks for z3 scope clarity.
+    // dts_well_formed is open spec fn, so Z3 unfolds it to get same_radicand facts.
+    assert(dts_same_radicand(a1, a2));
+    assert(dts_same_radicand(a1, dd));
+    assert(dts_same_radicand(b1, b2));
+    assert(dts_same_radicand(b1, dd));
+    assert(dts_same_radicand(c1, c2));
+    assert(dts_same_radicand(c1, dd));
 
-            // ── d chains for LHS ──
-            // d*(a2*(b1c2+b2c1)) ≡ d*(a2*b1c2 + a2*b2c1): congruence from distributes IH
-            lemma_dts_mul_congruence_right(
-                dts_mul(a2, dts_add(dts_mul(b1, c2), dts_mul(b2, c1))),
-                dts_add(dts_mul(a2, dts_mul(b1, c2)), dts_mul(a2, dts_mul(b2, c1))),
-                dd);
-            // d*(a2*b1c2 + a2*b2c1) ≡ d*a2*b1c2 + d*a2*b2c1
-            lemma_dts_same_radicand_symmetric(a2, dts_mul(a2, dts_mul(b1, c2)));
-            lemma_dts_mul_closed(a2, dts_mul(b1, c2));
-            lemma_dts_mul_closed(a2, dts_mul(b2, c1));
-            lemma_dts_same_radicand_transitive(
-                dts_mul(a2, dts_mul(b1, c2)), a2, dts_mul(a2, dts_mul(b2, c1)));
-            lemma_dts_same_radicand_symmetric(dd, dts_mul(a2, dts_mul(b1, c2)));
-            lemma_dts_same_radicand_symmetric(a2, dts_mul(a2, dts_mul(b2, c1)));
-            lemma_dts_same_radicand_transitive(dd, dts_mul(a2, dts_mul(b1, c2)),
-                dts_mul(a2, dts_mul(b2, c1)));
-            lemma_dts_mul_distributes_left(dd,
-                dts_mul(a2, dts_mul(b1, c2)), dts_mul(a2, dts_mul(b2, c1)));
-            lemma_dts_eqv_transitive(
-                dts_mul(dd, dts_mul(a2, dts_add(dts_mul(b1, c2), dts_mul(b2, c1)))),
-                dts_mul(dd, dts_add(dts_mul(a2, dts_mul(b1, c2)), dts_mul(a2, dts_mul(b2, c1)))),
-                dts_add(dts_mul(dd, dts_mul(a2, dts_mul(b1, c2))), dts_mul(dd, dts_mul(a2, dts_mul(b2, c1)))));
+    // ── Re component proof ──
+    // LHS re = a1*(b1c1 + dd*b2c2) + dd*(a2*(b1c2 + b2c1))
+    // Expanding: (a1*b1c1 + a1*dd*b2c2) + (dd*a2*b1c2 + dd*a2*b2c1)
+    //          = T1 + T2 + T3 + T4
+    // RHS re = (a1*b1 + dd*a2*b2)*c1 + dd*(a1*b2 + a2*b1)*c2
+    // Expanding: ((a1*b1)*c1 + (dd*a2*b2)*c1) + (dd*(a1*b2)*c2 + dd*(a2*b1)*c2)
+    //          = U1 + U2 + U3 + U4
+    // Matching: T1≡U1, T2≡U3, T3≡U4, T4≡U2 → exchange → re eqv ✓
+    let t1 = dts_mul(a1, dts_mul(b1, c1));
+    let t2 = dts_mul(a1, dts_mul(dd, dts_mul(b2, c2)));
+    let t3 = dts_mul(dd, dts_mul(a2, dts_mul(b1, c2)));
+    let t4 = dts_mul(dd, dts_mul(a2, dts_mul(b2, c1)));
+    let u1 = dts_mul(dts_mul(a1, b1), c1);
+    let u2 = dts_mul(dts_mul(dd, dts_mul(a2, b2)), c1);
+    let u3 = dts_mul(dd, dts_mul(dts_mul(a1, b2), c2));
+    let u4 = dts_mul(dd, dts_mul(dts_mul(a2, b1), c2));
+    assert(dts_eqv(dts_add(dts_add(t1, t2), dts_add(t3, t4)),
+                   dts_add(dts_add(u1, u2), dts_add(u3, u4)))) by {
+        // ── Infrastructure for re block ──
+        // Basic radicand chains
+        lemma_dts_same_radicand_symmetric(b1, b2); // b2~b1
+        lemma_dts_same_radicand_transitive(b1, b2, c2); // b1~c2
+        lemma_dts_same_radicand_transitive(b2, b1, c1); // b2~c1
+        lemma_dts_same_radicand_transitive(a1, a2, b2); // a1~b2
+        lemma_dts_same_radicand_transitive(a2, b2, c2); // a2~c2
+        lemma_dts_same_radicand_transitive(a2, b2, c1); // a2~c1
+        lemma_dts_same_radicand_transitive(a1, b1, c1); // a1~c1
+        lemma_dts_same_radicand_transitive(a1, b1, c2); // a1~c2 (a1~b1, b1~c2)
+        lemma_dts_same_radicand_symmetric(a1, dd); // dd~a1
+        lemma_dts_same_radicand_transitive(dd, a1, b1); // dd~b1
+        lemma_dts_same_radicand_transitive(dd, a1, a2); // dd~a2
+        lemma_dts_same_radicand_transitive(dd, a1, b2); // dd~b2
+        lemma_dts_same_radicand_transitive(dd, a1, c1); // dd~c1
+        lemma_dts_same_radicand_transitive(dd, a1, c2); // dd~c2
+        lemma_dts_same_radicand_symmetric(a1, a2); // a2~a1
+        lemma_dts_same_radicand_transitive(a2, a1, b1); // a2~b1
+        lemma_dts_same_radicand_symmetric(dd, a2); // a2~dd
 
-            // Similarly for a1*(b1c1+db2c2):
-            lemma_dts_same_radicand_symmetric(b1, dts_mul(b1, c1));
-            lemma_dts_same_radicand_transitive(dts_mul(b1, c1), b1, dd);
-            lemma_dts_same_radicand_symmetric(dd, dts_mul(dd, dts_mul(b2, c2)));
-            lemma_dts_same_radicand_transitive(dts_mul(b1, c1), dd, dts_mul(dd, dts_mul(b2, c2)));
-            lemma_dts_same_radicand_symmetric(a1, dts_mul(b1, c1));
-            lemma_dts_same_radicand_transitive(a1, dts_mul(b1, c1), dts_mul(dd, dts_mul(b2, c2)));
+        // Basic pairwise products
+        lemma_dts_mul_closed(a1, b1); // well_formed(a1*b1), a1~a1*b1
+        lemma_dts_mul_closed(a1, b2); // well_formed(a1*b2), a1~a1*b2
+        lemma_dts_mul_closed(a2, b1); // well_formed(a2*b1), a2~a2*b1
+        lemma_dts_mul_closed(a2, b2); // well_formed(a2*b2), a2~a2*b2
+        lemma_dts_mul_closed(b1, c1); // well_formed(b1*c1), b1~b1*c1
+        lemma_dts_mul_closed(b2, c2); // well_formed(b2*c2), b2~b2*c2
+        lemma_dts_mul_closed(b1, c2); // well_formed(b1*c2), b1~b1*c2
+        lemma_dts_mul_closed(b2, c1); // well_formed(b2*c1), b2~b2*c1
 
-            // LHS re = a1*(b1c1+db2c2) + d*a2*(b1c2+b2c1)
-            // Expand a1*(b1c1+db2c2) using distributes:
-            lemma_dts_add_congruence_left(
-                dts_mul(a1, dts_add(dts_mul(b1, c1), dts_mul(dd, dts_mul(b2, c2)))),
-                dts_add(dts_mul(a1, dts_mul(b1, c1)), dts_mul(a1, dts_mul(dd, dts_mul(b2, c2)))),
-                dts_mul(dd, dts_mul(a2, dts_add(dts_mul(b1, c2), dts_mul(b2, c1)))));
-            // Expand d*a2*(b1c2+b2c1) (already done above)
-            lemma_dts_add_congruence_right(
-                dts_add(dts_mul(a1, dts_mul(b1, c1)), dts_mul(a1, dts_mul(dd, dts_mul(b2, c2)))),
-                dts_mul(dd, dts_mul(a2, dts_add(dts_mul(b1, c2), dts_mul(b2, c1)))),
-                dts_add(dts_mul(dd, dts_mul(a2, dts_mul(b1, c2))), dts_mul(dd, dts_mul(a2, dts_mul(b2, c1)))));
+        // dd products
+        lemma_dts_same_radicand_symmetric(b2, dts_mul(b2, c2)); // b2*c2~b2
+        lemma_dts_same_radicand_transitive(dd, b2, dts_mul(b2, c2)); // dd~b2*c2
+        lemma_dts_mul_closed(dd, dts_mul(b2, c2)); // dd*(b2*c2)
+        lemma_dts_same_radicand_symmetric(a2, dts_mul(a2, b2)); // a2*b2~a2
+        lemma_dts_same_radicand_transitive(dd, a2, dts_mul(a2, b2)); // dd~a2*b2
+        lemma_dts_mul_closed(dd, dts_mul(a2, b2)); // dd*(a2*b2)
+        lemma_dts_mul_closed(a1, dd); // a1*dd
+        lemma_dts_mul_closed(dd, a1); // dd*a1
 
-            // LHS re ≡ (T1+T2) + (T3+T4) where:
-            let t1 = dts_mul(a1, dts_mul(b1, c1));
-            let t2 = dts_mul(a1, dts_mul(dd, dts_mul(b2, c2)));
-            let t3 = dts_mul(dd, dts_mul(a2, dts_mul(b1, c2)));
-            let t4 = dts_mul(dd, dts_mul(a2, dts_mul(b2, c1)));
-            let lhs_re_expanded = dts_add(dts_add(t1, t2), dts_add(t3, t4));
+        // Products of products needed for T/U terms
+        // a1~b1*c1: b1~b1*c1 (from mul_closed), so a1~b1, b1~b1*c1 gives a1~b1*c1
+        lemma_dts_same_radicand_symmetric(b1, dts_mul(b1, c1)); // b1*c1~b1
+        lemma_dts_same_radicand_transitive(a1, b1, dts_mul(b1, c1)); // a1~b1*c1
+        lemma_dts_mul_closed(a1, dts_mul(b1, c1)); // a1*(b1*c1) = t1 shape
 
-            // Chain LHS_re to lhs_re_expanded
-            let lhs_re = dts_add(
-                dts_mul(a1, dts_add(dts_mul(b1, c1), dts_mul(dd, dts_mul(b2, c2)))),
-                dts_mul(dd, dts_mul(a2, dts_add(dts_mul(b1, c2), dts_mul(b2, c1)))));
-            lemma_dts_eqv_transitive(lhs_re,
-                dts_add(
-                    dts_add(t1, t2),
-                    dts_mul(dd, dts_mul(a2, dts_add(dts_mul(b1, c2), dts_mul(b2, c1))))),
-                lhs_re_expanded);
+        // a1~b2*c2: b2~b2*c2 (from mul_closed) → a1~b2, b2~b2*c2 → a1~b2*c2 — but a1~b2 from above
+        lemma_dts_same_radicand_transitive(a1, b2, dts_mul(b2, c2)); // a1~b2*c2
+        lemma_dts_mul_closed(a1, dts_mul(b2, c2)); // a1*(b2*c2)
 
-            // ── Now match terms: T1≡U1, T2≡U3, T3≡U4, T4≡U2 ──
-            // U1 = (a1*b1)*c1, U2 = (d*(a2*b2))*c1, U3 = d*((a1*b2)*c2), U4 = d*((a2*b1)*c2)
-            let u1 = dts_mul(dts_mul(a1, b1), c1);
-            let u2 = dts_mul(dts_mul(dd, dts_mul(a2, b2)), c1);
-            let u3 = dts_mul(dd, dts_mul(dts_mul(a1, b2), c2));
-            let u4 = dts_mul(dd, dts_mul(dts_mul(a2, b1), c2));
+        // a1*(b2*c2)~a1, then dd~a1*b2*c2
+        lemma_dts_same_radicand_symmetric(a1, dts_mul(a1, dts_mul(b2, c2))); // a1*(b2*c2)~a1
+        lemma_dts_same_radicand_transitive(dd, a1, dts_mul(a1, dts_mul(b2, c2))); // dd~a1*b2*c2
+        lemma_dts_mul_closed(dd, dts_mul(a2, b2)); // already done
 
-            // T1 ≡ U1: a1*(b1*c1) ≡ (a1*b1)*c1 — direct IH assoc ✓
+        // a2~b1*c2 for dd*(a2*(b1*c2)) = t3 shape
+        lemma_dts_same_radicand_symmetric(b1, dts_mul(b1, c2)); // b1*c2~b1
+        lemma_dts_same_radicand_transitive(a2, b1, dts_mul(b1, c2)); // a2~b1*c2
+        lemma_dts_mul_closed(a2, dts_mul(b1, c2)); // a2*(b1*c2)
+        lemma_dts_same_radicand_symmetric(a2, dts_mul(a2, dts_mul(b1, c2))); // a2*(b1*c2)~a2
+        lemma_dts_same_radicand_transitive(dd, a2, dts_mul(a2, dts_mul(b1, c2))); // dd~a2*(b1*c2)
+        lemma_dts_mul_closed(dd, dts_mul(a2, dts_mul(b1, c2))); // dd*(a2*(b1*c2)) = t3
 
-            // T2 ≡ U3: a1*(d*(b2*c2)) ≡ d*((a1*b2)*c2)
-            // Chain: a1*(d*(b2*c2)) →[IH assoc]→ (a1*d)*(b2*c2) →[commut a1,d + congr]→
-            //        (d*a1)*(b2*c2) →[IH assoc rev]→ d*(a1*(b2*c2)) →[congr + IH assoc]→ d*((a1*b2)*c2)
-            lemma_dts_mul_associative(a1, dd, dts_mul(b2, c2));
-            lemma_dts_mul_commutative(a1, dd);
-            lemma_dts_mul_closed(a1, dd);
-            lemma_dts_same_radicand_symmetric(a1, dts_mul(a1, dd));
-            lemma_dts_same_radicand_transitive(dts_mul(a1, dd), a1, dts_mul(b2, c2));
-            lemma_dts_mul_congruence_left(dts_mul(a1, dd), dts_mul(dd, a1), dts_mul(b2, c2));
-            lemma_dts_eqv_transitive(t2, dts_mul(dts_mul(a1, dd), dts_mul(b2, c2)),
-                dts_mul(dts_mul(dd, a1), dts_mul(b2, c2)));
-            lemma_dts_mul_closed(dd, a1);
-            lemma_dts_same_radicand_symmetric(dd, dts_mul(dd, a1));
-            lemma_dts_same_radicand_transitive(dts_mul(dd, a1), dd, dts_mul(b2, c2));
-            lemma_dts_mul_associative(dd, a1, dts_mul(b2, c2));
-            lemma_dts_eqv_symmetric(dts_mul(dd, dts_mul(a1, dts_mul(b2, c2))),
-                dts_mul(dts_mul(dd, a1), dts_mul(b2, c2)));
-            lemma_dts_eqv_transitive(t2, dts_mul(dts_mul(dd, a1), dts_mul(b2, c2)),
-                dts_mul(dd, dts_mul(a1, dts_mul(b2, c2))));
-            // d*(a1*(b2*c2)) →[congr + IH assoc(a1,b2,c2)]→ d*((a1*b2)*c2) = U3
-            lemma_dts_mul_congruence_right(dts_mul(a1, dts_mul(b2, c2)), dts_mul(dts_mul(a1, b2), c2), dd);
-            lemma_dts_eqv_transitive(t2, dts_mul(dd, dts_mul(a1, dts_mul(b2, c2))), u3);
+        // a2~b2*c1 for dd*(a2*(b2*c1)) = t4 shape
+        lemma_dts_same_radicand_symmetric(b2, dts_mul(b2, c1)); // b2*c1~b2
+        lemma_dts_same_radicand_transitive(a2, b2, dts_mul(b2, c1)); // a2~b2*c1
+        lemma_dts_mul_closed(a2, dts_mul(b2, c1)); // a2*(b2*c1)
+        lemma_dts_same_radicand_symmetric(a2, dts_mul(a2, dts_mul(b2, c1))); // a2*(b2*c1)~a2
+        lemma_dts_same_radicand_transitive(dd, a2, dts_mul(a2, dts_mul(b2, c1))); // dd~a2*(b2*c1)
+        lemma_dts_mul_closed(dd, dts_mul(a2, dts_mul(b2, c1))); // dd*(a2*(b2*c1)) = t4
 
-            // T3 ≡ U4: d*(a2*(b1*c2)) ≡ d*((a2*b1)*c2) — congr + IH assoc ✓
-            lemma_dts_mul_congruence_right(dts_mul(a2, dts_mul(b1, c2)), dts_mul(dts_mul(a2, b1), c2), dd);
+        // U terms: (a1*b1)*c1, (a1*b2)*c2, (a2*b1)*c2, (dd*a2b2)*c1
+        // mul(a1,b1)~c1: from a1~a1*b1 (mul_closed), sym → a1*b1~a1, then a1~c1
+        lemma_dts_same_radicand_transitive(a1, b1, c1); // a1~c1
+        lemma_dts_same_radicand_symmetric(a1, dts_mul(a1, b1)); // a1*b1~a1
+        lemma_dts_same_radicand_transitive(dts_mul(a1, b1), a1, c1); // a1*b1~c1
+        lemma_dts_mul_closed(dts_mul(a1, b1), c1); // (a1*b1)*c1 = u1; gives mul(a1,b1)~u1
+        lemma_dts_same_radicand_symmetric(dts_mul(a1, b1), u1); // u1~mul(a1,b1) (establish immediately)
+        lemma_dts_same_radicand_transitive(u1, dts_mul(a1, b1), a1); // u1~a1 (mul(a1,b1)~a1 from above)
+        lemma_dts_same_radicand_transitive(u1, a1, dd); // u1~dd
 
-            // T4 ≡ U2: d*(a2*(b2*c1)) ≡ (d*(a2*b2))*c1
-            // Chain: d*(a2*(b2*c1)) →[congr + IH assoc(a2,b2,c1)]→ d*((a2*b2)*c1)
-            //        →[IH assoc(d,a2*b2,c1)]→ (d*(a2*b2))*c1 = U2
-            lemma_dts_mul_congruence_right(dts_mul(a2, dts_mul(b2, c1)), dts_mul(dts_mul(a2, b2), c1), dd);
-            lemma_dts_same_radicand_symmetric(a2, dts_mul(a2, b2));
-            lemma_dts_same_radicand_transitive(dd, a2, dts_mul(a2, b2));
-            lemma_dts_same_radicand_symmetric(a2, c1);
-            lemma_dts_same_radicand_transitive(dts_mul(a2, b2), a2, c1);
-            lemma_dts_mul_associative(dd, dts_mul(a2, b2), c1);
-            lemma_dts_eqv_symmetric(dts_mul(dd, dts_mul(dts_mul(a2, b2), c1)),
-                dts_mul(dts_mul(dd, dts_mul(a2, b2)), c1));
-            lemma_dts_eqv_transitive(t4, dts_mul(dd, dts_mul(dts_mul(a2, b2), c1)), u2);
+        // mul(a1,b2)~c2: a1*b2~a1 (sym), a1~c2 (a1~b1, b1~c2)
+        lemma_dts_same_radicand_transitive(a1, b1, c2); // a1~c2 (a1~b1, b1~c2 from b1~b2,b2~c2)
+        lemma_dts_same_radicand_symmetric(a1, dts_mul(a1, b2)); // a1*b2~a1
+        lemma_dts_same_radicand_transitive(dts_mul(a1, b2), a1, c2); // a1*b2~c2
+        lemma_dts_mul_closed(dts_mul(a1, b2), c2); // (a1*b2)*c2 = u3 inner
 
-            // ── Rearrange: (T1+T2)+(T3+T4) ≡ (U1+U3)+(U4+U2) → (U1+U2)+(U3+U4) ──
-            // Step 1: congruence from Ti ≡ Uj
-            lemma_dts_add_congruence_left(t1, u1, t2);
-            lemma_dts_add_congruence_right(u1, t2, u3);
-            lemma_dts_add_congruence_left(t3, u4, t4);
-            lemma_dts_add_congruence_right(u4, t4, u2);
-            // (T1+T2) ≡ (U1+U3), (T3+T4) ≡ (U4+U2)
-            lemma_dts_eqv_transitive(dts_add(t1, t2), dts_add(u1, t2), dts_add(u1, u3));
-            lemma_dts_eqv_transitive(dts_add(t3, t4), dts_add(u4, t4), dts_add(u4, u2));
-            // lhs_re_expanded = (T1+T2)+(T3+T4) ≡ (U1+U3)+(U4+U2)
-            lemma_dts_add_congruence_left(dts_add(t1, t2), dts_add(u1, u3), dts_add(t3, t4));
-            lemma_dts_add_congruence_right(dts_add(u1, u3), dts_add(t3, t4), dts_add(u4, u2));
-            lemma_dts_eqv_transitive(lhs_re_expanded,
-                dts_add(dts_add(u1, u3), dts_add(t3, t4)),
-                dts_add(dts_add(u1, u3), dts_add(u4, u2)));
+        // dd~(a1*b2)*c2: a1*b2~c2, so dd~a1*b2 and a1*b2~(a1*b2)*c2
+        lemma_dts_same_radicand_transitive(dd, a1, dts_mul(a1, b2)); // dd~a1*b2
+        lemma_dts_same_radicand_symmetric(dts_mul(a1, b2), dts_mul(dts_mul(a1, b2), c2)); // (a1*b2)*c2~a1*b2
+        lemma_dts_same_radicand_transitive(dd, dts_mul(a1, b2), dts_mul(dts_mul(a1, b2), c2)); // dd~(a1*b2)*c2
+        lemma_dts_mul_closed(dd, dts_mul(dts_mul(a1, b2), c2)); // dd*((a1*b2)*c2) = u3
 
-            // Step 2: commut second pair (U4+U2) → (U2+U4)
-            lemma_dts_mul_closed(dts_mul(dd, dts_mul(a2, b2)), c1);
-            lemma_dts_mul_closed(dts_mul(a2, b1), c2);
-            lemma_dts_mul_closed(dd, dts_mul(dts_mul(a2, b1), c2));
-            lemma_dts_mul_closed(dts_mul(a1, b2), c2);
-            lemma_dts_mul_closed(dd, dts_mul(dts_mul(a1, b2), c2));
-            // same_radicand for u2, u4 exchange
-            lemma_dts_same_radicand_symmetric(dts_mul(a1, b1), u1);
-            lemma_dts_same_radicand_transitive(u1, dts_mul(a1, b1), dd);
-            lemma_dts_same_radicand_transitive(u1, dd, u3);
-            lemma_dts_same_radicand_transitive(u1, dd, u2);
-            lemma_dts_same_radicand_transitive(u1, dd, u4);
-            lemma_dts_same_radicand_symmetric(u1, u4);
-            lemma_dts_same_radicand_transitive(u4, u1, u2);
-            DynTowerSpec::axiom_add_commutative(u4, u2);
-            lemma_dts_add_congruence_right(dts_add(u1, u3), dts_add(u4, u2), dts_add(u2, u4));
-            lemma_dts_eqv_transitive(
-                dts_add(dts_add(u1, u3), dts_add(u4, u2)),
-                dts_add(dts_add(u1, u3), dts_add(u2, u4)),
-                dts_add(dts_add(u1, u3), dts_add(u2, u4))); // identity step
+        // mul(a2,b1)~c2: a2*b1~a2 (sym), a2~a1, a1~c2
+        lemma_dts_same_radicand_symmetric(a2, dts_mul(a2, b1)); // a2*b1~a2
+        lemma_dts_same_radicand_transitive(dts_mul(a2, b1), a2, c2); // a2*b1~c2 (a2~a1~c2)
+        lemma_dts_mul_closed(dts_mul(a2, b1), c2); // (a2*b1)*c2 = u4 inner
 
-            // Step 3: exchange (U1+U3)+(U2+U4) → (U1+U2)+(U3+U4)
-            lemma_dts_same_radicand_symmetric(u1, u3);
-            lemma_dts_same_radicand_transitive(u3, u1, u2);
-            lemma_dts_same_radicand_symmetric(u1, u2);
-            lemma_dts_same_radicand_transitive(u2, u1, u4);
-            lemma_dts_add_exchange(u1, u3, u2, u4);
+        // dd~(a2*b1)*c2
+        lemma_dts_same_radicand_transitive(dd, a2, dts_mul(a2, b1)); // dd~a2*b1
+        lemma_dts_same_radicand_symmetric(dts_mul(a2, b1), dts_mul(dts_mul(a2, b1), c2)); // (a2*b1)*c2~a2*b1
+        lemma_dts_same_radicand_transitive(dd, dts_mul(a2, b1), dts_mul(dts_mul(a2, b1), c2)); // dd~(a2*b1)*c2
+        lemma_dts_mul_closed(dd, dts_mul(dts_mul(a2, b1), c2)); // dd*((a2*b1)*c2) = u4
 
-            // Chain lhs_re_expanded ≡ ... ≡ (U1+U2)+(U3+U4)
-            let rhs_re = dts_add(dts_add(u1, u2), dts_add(u3, u4));
-            lemma_dts_eqv_transitive(lhs_re_expanded,
-                dts_add(dts_add(u1, u3), dts_add(u4, u2)),
-                dts_add(dts_add(u1, u3), dts_add(u2, u4)));
-            lemma_dts_eqv_transitive(lhs_re_expanded,
-                dts_add(dts_add(u1, u3), dts_add(u2, u4)),
-                rhs_re);
+        // mul(a2,b2)~c1: mul(a2,b2)~a2~b2~c1
+        lemma_dts_same_radicand_symmetric(a2, dts_mul(a2, b2)); // a2*b2~a2
+        lemma_dts_same_radicand_transitive(b2, b1, c1); // b2~c1 (b2~b1, b1~c1)
+        lemma_dts_same_radicand_transitive(a2, b2, c1); // a2~c1 (a2~b2, b2~c1)
+        lemma_dts_same_radicand_transitive(dts_mul(a2, b2), a2, c1); // mul(a2,b2)~c1
+        lemma_dts_mul_closed(dts_mul(a2, b2), c1); // (a2*b2)*c1
 
-            // Full re chain: lhs_re ≡ lhs_re_expanded ≡ rhs_re
-            lemma_dts_eqv_transitive(lhs_re, lhs_re_expanded, rhs_re);
+        // (dd*a2b2)~c1: dd*a2b2~dd (sym), dd~c1
+        lemma_dts_same_radicand_symmetric(dd, dts_mul(dd, dts_mul(a2, b2))); // dd*a2b2~dd
+        lemma_dts_same_radicand_transitive(dts_mul(dd, dts_mul(a2, b2)), dd, c1); // dd*a2b2~c1
+        lemma_dts_mul_closed(dts_mul(dd, dts_mul(a2, b2)), c1); // (dd*a2b2)*c1 = u2
 
-            // ══ Im component: same structure ══
-            // LHS im = a1*(b1c2+b2c1) + a2*(b1c1+db2c2)
-            // Expanding: (a1*(b1*c2) + a1*(b2*c1)) + (a2*(b1*c1) + a2*(d*(b2*c2)))
-            // RHS im = re_ab*c2 + im_ab*c1
-            // = (a1b1+da2b2)*c2 + (a1b2+a2b1)*c1
-            // Struct: add(mul(re_ab, c2), mul(im_ab, c1))
-            // Expanding: ((a1*b1)*c2 + (d*(a2*b2))*c2) + ((a1*b2)*c1 + (a2*b1)*c1)
-            let s1 = dts_mul(a1, dts_mul(b1, c2));
-            let s2 = dts_mul(a1, dts_mul(b2, c1));
-            let s3 = dts_mul(a2, dts_mul(b1, c1));
-            let s4 = dts_mul(a2, dts_mul(dd, dts_mul(b2, c2)));
-            let v1 = dts_mul(dts_mul(a1, b1), c2);
-            let v2 = dts_mul(dts_mul(dd, dts_mul(a2, b2)), c2);
-            let v3 = dts_mul(dts_mul(a1, b2), c1);
-            let v4 = dts_mul(dts_mul(a2, b1), c1);
+        // T2≡U3: a1*(dd*(b2*c2)) ≡ dd*((a1*b2)*c2)
+        // Step 1: t2 ≡ (a1*dd)*(b2*c2) from IH precondition
+        assert(dts_eqv(t2, dts_mul(dts_mul(a1, dd), dts_mul(b2, c2))));
+        // Step 2: (a1*dd)*(b2*c2) ≡ (dd*a1)*(b2*c2) via commut(a1,dd) + congr_left
+        lemma_dts_same_radicand_symmetric(a1, dts_mul(a1, dd)); // a1*dd~a1
+        lemma_dts_same_radicand_transitive(dts_mul(a1, dd), a1, dd); // a1*dd~dd
+        lemma_dts_same_radicand_transitive(dts_mul(a1, dd), dd, dts_mul(dd, a1)); // a1*dd~dd*a1
+        lemma_dts_mul_congruence_left(dts_mul(a1, dd), dts_mul(dd, a1), dts_mul(b2, c2));
+        lemma_dts_eqv_transitive(t2,
+            dts_mul(dts_mul(a1, dd), dts_mul(b2, c2)),
+            dts_mul(dts_mul(dd, a1), dts_mul(b2, c2)));
+        lemma_dts_eqv_symmetric(dts_mul(dd, dts_mul(a1, dts_mul(b2, c2))),
+            dts_mul(dts_mul(dd, a1), dts_mul(b2, c2)));
+        lemma_dts_eqv_transitive(t2,
+            dts_mul(dts_mul(dd, a1), dts_mul(b2, c2)),
+            dts_mul(dd, dts_mul(a1, dts_mul(b2, c2))));
+        // same_radicand(a1*(b2c2), (a1*b2)*c2) for congr_right
+        lemma_dts_same_radicand_transitive(a1, dts_mul(a1, b2), dts_mul(dts_mul(a1, b2), c2)); // a1~(a1*b2)*c2
+        lemma_dts_same_radicand_transitive(dts_mul(a1, dts_mul(b2, c2)), a1, dts_mul(dts_mul(a1, b2), c2));
+        lemma_dts_mul_congruence_right(dts_mul(a1, dts_mul(b2, c2)),
+            dts_mul(dts_mul(a1, b2), c2), dd);
+        lemma_dts_eqv_transitive(t2,
+            dts_mul(dd, dts_mul(a1, dts_mul(b2, c2))), u3);
 
-            // S1≡V1: IH assoc(a1,b1,c2) ✓ (already called)
-            // S2≡V3: IH assoc(a1,b2,c1) ✓
-            // S3≡V4: IH assoc(a2,b1,c1) ✓
-            // S4≡V2: a2*(d*(b2*c2)) ≡ (d*(a2*b2))*c2 — same chain as T4≡U2 but with c2
-            lemma_dts_mul_congruence_right(dts_mul(a2, dts_mul(b2, c2)), dts_mul(dts_mul(a2, b2), c2), dd);
-            lemma_dts_mul_associative(dd, dts_mul(a2, b2), c2);
-            lemma_dts_eqv_symmetric(dts_mul(dd, dts_mul(dts_mul(a2, b2), c2)),
-                dts_mul(dts_mul(dd, dts_mul(a2, b2)), c2));
-            // s4 = a2*(d*(b2*c2)). Need chain: same as T2≡U3 pattern but with a2 instead of a1
-            lemma_dts_mul_associative(a2, dd, dts_mul(b2, c2));
-            lemma_dts_mul_commutative(a2, dd);
-            lemma_dts_mul_closed(a2, dd);
-            lemma_dts_same_radicand_symmetric(a2, dts_mul(a2, dd));
-            lemma_dts_same_radicand_transitive(dts_mul(a2, dd), a2, dts_mul(b2, c2));
-            lemma_dts_mul_congruence_left(dts_mul(a2, dd), dts_mul(dd, a2), dts_mul(b2, c2));
-            lemma_dts_eqv_transitive(s4, dts_mul(dts_mul(a2, dd), dts_mul(b2, c2)),
-                dts_mul(dts_mul(dd, a2), dts_mul(b2, c2)));
-            lemma_dts_mul_closed(dd, a2);
-            lemma_dts_same_radicand_symmetric(dd, dts_mul(dd, a2));
-            lemma_dts_same_radicand_transitive(dts_mul(dd, a2), dd, dts_mul(b2, c2));
-            lemma_dts_mul_associative(dd, a2, dts_mul(b2, c2));
-            lemma_dts_eqv_symmetric(dts_mul(dd, dts_mul(a2, dts_mul(b2, c2))),
-                dts_mul(dts_mul(dd, a2), dts_mul(b2, c2)));
-            lemma_dts_eqv_transitive(s4, dts_mul(dts_mul(dd, a2), dts_mul(b2, c2)),
-                dts_mul(dd, dts_mul(a2, dts_mul(b2, c2))));
-            lemma_dts_eqv_transitive(s4, dts_mul(dd, dts_mul(a2, dts_mul(b2, c2))),
-                dts_mul(dd, dts_mul(dts_mul(a2, b2), c2)));
-            lemma_dts_eqv_transitive(s4, dts_mul(dd, dts_mul(dts_mul(a2, b2), c2)), v2);
+        // T3≡U4: dd*(a2*(b1*c2)) ≡ dd*((a2*b1)*c2)
+        // same_radicand(a2*(b1c2), (a2*b1)*c2) for congr_right
+        lemma_dts_same_radicand_transitive(a2, dts_mul(a2, b1), dts_mul(dts_mul(a2, b1), c2)); // a2~(a2*b1)*c2
+        lemma_dts_same_radicand_transitive(dts_mul(a2, dts_mul(b1, c2)), a2, dts_mul(dts_mul(a2, b1), c2));
+        lemma_dts_mul_congruence_right(dts_mul(a2, dts_mul(b1, c2)),
+            dts_mul(dts_mul(a2, b1), c2), dd);
 
-            // Expand LHS im and chain to (S1+S2)+(S3+S4)
-            lemma_dts_add_congruence_left(
-                dts_mul(a1, dts_add(dts_mul(b1, c2), dts_mul(b2, c1))),
-                dts_add(s1, s2),
-                dts_mul(a2, dts_add(dts_mul(b1, c1), dts_mul(dd, dts_mul(b2, c2)))));
-            lemma_dts_add_congruence_right(
-                dts_add(s1, s2),
-                dts_mul(a2, dts_add(dts_mul(b1, c1), dts_mul(dd, dts_mul(b2, c2)))),
-                dts_add(s3, s4));
-            let lhs_im = dts_add(
-                dts_mul(a1, dts_add(dts_mul(b1, c2), dts_mul(b2, c1))),
-                dts_mul(a2, dts_add(dts_mul(b1, c1), dts_mul(dd, dts_mul(b2, c2)))));
-            let lhs_im_expanded = dts_add(dts_add(s1, s2), dts_add(s3, s4));
-            lemma_dts_eqv_transitive(lhs_im,
-                dts_add(dts_add(s1, s2),
-                    dts_mul(a2, dts_add(dts_mul(b1, c1), dts_mul(dd, dts_mul(b2, c2))))),
-                lhs_im_expanded);
+        // T4≡U2: dd*(a2*(b2*c1)) ≡ (dd*(a2*b2))*c1
+        // Step 1: a2*(b2*c1) ≡ (a2*b2)*c1 from IH assoc
+        // Step 2: congr → dd*(a2*(b2*c1)) ≡ dd*((a2*b2)*c1)
+        lemma_dts_same_radicand_transitive(a2, dts_mul(a2, b2), dts_mul(dts_mul(a2, b2), c1));
+        lemma_dts_same_radicand_transitive(dts_mul(a2, dts_mul(b2, c1)), a2, dts_mul(dts_mul(a2, b2), c1));
+        lemma_dts_mul_congruence_right(dts_mul(a2, dts_mul(b2, c1)),
+            dts_mul(dts_mul(a2, b2), c1), dd);
+        // Step 3: dd*((a2*b2)*c1) ≡ (dd*(a2*b2))*c1 from IH d-assoc precondition
+        assert(dts_eqv(dts_mul(dd, dts_mul(dts_mul(a2, b2), c1)),
+            dts_mul(dts_mul(dd, dts_mul(a2, b2)), c1)));
+        lemma_dts_eqv_transitive(t4,
+            dts_mul(dd, dts_mul(dts_mul(a2, b2), c1)), u2);
 
-            // Rearrange im: (S1+S2)+(S3+S4) → (V1+V3)+(V4+V2) → (V1+V2)+(V3+V4)
-            lemma_dts_add_congruence_left(s1, v1, s2);
-            lemma_dts_add_congruence_right(v1, s2, v3);
-            lemma_dts_add_congruence_left(s3, v4, s4);
-            lemma_dts_add_congruence_right(v4, s4, v2);
-            lemma_dts_eqv_transitive(dts_add(s1, s2), dts_add(v1, s2), dts_add(v1, v3));
-            lemma_dts_eqv_transitive(dts_add(s3, s4), dts_add(v4, s4), dts_add(v4, v2));
-            lemma_dts_add_congruence_left(dts_add(s1, s2), dts_add(v1, v3), dts_add(s3, s4));
-            lemma_dts_add_congruence_right(dts_add(v1, v3), dts_add(s3, s4), dts_add(v4, v2));
-            lemma_dts_eqv_transitive(lhs_im_expanded,
-                dts_add(dts_add(v1, v3), dts_add(s3, s4)),
-                dts_add(dts_add(v1, v3), dts_add(v4, v2)));
+        // Congruence: (T1+T2) ≡ (U1+U3), (T3+T4) ≡ (U4+U2)
+        lemma_dts_add_congruence_left(t1, u1, t2);
+        lemma_dts_add_congruence_right(u1, t2, u3);
+        lemma_dts_eqv_transitive(dts_add(t1, t2), dts_add(u1, t2), dts_add(u1, u3));
+        lemma_dts_add_congruence_left(t3, u4, t4);
+        lemma_dts_add_congruence_right(u4, t4, u2);
+        lemma_dts_eqv_transitive(dts_add(t3, t4), dts_add(u4, t4), dts_add(u4, u2));
 
-            // Commut (V4+V2)→(V2+V4) and exchange
-            lemma_dts_mul_closed(dts_mul(dd, dts_mul(a2, b2)), c2);
-            lemma_dts_mul_closed(dts_mul(a1, b2), c1);
-            lemma_dts_mul_closed(dts_mul(a2, b1), c1);
-            lemma_dts_same_radicand_symmetric(dts_mul(a1, b1), v1);
-            lemma_dts_same_radicand_transitive(v1, dts_mul(a1, b1), dd);
-            lemma_dts_same_radicand_transitive(v1, dd, v2);
-            lemma_dts_same_radicand_transitive(v1, dd, v3);
-            lemma_dts_same_radicand_transitive(v1, dd, v4);
-            lemma_dts_same_radicand_symmetric(v1, v4);
-            lemma_dts_same_radicand_transitive(v4, v1, v2);
-            DynTowerSpec::axiom_add_commutative(v4, v2);
-            lemma_dts_add_congruence_right(dts_add(v1, v3), dts_add(v4, v2), dts_add(v2, v4));
-            lemma_dts_same_radicand_symmetric(v1, v3);
-            lemma_dts_same_radicand_transitive(v3, v1, v2);
-            lemma_dts_same_radicand_symmetric(v1, v2);
-            lemma_dts_same_radicand_transitive(v2, v1, v4);
-            lemma_dts_add_exchange(v1, v3, v2, v4);
-            let rhs_im = dts_add(dts_add(v1, v2), dts_add(v3, v4));
-            lemma_dts_eqv_transitive(
-                dts_add(dts_add(v1, v3), dts_add(v4, v2)),
-                dts_add(dts_add(v1, v3), dts_add(v2, v4)),
-                rhs_im);
-            lemma_dts_eqv_transitive(lhs_im_expanded,
-                dts_add(dts_add(v1, v3), dts_add(v4, v2)),
-                rhs_im);
-            lemma_dts_eqv_transitive(lhs_im, lhs_im_expanded, rhs_im);
+        // Outer congruence: (T1+T2)+(T3+T4) ≡ (U1+U3)+(U4+U2)
+        lemma_dts_add_congruence_left(dts_add(t1, t2), dts_add(u1, u3), dts_add(t3, t4));
+        lemma_dts_add_congruence_right(dts_add(u1, u3), dts_add(t3, t4), dts_add(u4, u2));
+        lemma_dts_eqv_transitive(
+            dts_add(dts_add(t1, t2), dts_add(t3, t4)),
+            dts_add(dts_add(u1, u3), dts_add(t3, t4)),
+            dts_add(dts_add(u1, u3), dts_add(u4, u2)));
+
+        // same_radicand u1~u2/u3/u4 (needed by add_exchange)
+        // dd~u3 directly from mul_closed(dd, mul(mul(a1,b2),c2)) ensures
+        // dd~u4 directly from mul_closed(dd, mul(mul(a2,b1),c2)) ensures
+        // dd~u2: dd~mul(dd,a2b2) AND mul(dd,a2b2)~u2 from mul_closed ensures
+        lemma_dts_same_radicand_transitive(dd, dts_mul(dd, dts_mul(a2, b2)), u2); // dd~u2
+        lemma_dts_same_radicand_transitive(u1, dd, u2);
+        lemma_dts_same_radicand_transitive(u1, dd, u3);
+        lemma_dts_same_radicand_transitive(u1, dd, u4);
+
+        // Exchange: commute u4+u2 → u2+u4, then exchange(u1,u3,u2,u4)
+        lemma_dts_same_radicand_symmetric(u1, u2);
+        lemma_dts_same_radicand_transitive(u2, u1, u4);
+        lemma_dts_same_radicand_symmetric(u1, u3);
+        lemma_dts_same_radicand_transitive(u3, u1, u2);
+        lemma_dts_same_radicand_transitive(u3, u1, u4);
+        DynTowerSpec::axiom_add_commutative(u4, u2);
+        // eqv((u1+u3)+(u4+u2), (u1+u3)+(u2+u4))
+        lemma_dts_add_congruence_right(dts_add(u1, u3), dts_add(u4, u2), dts_add(u2, u4));
+        // eqv((u1+u3)+(u2+u4), (u1+u2)+(u3+u4)) via add_exchange
+        lemma_dts_same_radicand_transitive(u2, u1, u3);
+        lemma_dts_same_radicand_symmetric(u1, u4);
+        lemma_dts_same_radicand_transitive(u4, u1, u2);
+        lemma_dts_add_exchange(u1, u3, u2, u4);
+        // Chain: (u1+u3)+(u4+u2) ≡ (u1+u3)+(u2+u4) ≡ (u1+u2)+(u3+u4)
+        lemma_dts_eqv_transitive(
+            dts_add(dts_add(u1, u3), dts_add(u4, u2)),
+            dts_add(dts_add(u1, u3), dts_add(u2, u4)),
+            dts_add(dts_add(u1, u2), dts_add(u3, u4)));
+
+        // Final chain: (T1+T2)+(T3+T4) ≡ (U1+U3)+(U4+U2) ≡ (U1+U2)+(U3+U4)
+        lemma_dts_eqv_transitive(
+            dts_add(dts_add(t1, t2), dts_add(t3, t4)),
+            dts_add(dts_add(u1, u3), dts_add(u4, u2)),
+            dts_add(dts_add(u1, u2), dts_add(u3, u4)));
+    };
+
+    // ── Im component proof ──
+    // LHS im = a1*(b1c2 + b2c1) + a2*(b1c1 + dd*b2c2)
+    // Expanding: (a1*b1c2 + a1*b2c1) + (a2*b1c1 + a2*dd*b2c2)
+    //          = S1 + S2 + S3 + S4
+    // RHS im = (a1*b1 + dd*a2*b2)*c2 + (a1*b2 + a2*b1)*c1
+    // Expanding: ((a1*b1)*c2 + (dd*a2*b2)*c2) + ((a1*b2)*c1 + (a2*b1)*c1)
+    //          = V1 + V2 + V3 + V4
+    // Matching: S1≡V1, S2≡V3, S3≡V4, S4≡V2 → exchange → im eqv ✓
+    let s1 = dts_mul(a1, dts_mul(b1, c2));
+    let s2 = dts_mul(a1, dts_mul(b2, c1));
+    let s3 = dts_mul(a2, dts_mul(b1, c1));
+    let s4 = dts_mul(a2, dts_mul(dd, dts_mul(b2, c2)));
+    let v1 = dts_mul(dts_mul(a1, b1), c2);
+    let v2 = dts_mul(dts_mul(dd, dts_mul(a2, b2)), c2);
+    let v3 = dts_mul(dts_mul(a1, b2), c1);
+    let v4 = dts_mul(dts_mul(a2, b1), c1);
+    assert(dts_eqv(dts_add(dts_add(s1, s2), dts_add(s3, s4)),
+                   dts_add(dts_add(v1, v2), dts_add(v3, v4)))) by {
+        // ── Infrastructure for im block ──
+        // Basic radicand chains
+        lemma_dts_same_radicand_symmetric(b1, b2); // b2~b1
+        lemma_dts_same_radicand_transitive(b1, b2, c2); // b1~c2
+        lemma_dts_same_radicand_transitive(b2, b1, c1); // b2~c1 (b2~b1, b1~c1)
+        lemma_dts_same_radicand_transitive(a1, a2, b2); // a1~b2
+        lemma_dts_same_radicand_transitive(a1, b1, c1); // a1~c1
+        lemma_dts_same_radicand_transitive(a1, b1, c2); // a1~c2 (a1~b1, b1~c2)
+        lemma_dts_same_radicand_symmetric(a1, dd); // dd~a1
+        lemma_dts_same_radicand_transitive(dd, a1, b1); // dd~b1
+        lemma_dts_same_radicand_transitive(dd, a1, a2); // dd~a2
+        lemma_dts_same_radicand_transitive(dd, a1, b2); // dd~b2
+        lemma_dts_same_radicand_transitive(dd, a1, c1); // dd~c1
+        lemma_dts_same_radicand_transitive(dd, a1, c2); // dd~c2
+        lemma_dts_same_radicand_symmetric(a1, a2); // a2~a1
+        lemma_dts_same_radicand_transitive(a2, a1, b1); // a2~b1
+        lemma_dts_same_radicand_symmetric(dd, a2); // a2~dd
+
+        // Basic pairwise products
+        lemma_dts_mul_closed(a1, b1); // a1*b1
+        lemma_dts_mul_closed(a1, b2); // a1*b2
+        lemma_dts_mul_closed(a2, b1); // a2*b1
+        lemma_dts_mul_closed(a2, b2); // a2*b2
+        lemma_dts_mul_closed(b1, c1); // b1*c1
+        lemma_dts_mul_closed(b1, c2); // b1*c2
+        lemma_dts_mul_closed(b2, c1); // b2*c1
+        lemma_dts_mul_closed(b2, c2); // b2*c2
+        lemma_dts_mul_closed(a2, dd); // a2*dd
+        lemma_dts_mul_closed(dd, a2); // dd*a2
+
+        // dd*(a2*b2)
+        lemma_dts_same_radicand_symmetric(a2, dts_mul(a2, b2)); // a2*b2~a2
+        lemma_dts_same_radicand_transitive(dd, a2, dts_mul(a2, b2)); // dd~a2*b2
+        lemma_dts_mul_closed(dd, dts_mul(a2, b2)); // dd*(a2*b2)
+
+        // V term products
+        // v1 = (a1*b1)*c2: a1*b1~c2
+        lemma_dts_same_radicand_transitive(a1, b1, c2); // a1~c2 (a1~b1, b1~c2)
+        lemma_dts_same_radicand_symmetric(a1, dts_mul(a1, b1)); // a1*b1~a1
+        lemma_dts_same_radicand_transitive(dts_mul(a1, b1), a1, c2); // a1*b1~c2
+        lemma_dts_mul_closed(dts_mul(a1, b1), c2); // (a1*b1)*c2 = v1
+
+        // v3 = (a1*b2)*c1: a1*b2~c1
+        lemma_dts_same_radicand_transitive(a1, b1, c1); // a1~c1
+        lemma_dts_same_radicand_symmetric(a1, dts_mul(a1, b2)); // a1*b2~a1
+        lemma_dts_same_radicand_transitive(dts_mul(a1, b2), a1, c1); // a1*b2~c1
+        lemma_dts_mul_closed(dts_mul(a1, b2), c1); // (a1*b2)*c1 = v3
+
+        // v4 = (a2*b1)*c1: a2*b1~c1
+        // Need a2~c1: a2~b2 (precond), b2~c1 (established)
+        lemma_dts_same_radicand_transitive(a2, b2, c1); // a2~c1
+        lemma_dts_same_radicand_symmetric(a2, dts_mul(a2, b1)); // a2*b1~a2
+        lemma_dts_same_radicand_transitive(dts_mul(a2, b1), a2, c1); // a2*b1~c1
+        lemma_dts_mul_closed(dts_mul(a2, b1), c1); // (a2*b1)*c1 = v4
+
+        // v2 = (dd*a2b2)*c2: dd*a2b2~c2
+        lemma_dts_same_radicand_symmetric(dd, dts_mul(dd, dts_mul(a2, b2))); // dd*a2b2~dd
+        lemma_dts_same_radicand_transitive(dts_mul(dd, dts_mul(a2, b2)), dd, c2); // dd*a2b2~c2
+        lemma_dts_mul_closed(dts_mul(dd, dts_mul(a2, b2)), c2); // (dd*a2b2)*c2 = v2
+
+        // S terms products
+        // s1 = a1*(b1*c2): a1~b1*c2
+        lemma_dts_same_radicand_symmetric(b1, dts_mul(b1, c2)); // b1*c2~b1
+        lemma_dts_same_radicand_transitive(a1, b1, dts_mul(b1, c2)); // a1~b1*c2
+        lemma_dts_mul_closed(a1, dts_mul(b1, c2)); // a1*(b1*c2) = s1
+
+        // s2 = a1*(b2*c1): a1~b2*c1
+        lemma_dts_same_radicand_symmetric(b2, dts_mul(b2, c1)); // b2*c1~b2
+        lemma_dts_same_radicand_transitive(a1, b2, dts_mul(b2, c1)); // a1~b2*c1
+        lemma_dts_mul_closed(a1, dts_mul(b2, c1)); // a1*(b2*c1) = s2
+
+        // s3 = a2*(b1*c1): a2~b1*c1
+        lemma_dts_same_radicand_symmetric(b1, dts_mul(b1, c1)); // b1*c1~b1
+        lemma_dts_same_radicand_transitive(a2, b1, dts_mul(b1, c1)); // a2~b1*c1
+        lemma_dts_mul_closed(a2, dts_mul(b1, c1)); // a2*(b1*c1) = s3
+
+        // s4 = a2*(dd*(b2*c2)): a2~dd*(b2*c2)
+        lemma_dts_same_radicand_symmetric(b2, dts_mul(b2, c2)); // b2*c2~b2
+        lemma_dts_same_radicand_transitive(dd, b2, dts_mul(b2, c2)); // dd~b2*c2
+        lemma_dts_mul_closed(dd, dts_mul(b2, c2)); // dd*(b2*c2)
+        lemma_dts_same_radicand_symmetric(dd, dts_mul(dd, dts_mul(b2, c2))); // dd*b2c2~dd
+        lemma_dts_same_radicand_transitive(a2, dd, dts_mul(dd, dts_mul(b2, c2))); // a2~dd*b2c2 (a2~dd from above)
+        lemma_dts_mul_closed(a2, dts_mul(dd, dts_mul(b2, c2))); // a2*(dd*(b2*c2)) = s4
+
+        // S4≡V2: a2*(dd*(b2*c2)) ≡ (dd*(a2*b2))*c2
+        // same_radicand(a2*dd, dd*a2) for congr_left
+        lemma_dts_same_radicand_symmetric(a2, dts_mul(a2, dd)); // a2*dd~a2
+        lemma_dts_same_radicand_transitive(dts_mul(a2, dd), a2, dd); // a2*dd~dd
+        lemma_dts_same_radicand_transitive(dts_mul(a2, dd), dd, dts_mul(dd, a2)); // a2*dd~dd*a2
+        lemma_dts_mul_congruence_left(dts_mul(a2, dd), dts_mul(dd, a2), dts_mul(b2, c2));
+        lemma_dts_eqv_transitive(s4,
+            dts_mul(dts_mul(a2, dd), dts_mul(b2, c2)),
+            dts_mul(dts_mul(dd, a2), dts_mul(b2, c2)));
+        lemma_dts_eqv_symmetric(dts_mul(dd, dts_mul(a2, dts_mul(b2, c2))),
+            dts_mul(dts_mul(dd, a2), dts_mul(b2, c2)));
+        lemma_dts_eqv_transitive(s4,
+            dts_mul(dts_mul(dd, a2), dts_mul(b2, c2)),
+            dts_mul(dd, dts_mul(a2, dts_mul(b2, c2))));
+        // same_radicand(a2*(b2c2), (a2*b2)*c2) for congr_right
+        // Need mul_closed(mul(a2,b2), c2): requires mul(a2,b2)~c2
+        // mul(a2,b2)~a2 from sym(a2,mul(a2,b2)) (mul_closed(a2,b2) gives a2~mul(a2,b2))
+        lemma_dts_same_radicand_symmetric(a2, dts_mul(a2, b2)); // a2*b2~a2
+        lemma_dts_same_radicand_transitive(dts_mul(a2, b2), a2, b2); // a2*b2~b2 (a2*b2~a2, a2~b2)
+        lemma_dts_same_radicand_transitive(dts_mul(a2, b2), b2, c2); // a2*b2~c2
+        lemma_dts_mul_closed(dts_mul(a2, b2), c2); // (a2*b2)*c2; gives mul(a2,b2)~(a2*b2)*c2
+        lemma_dts_same_radicand_transitive(a2, dts_mul(a2, b2), dts_mul(dts_mul(a2, b2), c2)); // a2~(a2*b2)*c2
+        // a2*(b2*c2): need a2~b2*c2 first
+        lemma_dts_same_radicand_transitive(a2, b2, dts_mul(b2, c2)); // a2~b2*c2
+        lemma_dts_mul_closed(a2, dts_mul(b2, c2)); // a2*(b2*c2); gives a2~a2*(b2*c2)
+        lemma_dts_same_radicand_symmetric(a2, dts_mul(a2, dts_mul(b2, c2))); // a2*(b2*c2)~a2
+        lemma_dts_same_radicand_transitive(dts_mul(a2, dts_mul(b2, c2)), a2, dts_mul(dts_mul(a2, b2), c2));
+        lemma_dts_mul_congruence_right(dts_mul(a2, dts_mul(b2, c2)),
+            dts_mul(dts_mul(a2, b2), c2), dd);
+        lemma_dts_eqv_transitive(s4,
+            dts_mul(dd, dts_mul(a2, dts_mul(b2, c2))),
+            dts_mul(dd, dts_mul(dts_mul(a2, b2), c2)));
+        lemma_dts_eqv_transitive(s4,
+            dts_mul(dd, dts_mul(dts_mul(a2, b2), c2)), v2);
+
+        // Congruence: (S1+S2) ≡ (V1+V3), (S3+S4) ≡ (V4+V2)
+        lemma_dts_add_congruence_left(s1, v1, s2);
+        lemma_dts_add_congruence_right(v1, s2, v3);
+        lemma_dts_eqv_transitive(dts_add(s1, s2), dts_add(v1, s2), dts_add(v1, v3));
+        lemma_dts_add_congruence_left(s3, v4, s4);
+        lemma_dts_add_congruence_right(v4, s4, v2);
+        lemma_dts_eqv_transitive(dts_add(s3, s4), dts_add(v4, s4), dts_add(v4, v2));
+
+        // Outer congruence: (S1+S2)+(S3+S4) ≡ (V1+V3)+(V4+V2)
+        lemma_dts_add_congruence_left(dts_add(s1, s2), dts_add(v1, v3), dts_add(s3, s4));
+        lemma_dts_add_congruence_right(dts_add(v1, v3), dts_add(s3, s4), dts_add(v4, v2));
+        lemma_dts_eqv_transitive(
+            dts_add(dts_add(s1, s2), dts_add(s3, s4)),
+            dts_add(dts_add(v1, v3), dts_add(s3, s4)),
+            dts_add(dts_add(v1, v3), dts_add(v4, v2)));
+
+        // same_radicand for v1,v2,v3,v4 (needed by add_exchange)
+        // v1~a1: sym(a1*b1, v1) then transitive(v1, a1*b1, a1)
+        lemma_dts_same_radicand_symmetric(dts_mul(a1, b1), v1); // v1~a1*b1
+        lemma_dts_same_radicand_transitive(v1, dts_mul(a1, b1), a1); // v1~a1 (a1*b1~a1 from sym above)
+        lemma_dts_same_radicand_transitive(v1, a1, dd); // v1~dd
+        // dd~v2: dd~mul(dd,a2b2) from mul_closed, mul(dd,a2b2)~v2 from mul_closed
+        lemma_dts_same_radicand_transitive(dd, dts_mul(dd, dts_mul(a2, b2)), v2);
+        lemma_dts_same_radicand_transitive(v1, dd, v2);
+        // dd~v3: dd~a1~mul(a1,b2)~v3
+        lemma_dts_same_radicand_transitive(dd, a1, dts_mul(a1, b2)); // dd~a1*b2 (dd~a1, a1~mul(a1,b2))
+        lemma_dts_same_radicand_transitive(dd, dts_mul(a1, b2), v3); // dd~v3 (mul(a1,b2)~v3 from mul_closed)
+        lemma_dts_same_radicand_transitive(v1, dd, v3);
+        // dd~v4: dd~a2~mul(a2,b1)~v4
+        lemma_dts_same_radicand_transitive(dd, a2, dts_mul(a2, b1)); // dd~a2*b1
+        lemma_dts_same_radicand_transitive(dd, dts_mul(a2, b1), v4); // dd~v4
+        lemma_dts_same_radicand_transitive(v1, dd, v4);
+        lemma_dts_same_radicand_symmetric(v1, v3);
+        lemma_dts_same_radicand_transitive(v3, v1, v2);
+        lemma_dts_same_radicand_transitive(v3, v1, v4);
+        lemma_dts_same_radicand_symmetric(v1, v4);
+        lemma_dts_same_radicand_transitive(v4, v1, v2);
+        lemma_dts_same_radicand_symmetric(v1, v2);
+        lemma_dts_same_radicand_transitive(v2, v1, v4);
+        lemma_dts_same_radicand_transitive(v2, v1, v3);
+
+        // Commut V4+V2 → V2+V4, then exchange(V1,V3,V2,V4)
+        DynTowerSpec::axiom_add_commutative(v4, v2);
+        // eqv((v1+v3)+(v4+v2), (v1+v3)+(v2+v4))
+        lemma_dts_add_congruence_right(dts_add(v1, v3), dts_add(v4, v2), dts_add(v2, v4));
+        // eqv((v1+v3)+(v2+v4), (v1+v2)+(v3+v4))
+        lemma_dts_add_exchange(v1, v3, v2, v4);
+        lemma_dts_eqv_transitive(
+            dts_add(dts_add(v1, v3), dts_add(v4, v2)),
+            dts_add(dts_add(v1, v3), dts_add(v2, v4)),
+            dts_add(dts_add(v1, v2), dts_add(v3, v4)));
+        lemma_dts_eqv_transitive(
+            dts_add(dts_add(s1, s2), dts_add(s3, s4)),
+            dts_add(dts_add(v1, v3), dts_add(v4, v2)),
+            dts_add(dts_add(v1, v2), dts_add(v3, v4)));
+    };
+
+    // ── Connect to Ext-level ensures ──
+    // The actual products unfold to:
+    //   dts_mul(Ext(a1,a2,dd), dts_mul(Ext(b1,b2,dd), Ext(c1,c2,dd)))
+    //     = Ext(a1*bc_re + dd*(a2*bc_im),  a1*bc_im + a2*bc_re,  dd)
+    //   dts_mul(dts_mul(Ext(a1,a2,dd), Ext(b1,b2,dd)), Ext(c1,c2,dd))
+    //     = Ext(ab_re*c1 + dd*(ab_im*c2),  ab_re*c2 + ab_im*c1,  dd)
+    // where bc_re = b1*c1 + dd*(b2*c2), bc_im = b1*c2 + b2*c1
+    //       ab_re = a1*b1 + dd*(a2*b2), ab_im = a1*b2 + a2*b1
+    // We need: eqv(LHS_re, RHS_re) and eqv(LHS_im, RHS_im)
+    // All infrastructure lives inside assert-by blocks for rlimit
+
+    // ── LHS_re ≡ (t1+t2)+(t3+t4) via distributivity ──
+    // LHS_re = a1*(b1*c1+dd*b2*c2) + dd*(a2*(b1*c2+b2*c1))
+    let lhs_re = dts_add(
+        dts_mul(a1, dts_add(dts_mul(b1,c1), dts_mul(dd,dts_mul(b2,c2)))),
+        dts_mul(dd, dts_mul(a2, dts_add(dts_mul(b1,c2), dts_mul(b2,c1)))));
+    assert(dts_eqv(lhs_re, dts_add(dts_add(t1,t2), dts_add(t3,t4)))) by {
+        // Infra: establish radicand chains before mul_closed calls
+        lemma_dts_same_radicand_symmetric(b1, b2); // b2~b1
+        lemma_dts_same_radicand_transitive(b1, b2, c2); // b1~c2
+        lemma_dts_same_radicand_transitive(b2, b1, c1); // b2~c1
+        lemma_dts_same_radicand_transitive(a1, a2, b2); // a1~b2
+        lemma_dts_same_radicand_symmetric(a1, a2); // a2~a1
+        lemma_dts_same_radicand_transitive(a2, a1, b1); // a2~b1
+        lemma_dts_same_radicand_symmetric(a1, dd); // dd~a1
+        lemma_dts_same_radicand_transitive(dd, a1, a2); // dd~a2
+        // Now mul_closed calls (dependencies satisfied)
+        lemma_dts_mul_closed(b1, c1);
+        lemma_dts_mul_closed(b2, c2);
+        lemma_dts_mul_closed(b1, c2);
+        lemma_dts_mul_closed(b2, c1);
+        lemma_dts_mul_closed(a2, b1);
+        lemma_dts_mul_closed(a2, b2);
+        lemma_dts_same_radicand_symmetric(b2, dts_mul(b2, c2)); // b2*c2~b2
+        lemma_dts_same_radicand_transitive(dd, a1, b2); // dd~b2 (dd~a1, a1~b2)
+        lemma_dts_same_radicand_transitive(dd, b2, dts_mul(b2, c2)); // dd~b2*c2
+        lemma_dts_mul_closed(dd, dts_mul(b2, c2)); // dd*(b2*c2)
+        // b1*c1 ~ dd*(b2*c2) for distributes_left(a1, b1c1, dd*b2c2)
+        lemma_dts_same_radicand_symmetric(b1, dts_mul(b1, c1)); // b1*c1~b1
+        lemma_dts_same_radicand_transitive(dd, a1, b1); // dd~b1
+        lemma_dts_same_radicand_symmetric(dd, dts_mul(dd, dts_mul(b2, c2))); // dd*b2c2~dd
+        lemma_dts_same_radicand_transitive(dts_mul(b1,c1), b1, dd); // b1*c1~dd
+        lemma_dts_same_radicand_transitive(dts_mul(b1,c1), dd, dts_mul(dd,dts_mul(b2,c2))); // b1*c1~dd*b2c2
+        // a1~b1*c1 for distributes_left(a1, b1c1, dd*b2c2)
+        lemma_dts_same_radicand_transitive(a1, b1, dts_mul(b1,c1)); // a1~b1*c1
+        // a1*(b1*c1+dd*b2*c2) ≡ t1+t2
+        lemma_dts_mul_distributes_left(a1, dts_mul(b1,c1), dts_mul(dd,dts_mul(b2,c2)));
+        // b1*c2~b2*c1 for distributes_left(a2, b1c2, b2c1)
+        lemma_dts_same_radicand_symmetric(b1, dts_mul(b1, c2)); // b1*c2~b1
+        lemma_dts_same_radicand_symmetric(b2, dts_mul(b2, c1)); // b2*c1~b2
+        lemma_dts_same_radicand_transitive(dts_mul(b1,c2), b1, b2); // b1*c2~b2
+        lemma_dts_same_radicand_transitive(dts_mul(b1,c2), b2, dts_mul(b2,c1)); // b1*c2~b2*c1
+        // a2~b1*c2
+        lemma_dts_same_radicand_transitive(a2, b1, dts_mul(b1,c2)); // a2~b1*c2
+        // a2*(b1*c2+b2*c1) ≡ a2*b1c2 + a2*b2c1
+        lemma_dts_mul_distributes_left(a2, dts_mul(b1,c2), dts_mul(b2,c1));
+        // a2*(b1c2+b2c1)~a2: need mul_closed(a2, add(b1c2,b2c1)) first
+        // add(b1c2,b2c1) well_formed: add_closed(b1*c2, b2*c1)
+        lemma_dts_add_closed(dts_mul(b1,c2), dts_mul(b2,c1)); // bc_im well_formed; gives b1*c2~bc_im
+        // a2~bc_im: a2~b1*c2 (above), b1*c2~bc_im (from add_closed)
+        lemma_dts_same_radicand_transitive(a2, dts_mul(b1,c2),
+            dts_add(dts_mul(b1,c2), dts_mul(b2,c1))); // a2~bc_im
+        lemma_dts_mul_closed(a2, dts_add(dts_mul(b1,c2), dts_mul(b2,c1))); // a2*(bc_im)
+        // a2*(b1c2+b2c1)~a2: symmetric of mul_closed ensures
+        lemma_dts_same_radicand_symmetric(a2, dts_mul(a2, dts_add(dts_mul(b1,c2),dts_mul(b2,c1))));
+        // dd needs to know a2*(b1c2+b2c1) ~ dts_add(a2*(b1c2), a2*(b2c1))
+        // for congr_right call: same_radicand(a2*(b1c2+b2c1), a2*b1c2+a2*b2c1)
+        // From mul_closed(a2, dts_mul(b1,c2)), we get a2~a2*(b1c2), sym gives a2*(b1c2)~a2
+        lemma_dts_mul_closed(a2, dts_mul(b1,c2)); // a2*(b1c2), a2~a2*(b1c2)
+        // a2~b2*c1: a2~b2 (hypothesis), b2~b2*c1 (mul_closed(b2,c1) ensures)
+        lemma_dts_same_radicand_transitive(a2, b2, dts_mul(b2, c1)); // a2~b2*c1
+        lemma_dts_mul_closed(a2, dts_mul(b2,c1)); // a2*(b2c1), a2~a2*b2c1
+        lemma_dts_same_radicand_symmetric(a2, dts_mul(a2, dts_mul(b1,c2))); // a2*b1c2~a2
+        // a2*b1c2~a2*b2c1: a2*b1c2~a2, a2~a2*b2c1 (from mul_closed ensures)
+        lemma_dts_same_radicand_transitive(
+            dts_mul(a2, dts_mul(b1,c2)), a2, dts_mul(a2, dts_mul(b2,c1))); // a2*b1c2~a2*b2c1
+        // add_closed(a2*b1c2, a2*b2c1) gives a2*b1c2 ~ sum(a2*b1c2, a2*b2c1)
+        lemma_dts_add_closed(dts_mul(a2, dts_mul(b1,c2)), dts_mul(a2, dts_mul(b2,c1)));
+        // a2*(b1c2+b2c1) ~ sum(a2*b1c2, a2*b2c1):
+        //   a2*(b1c2+b2c1)~a2 (line 3742), a2~a2*b1c2, a2*b1c2~sum
+        lemma_dts_same_radicand_transitive(a2, dts_mul(a2, dts_mul(b1,c2)),
+            dts_add(dts_mul(a2,dts_mul(b1,c2)), dts_mul(a2,dts_mul(b2,c1)))); // a2~sum
+        lemma_dts_same_radicand_transitive(
+            dts_mul(a2, dts_add(dts_mul(b1,c2),dts_mul(b2,c1))),
+            a2,
+            dts_add(dts_mul(a2,dts_mul(b1,c2)), dts_mul(a2,dts_mul(b2,c1)))); // product~sum
+        lemma_dts_mul_congruence_right(
+            dts_mul(a2, dts_add(dts_mul(b1,c2), dts_mul(b2,c1))),
+            dts_add(dts_mul(a2,dts_mul(b1,c2)), dts_mul(a2,dts_mul(b2,c1))),
+            dd);
+        // a2*(b1c2)~a2*(b2c1) for distributes_left(dd, a2*b1c2, a2*b2c1)
+        lemma_dts_same_radicand_transitive(
+            dts_mul(a2, dts_mul(b1,c2)), a2, dts_mul(a2, dts_mul(b2,c1))); // a2*(b1c2)~a2*(b2c1)
+        // dd~a2*(b1c2)
+        lemma_dts_same_radicand_transitive(dd, a2, dts_mul(a2, dts_mul(b1,c2))); // dd~a2*(b1c2)
+        // dd*(a2*b1c2 + a2*b2c1) ≡ t3+t4
+        lemma_dts_mul_distributes_left(dd,
+            dts_mul(a2, dts_mul(b1,c2)),
+            dts_mul(a2, dts_mul(b2,c1)));
+        // Chain: dd*(a2*(b1c2+b2c1)) ≡ dd*(a2*b1c2+a2*b2c1) ≡ t3+t4
+        lemma_dts_eqv_transitive(
+            dts_mul(dd, dts_mul(a2, dts_add(dts_mul(b1,c2), dts_mul(b2,c1)))),
+            dts_mul(dd, dts_add(dts_mul(a2,dts_mul(b1,c2)), dts_mul(a2,dts_mul(b2,c1)))),
+            dts_add(t3, t4));
+        // lhs_re = (a1*(b1c1+dd*b2c2)) + (dd*(a2*(b1c2+b2c1))) ≡ (t1+t2)+(t3+t4)
+        lemma_dts_add_congruence_left(
+            dts_mul(a1, dts_add(dts_mul(b1,c1), dts_mul(dd,dts_mul(b2,c2)))),
+            dts_add(t1, t2),
+            dts_mul(dd, dts_mul(a2, dts_add(dts_mul(b1,c2), dts_mul(b2,c1)))));
+        lemma_dts_add_congruence_right(
+            dts_add(t1, t2),
+            dts_mul(dd, dts_mul(a2, dts_add(dts_mul(b1,c2), dts_mul(b2,c1)))),
+            dts_add(t3, t4));
+        lemma_dts_eqv_transitive(
+            lhs_re,
+            dts_add(dts_add(t1,t2), dts_mul(dd, dts_mul(a2, dts_add(dts_mul(b1,c2), dts_mul(b2,c1))))),
+            dts_add(dts_add(t1,t2), dts_add(t3,t4)));
+    };
+
+    // ── RHS_re ≡ (u1+u2)+(u3+u4) via distributivity ──
+    // RHS_re = (a1*b1+dd*a2*b2)*c1 + dd*((a1*b2+a2*b1)*c2)
+    let rhs_re = dts_add(
+        dts_mul(dts_add(dts_mul(a1,b1), dts_mul(dd,dts_mul(a2,b2))), c1),
+        dts_mul(dd, dts_mul(dts_add(dts_mul(a1,b2), dts_mul(a2,b1)), c2)));
+    assert(dts_eqv(rhs_re, dts_add(dts_add(u1,u2), dts_add(u3,u4)))) by {
+        // Radicand chains must come before mul_closed calls
+        lemma_dts_same_radicand_symmetric(b1, b2); // b2~b1
+        lemma_dts_same_radicand_transitive(b1, b2, c2); // b1~c2
+        lemma_dts_same_radicand_transitive(b2, b1, c1); // b2~c1
+        lemma_dts_same_radicand_transitive(a1, a2, b2); // a1~b2
+        lemma_dts_same_radicand_symmetric(a1, a2); // a2~a1
+        lemma_dts_same_radicand_transitive(a2, a1, b1); // a2~b1
+        lemma_dts_mul_closed(a1, b1);
+        lemma_dts_mul_closed(a1, b2);
+        lemma_dts_mul_closed(a2, b1);
+        lemma_dts_mul_closed(a2, b2);
+        lemma_dts_mul_closed(b1, c1);
+        lemma_dts_mul_closed(b1, c2);
+        lemma_dts_mul_closed(b2, c1);
+        lemma_dts_mul_closed(b2, c2);
+        lemma_dts_same_radicand_symmetric(a1, dd); // dd~a1
+        lemma_dts_same_radicand_transitive(dd, a1, a2); // dd~a2
+        lemma_dts_same_radicand_transitive(dd, a1, b1); // dd~b1
+        lemma_dts_same_radicand_transitive(dd, a1, b2); // dd~b2
+        lemma_dts_same_radicand_transitive(a1, b1, c1); // a1~c1
+        lemma_dts_same_radicand_transitive(a1, b1, c2); // a1~c2
+        lemma_dts_same_radicand_transitive(a2, b2, c1); // a2~c1
+        lemma_dts_same_radicand_transitive(a2, b2, c2); // a2~c2
+        lemma_dts_same_radicand_transitive(dd, a1, c1); // dd~c1
+        lemma_dts_same_radicand_transitive(dd, a1, c2); // dd~c2
+        // ab_re well_formed: a1*b1~dd*a2*b2
+        lemma_dts_same_radicand_symmetric(a1, dts_mul(a1, b1)); // a1*b1~a1
+        lemma_dts_same_radicand_symmetric(a2, dts_mul(a2, b2)); // a2*b2~a2
+        lemma_dts_same_radicand_transitive(dd, a2, dts_mul(a2, b2)); // dd~a2*b2
+        lemma_dts_mul_closed(dd, dts_mul(a2, b2)); // dd*(a2*b2)
+        lemma_dts_same_radicand_symmetric(dd, dts_mul(dd, dts_mul(a2, b2))); // dd*a2b2~dd
+        lemma_dts_same_radicand_transitive(dts_mul(a1,b1), a1, dd); // a1b1~dd
+        lemma_dts_same_radicand_transitive(dts_mul(a1,b1), dd, dts_mul(dd,dts_mul(a2,b2))); // a1b1~dd*a2b2
+        lemma_dts_add_closed(dts_mul(a1,b1), dts_mul(dd, dts_mul(a2,b2))); // ab_re well_formed
+        // ab_im well_formed: a1*b2~a2*b1
+        lemma_dts_same_radicand_symmetric(a1, dts_mul(a1, b2)); // a1*b2~a1
+        lemma_dts_same_radicand_symmetric(a2, dts_mul(a2, b1)); // a2*b1~a2
+        lemma_dts_same_radicand_transitive(dts_mul(a1,b2), a1, a2); // a1b2~a2
+        lemma_dts_same_radicand_transitive(dts_mul(a1,b2), a2, dts_mul(a2,b1)); // a1b2~a2b1
+        lemma_dts_add_closed(dts_mul(a1,b2), dts_mul(a2,b1)); // ab_im well_formed
+        // ab_re~c1 and c1~ab_re for commutative and distributes_left(c1,...)
+        lemma_dts_same_radicand_transitive(dts_mul(a1,b1), a1, c1); // a1b1~c1
+        // add_closed gives a1*b1~ab_re, sym → ab_re~a1*b1
+        lemma_dts_same_radicand_symmetric(dts_mul(a1,b1), dts_add(dts_mul(a1,b1), dts_mul(dd,dts_mul(a2,b2)))); // ab_re~a1*b1
+        lemma_dts_same_radicand_transitive(
+            dts_add(dts_mul(a1,b1), dts_mul(dd,dts_mul(a2,b2))),
+            dts_mul(a1,b1), c1); // ab_re~c1
+        lemma_dts_same_radicand_symmetric(
+            dts_add(dts_mul(a1,b1), dts_mul(dd,dts_mul(a2,b2))), c1); // c1~ab_re
+        // distributes_left(c1, a1*b1, dd*a2*b2): c1~a1*b1, a1*b1~dd*a2*b2
+        // c1~a1*b1: symmetric of a1*b1~c1
+        lemma_dts_same_radicand_symmetric(dts_mul(a1,b1), c1); // c1~a1*b1
+        // ab_re*c1 ≡ c1*(a1*b1+dd*a2*b2) via commutative
+        lemma_dts_mul_commutative(dts_add(dts_mul(a1,b1), dts_mul(dd,dts_mul(a2,b2))), c1);
+        // c1*(a1*b1+dd*a2*b2) ≡ c1*a1b1 + c1*dd*a2b2
+        lemma_dts_mul_distributes_left(c1, dts_mul(a1,b1), dts_mul(dd,dts_mul(a2,b2)));
+        // c1*a1b1 ≡ u1 = (a1*b1)*c1 via commutative; c1*dd*a2b2 ≡ u2 = (dd*a2b2)*c1
+        lemma_dts_mul_commutative(c1, dts_mul(a1,b1));
+        // c1~dd*a2b2 for commutative: dd*a2b2~dd (sym), dd~c1 → dd*a2b2~c1, sym → c1~dd*a2b2
+        lemma_dts_same_radicand_transitive(dts_mul(dd,dts_mul(a2,b2)), dd, c1); // dd*a2b2~c1
+        lemma_dts_same_radicand_symmetric(dts_mul(dd,dts_mul(a2,b2)), c1); // c1~dd*a2b2
+        lemma_dts_mul_commutative(c1, dts_mul(dd, dts_mul(a2,b2)));
+        // Chain: ab_re*c1 ≡ u1+u2
+        lemma_dts_add_congruence_left(
+            dts_mul(c1, dts_mul(a1,b1)), u1,
+            dts_mul(c1, dts_mul(dd, dts_mul(a2,b2))));
+        lemma_dts_add_congruence_right(u1, dts_mul(c1, dts_mul(dd, dts_mul(a2,b2))), u2);
+        lemma_dts_eqv_transitive(
+            dts_add(dts_mul(c1, dts_mul(a1,b1)), dts_mul(c1, dts_mul(dd, dts_mul(a2,b2)))),
+            dts_add(u1, dts_mul(c1, dts_mul(dd, dts_mul(a2,b2)))),
+            dts_add(u1, u2));
+        lemma_dts_eqv_transitive(
+            dts_mul(c1, dts_add(dts_mul(a1,b1), dts_mul(dd, dts_mul(a2,b2)))),
+            dts_add(dts_mul(c1, dts_mul(a1,b1)), dts_mul(c1, dts_mul(dd, dts_mul(a2,b2)))),
+            dts_add(u1, u2));
+        lemma_dts_eqv_transitive(
+            dts_mul(dts_add(dts_mul(a1,b1), dts_mul(dd,dts_mul(a2,b2))), c1),
+            dts_mul(c1, dts_add(dts_mul(a1,b1), dts_mul(dd, dts_mul(a2,b2)))),
+            dts_add(u1, u2));
+        // ab_im*c2 part: ab_im~c2, c2~ab_im
+        lemma_dts_same_radicand_transitive(dts_mul(a1,b2), a1, c2); // a1b2~c2
+        // add_closed(a1*b2, a2*b1) gives a1*b2~ab_im, sym → ab_im~a1*b2
+        lemma_dts_same_radicand_symmetric(dts_mul(a1,b2), dts_add(dts_mul(a1,b2), dts_mul(a2,b1))); // ab_im~a1*b2
+        lemma_dts_same_radicand_transitive(
+            dts_add(dts_mul(a1,b2), dts_mul(a2,b1)),
+            dts_mul(a1,b2), c2); // ab_im~c2
+        lemma_dts_same_radicand_symmetric(
+            dts_add(dts_mul(a1,b2), dts_mul(a2,b1)), c2); // c2~ab_im
+        lemma_dts_mul_commutative(dts_add(dts_mul(a1,b2), dts_mul(a2,b1)), c2);
+        // c2~a1*b2 for distributes_left(c2, a1*b2, a2*b1)
+        lemma_dts_same_radicand_symmetric(dts_mul(a1,b2), c2); // c2~a1*b2
+        lemma_dts_mul_distributes_left(c2, dts_mul(a1,b2), dts_mul(a2,b1));
+        lemma_dts_mul_commutative(c2, dts_mul(a1,b2));
+        // c2~a2*b1: a2*b1~a2, a2~a1, a1~c2
+        lemma_dts_same_radicand_transitive(dts_mul(a2,b1), a2, c2); // a2*b1~c2 (a2~b2~c2... actually a2~a1~c2)
+        lemma_dts_same_radicand_symmetric(dts_mul(a2,b1), c2); // c2~a2*b1
+        lemma_dts_mul_commutative(c2, dts_mul(a2,b1));
+        // (a1b2)*c2 ~ (a2b1)*c2 for distributes_left(dd,...)
+        lemma_dts_mul_closed(dts_mul(a1,b2), c2);
+        lemma_dts_mul_closed(dts_mul(a2,b1), c2);
+        lemma_dts_same_radicand_symmetric(dts_mul(a1,b2), dts_mul(dts_mul(a1,b2), c2));
+        lemma_dts_same_radicand_transitive(dts_mul(dts_mul(a1,b2), c2), dts_mul(a1,b2), a1);
+        // a1~a2*b1: a1~a2 (from preamble), a2~a2*b1 (from mul_closed(a2,b1) ensures)
+        lemma_dts_same_radicand_transitive(a1, a2, dts_mul(a2, b1)); // a1~a2*b1
+        lemma_dts_same_radicand_transitive(dts_mul(dts_mul(a1,b2), c2), a1, dts_mul(a2,b1));
+        lemma_dts_same_radicand_transitive(dts_mul(dts_mul(a1,b2), c2), dts_mul(a2,b1), dts_mul(dts_mul(a2,b1), c2));
+        // dd~(a1b2)*c2 for distributes_left(dd,...)
+        lemma_dts_same_radicand_transitive(dd, a1, dts_mul(a1,b2));
+        lemma_dts_same_radicand_transitive(dd, dts_mul(a1,b2), dts_mul(dts_mul(a1,b2), c2));
+        // ab_im*c2 ≡ (a1b2)*c2+(a2b1)*c2 via congr_right
+        lemma_dts_add_congruence_left(
+            dts_mul(c2, dts_mul(a1,b2)), dts_mul(dts_mul(a1,b2), c2),
+            dts_mul(c2, dts_mul(a2,b1)));
+        lemma_dts_add_congruence_right(
+            dts_mul(dts_mul(a1,b2), c2),
+            dts_mul(c2, dts_mul(a2,b1)), dts_mul(dts_mul(a2,b1), c2));
+        lemma_dts_eqv_transitive(
+            dts_add(dts_mul(c2, dts_mul(a1,b2)), dts_mul(c2, dts_mul(a2,b1))),
+            dts_add(dts_mul(dts_mul(a1,b2), c2), dts_mul(c2, dts_mul(a2,b1))),
+            dts_add(dts_mul(dts_mul(a1,b2), c2), dts_mul(dts_mul(a2,b1), c2)));
+        lemma_dts_eqv_transitive(
+            dts_mul(c2, dts_add(dts_mul(a1,b2), dts_mul(a2,b1))),
+            dts_add(dts_mul(c2, dts_mul(a1,b2)), dts_mul(c2, dts_mul(a2,b1))),
+            dts_add(dts_mul(dts_mul(a1,b2), c2), dts_mul(dts_mul(a2,b1), c2)));
+        lemma_dts_eqv_transitive(
+            dts_mul(dts_add(dts_mul(a1,b2), dts_mul(a2,b1)), c2),
+            dts_mul(c2, dts_add(dts_mul(a1,b2), dts_mul(a2,b1))),
+            dts_add(dts_mul(dts_mul(a1,b2), c2), dts_mul(dts_mul(a2,b1), c2)));
+        // same_radicand for congr_right: ab_im*c2 ~ (a1b2)*c2+(a2b1)*c2
+        // mul_closed(ab_im, c2): ab_im is well_formed (from add_closed), ab_im~c2 (from line 3886)
+        lemma_dts_mul_closed(dts_add(dts_mul(a1,b2), dts_mul(a2,b1)), c2); // ab_im*c2; gives ab_im~ab_im*c2
+        lemma_dts_same_radicand_symmetric(
+            dts_add(dts_mul(a1,b2), dts_mul(a2,b1)),
+            dts_mul(dts_add(dts_mul(a1,b2), dts_mul(a2,b1)), c2)); // ab_im*c2~ab_im
+        // ab_im*c2~ab_im~a1*b2 (from line 3886: ab_im~a1*b2)
+        // Actually line 3886 gave sym(a1*b2, ab_im) → ab_im~a1*b2. We need to chain further.
+        lemma_dts_same_radicand_transitive(
+            dts_mul(dts_add(dts_mul(a1,b2), dts_mul(a2,b1)), c2),
+            dts_add(dts_mul(a1,b2), dts_mul(a2,b1)),
+            dts_mul(a1,b2)); // ab_im*c2~a1*b2
+        // a1*b2~a1b2*c2 from mul_closed(a1*b2, c2) ensures (line 3899)
+        lemma_dts_same_radicand_transitive(
+            dts_mul(dts_add(dts_mul(a1,b2), dts_mul(a2,b1)), c2),
+            dts_mul(a1,b2),
+            dts_mul(dts_mul(a1,b2), c2)); // ab_im*c2~a1b2*c2
+        // add_closed(a1b2*c2, a2b1*c2): need same_radicand(a1b2*c2, a2b1*c2) from line 3906-3907
+        lemma_dts_add_closed(dts_mul(dts_mul(a1,b2), c2), dts_mul(dts_mul(a2,b1), c2)); // gives a1b2*c2~sum
+        // ab_im*c2~sum
+        lemma_dts_same_radicand_transitive(
+            dts_mul(dts_add(dts_mul(a1,b2), dts_mul(a2,b1)), c2),
+            dts_mul(dts_mul(a1,b2), c2),
+            dts_add(dts_mul(dts_mul(a1,b2), c2), dts_mul(dts_mul(a2,b1), c2))); // ab_im*c2~sum
+        lemma_dts_mul_congruence_right(
+            dts_mul(dts_add(dts_mul(a1,b2), dts_mul(a2,b1)), c2),
+            dts_add(dts_mul(dts_mul(a1,b2), c2), dts_mul(dts_mul(a2,b1), c2)),
+            dd);
+        // dd*(a1b2*c2+a2b1*c2) ≡ u3+u4
+        lemma_dts_mul_distributes_left(dd,
+            dts_mul(dts_mul(a1,b2), c2),
+            dts_mul(dts_mul(a2,b1), c2));
+        lemma_dts_eqv_transitive(
+            dts_mul(dd, dts_mul(dts_add(dts_mul(a1,b2), dts_mul(a2,b1)), c2)),
+            dts_mul(dd, dts_add(dts_mul(dts_mul(a1,b2), c2), dts_mul(dts_mul(a2,b1), c2))),
+            dts_add(u3, u4));
+        // rhs_re ≡ (u1+u2)+(u3+u4)
+        lemma_dts_add_congruence_left(
+            dts_mul(dts_add(dts_mul(a1,b1), dts_mul(dd,dts_mul(a2,b2))), c1),
+            dts_add(u1, u2),
+            dts_mul(dd, dts_mul(dts_add(dts_mul(a1,b2), dts_mul(a2,b1)), c2)));
+        lemma_dts_add_congruence_right(
+            dts_add(u1, u2),
+            dts_mul(dd, dts_mul(dts_add(dts_mul(a1,b2), dts_mul(a2,b1)), c2)),
+            dts_add(u3, u4));
+        lemma_dts_eqv_transitive(
+            rhs_re,
+            dts_add(dts_add(u1,u2), dts_mul(dd, dts_mul(dts_add(dts_mul(a1,b2), dts_mul(a2,b1)), c2))),
+            dts_add(dts_add(u1,u2), dts_add(u3,u4)));
+    };
+
+    // eqv(lhs_re, rhs_re) via chain through t/u sums
+    assert(dts_eqv(lhs_re, rhs_re)) by {
+        lemma_dts_eqv_symmetric(rhs_re, dts_add(dts_add(u1,u2), dts_add(u3,u4)));
+        lemma_dts_eqv_transitive(dts_add(dts_add(t1,t2), dts_add(t3,t4)),
+            dts_add(dts_add(u1,u2), dts_add(u3,u4)), rhs_re);
+        lemma_dts_eqv_transitive(lhs_re, dts_add(dts_add(t1,t2), dts_add(t3,t4)), rhs_re);
+    };
+
+    // ── LHS_im ≡ (s1+s2)+(s3+s4) via distributivity ──
+    // LHS_im = a1*(b1*c2+b2*c1) + a2*(b1*c1+dd*b2*c2)
+    let lhs_im = dts_add(
+        dts_mul(a1, dts_add(dts_mul(b1,c2), dts_mul(b2,c1))),
+        dts_mul(a2, dts_add(dts_mul(b1,c1), dts_mul(dd,dts_mul(b2,c2)))));
+    assert(dts_eqv(lhs_im, dts_add(dts_add(s1,s2), dts_add(s3,s4)))) by {
+        // Radicand chains before mul_closed calls
+        lemma_dts_same_radicand_symmetric(b1, b2); // b2~b1
+        lemma_dts_same_radicand_transitive(b1, b2, c2); // b1~c2
+        lemma_dts_same_radicand_transitive(b2, b1, c1); // b2~c1
+        lemma_dts_same_radicand_transitive(a1, a2, b2); // a1~b2
+        lemma_dts_same_radicand_symmetric(a1, a2); // a2~a1
+        lemma_dts_same_radicand_transitive(a2, a1, b1); // a2~b1
+        lemma_dts_mul_closed(b1, c1); lemma_dts_mul_closed(b1, c2);
+        lemma_dts_mul_closed(b2, c1); lemma_dts_mul_closed(b2, c2);
+        lemma_dts_same_radicand_symmetric(a1, dd); // dd~a1
+        lemma_dts_same_radicand_transitive(dd, a1, a2); // dd~a2
+        // b1*c2~b2*c1 for distributes_left(a1, b1c2, b2c1)
+        lemma_dts_same_radicand_symmetric(b1, dts_mul(b1, c2));
+        lemma_dts_same_radicand_symmetric(b2, dts_mul(b2, c1));
+        lemma_dts_same_radicand_transitive(dts_mul(b1,c2), b1, b2);
+        lemma_dts_same_radicand_transitive(dts_mul(b1,c2), b2, dts_mul(b2,c1));
+        lemma_dts_same_radicand_transitive(a1, b1, dts_mul(b1,c2)); // a1~b1*c2
+        // a1*(b1*c2+b2*c1) ≡ s1+s2
+        lemma_dts_mul_distributes_left(a1, dts_mul(b1,c2), dts_mul(b2,c1));
+        // b1*c1~dd*(b2*c2) for distributes_left(a2, b1c1, dd*b2c2)
+        lemma_dts_same_radicand_symmetric(b1, dts_mul(b1, c1));
+        lemma_dts_same_radicand_transitive(dd, a1, b1); // dd~b1
+        lemma_dts_same_radicand_transitive(dd, a1, b2); // dd~b2 (dd~a1, a1~b2)
+        lemma_dts_same_radicand_symmetric(b2, dts_mul(b2, c2));
+        lemma_dts_same_radicand_transitive(dd, b2, dts_mul(b2, c2)); // dd~b2*c2
+        lemma_dts_mul_closed(dd, dts_mul(b2, c2)); // dd*(b2*c2)
+        lemma_dts_same_radicand_symmetric(dd, dts_mul(dd, dts_mul(b2, c2)));
+        lemma_dts_same_radicand_transitive(dts_mul(b1,c1), b1, dd);
+        lemma_dts_same_radicand_transitive(dts_mul(b1,c1), dd, dts_mul(dd,dts_mul(b2,c2)));
+        lemma_dts_same_radicand_transitive(a2, b1, dts_mul(b1,c1)); // a2~b1*c1
+        // a2*(b1*c1+dd*b2*c2) ≡ s3+s4
+        lemma_dts_mul_distributes_left(a2, dts_mul(b1,c1), dts_mul(dd,dts_mul(b2,c2)));
+        // lhs_im ≡ (s1+s2)+(s3+s4)
+        lemma_dts_add_congruence_left(
+            dts_mul(a1, dts_add(dts_mul(b1,c2), dts_mul(b2,c1))),
+            dts_add(s1, s2),
+            dts_mul(a2, dts_add(dts_mul(b1,c1), dts_mul(dd,dts_mul(b2,c2)))));
+        lemma_dts_add_congruence_right(
+            dts_add(s1, s2),
+            dts_mul(a2, dts_add(dts_mul(b1,c1), dts_mul(dd,dts_mul(b2,c2)))),
+            dts_add(s3, s4));
+        lemma_dts_eqv_transitive(
+            lhs_im,
+            dts_add(dts_add(s1,s2), dts_mul(a2, dts_add(dts_mul(b1,c1), dts_mul(dd,dts_mul(b2,c2))))),
+            dts_add(dts_add(s1,s2), dts_add(s3,s4)));
+    };
+
+    // ── RHS_im ≡ (v1+v2)+(v3+v4) via distributivity ──
+    // RHS_im = (a1*b1+dd*a2*b2)*c2 + (a1*b2+a2*b1)*c1
+    let rhs_im = dts_add(
+        dts_mul(dts_add(dts_mul(a1,b1), dts_mul(dd,dts_mul(a2,b2))), c2),
+        dts_mul(dts_add(dts_mul(a1,b2), dts_mul(a2,b1)), c1));
+    assert(dts_eqv(rhs_im, dts_add(dts_add(v1,v2), dts_add(v3,v4)))) by {
+        // Radicand chains before mul_closed calls
+        lemma_dts_same_radicand_symmetric(b1, b2); // b2~b1
+        lemma_dts_same_radicand_transitive(b2, b1, c1); // b2~c1
+        lemma_dts_same_radicand_transitive(a1, a2, b2); // a1~b2
+        lemma_dts_same_radicand_symmetric(a1, a2); // a2~a1
+        lemma_dts_same_radicand_transitive(a2, a1, b1); // a2~b1
+        lemma_dts_mul_closed(a1, b1); lemma_dts_mul_closed(a1, b2);
+        lemma_dts_mul_closed(a2, b1); lemma_dts_mul_closed(a2, b2);
+        // b1~c2: sym(b2,b1)→b1~b2, then transitive(b1,b2,c2)
+        lemma_dts_same_radicand_symmetric(b2, b1); // b1~b2
+        lemma_dts_same_radicand_transitive(b1, b2, c2); // b1~c2
+        // a1~c1, a1~c2: needed before dd~c1/c2
+        lemma_dts_same_radicand_transitive(a1, b1, c1); // a1~c1
+        lemma_dts_same_radicand_transitive(a1, b1, c2); // a1~c2
+        lemma_dts_same_radicand_transitive(a2, b2, c2); // a2~c2
+        lemma_dts_same_radicand_transitive(a2, b2, c1); // a2~c1
+        lemma_dts_same_radicand_symmetric(a1, dd); // dd~a1
+        lemma_dts_same_radicand_transitive(dd, a1, a2); // dd~a2
+        lemma_dts_same_radicand_transitive(dd, a1, b1); // dd~b1
+        lemma_dts_same_radicand_transitive(dd, a1, b2); // dd~b2
+        lemma_dts_same_radicand_transitive(dd, a1, c1); // dd~c1
+        lemma_dts_same_radicand_transitive(dd, a1, c2); // dd~c2
+        // ab_re well_formed for mul_commutative(ab_re, c2)
+        lemma_dts_same_radicand_symmetric(a1, dts_mul(a1, b1));
+        lemma_dts_same_radicand_symmetric(a2, dts_mul(a2, b2));
+        lemma_dts_same_radicand_transitive(dd, a2, dts_mul(a2, b2));
+        lemma_dts_mul_closed(dd, dts_mul(a2, b2));
+        lemma_dts_same_radicand_symmetric(dd, dts_mul(dd, dts_mul(a2, b2)));
+        lemma_dts_same_radicand_transitive(dts_mul(a1,b1), a1, dd);
+        lemma_dts_same_radicand_transitive(dts_mul(a1,b1), dd, dts_mul(dd,dts_mul(a2,b2)));
+        lemma_dts_add_closed(dts_mul(a1,b1), dts_mul(dd, dts_mul(a2,b2))); // ab_re
+        // ab_im well_formed for mul_commutative(ab_im, c1)
+        lemma_dts_same_radicand_symmetric(a1, dts_mul(a1, b2));
+        lemma_dts_same_radicand_symmetric(a2, dts_mul(a2, b1));
+        lemma_dts_same_radicand_transitive(dts_mul(a1,b2), a1, a2);
+        lemma_dts_same_radicand_transitive(dts_mul(a1,b2), a2, dts_mul(a2,b1));
+        lemma_dts_add_closed(dts_mul(a1,b2), dts_mul(a2,b1)); // ab_im
+        // ab_re~c2, c2~ab_re for mul_commutative
+        lemma_dts_same_radicand_transitive(dts_mul(a1,b1), a1, c2);
+        // add_closed gives a1*b1~ab_re, sym → ab_re~a1*b1
+        lemma_dts_same_radicand_symmetric(dts_mul(a1,b1), dts_add(dts_mul(a1,b1), dts_mul(dd,dts_mul(a2,b2)))); // ab_re~a1*b1
+        lemma_dts_same_radicand_transitive(
+            dts_add(dts_mul(a1,b1), dts_mul(dd,dts_mul(a2,b2))),
+            dts_mul(a1,b1), c2); // ab_re~c2
+        lemma_dts_same_radicand_symmetric(
+            dts_add(dts_mul(a1,b1), dts_mul(dd,dts_mul(a2,b2))), c2); // c2~ab_re
+        // c2~a1*b1 for distributes_left(c2, a1*b1, dd*a2*b2)
+        lemma_dts_same_radicand_symmetric(dts_mul(a1,b1), c2); // c2~a1*b1
+        // ab_re*c2 ≡ c2*ab_re ≡ c2*a1b1+c2*dd*a2b2 ≡ v1+v2
+        lemma_dts_mul_commutative(dts_add(dts_mul(a1,b1), dts_mul(dd,dts_mul(a2,b2))), c2);
+        lemma_dts_mul_distributes_left(c2, dts_mul(a1,b1), dts_mul(dd,dts_mul(a2,b2)));
+        lemma_dts_mul_commutative(c2, dts_mul(a1,b1));
+        // c2~dd*a2b2 for mul_commutative(c2, dd*a2b2)
+        lemma_dts_same_radicand_transitive(dts_mul(dd,dts_mul(a2,b2)), dd, c2); // dd*a2b2~c2
+        lemma_dts_same_radicand_symmetric(dts_mul(dd,dts_mul(a2,b2)), c2); // c2~dd*a2b2
+        lemma_dts_mul_commutative(c2, dts_mul(dd, dts_mul(a2,b2)));
+        lemma_dts_add_congruence_left(dts_mul(c2, dts_mul(a1,b1)), v1, dts_mul(c2, dts_mul(dd,dts_mul(a2,b2))));
+        lemma_dts_add_congruence_right(v1, dts_mul(c2, dts_mul(dd,dts_mul(a2,b2))), v2);
+        lemma_dts_eqv_transitive(
+            dts_add(dts_mul(c2, dts_mul(a1,b1)), dts_mul(c2, dts_mul(dd, dts_mul(a2,b2)))),
+            dts_add(v1, dts_mul(c2, dts_mul(dd, dts_mul(a2,b2)))),
+            dts_add(v1, v2));
+        lemma_dts_eqv_transitive(
+            dts_mul(c2, dts_add(dts_mul(a1,b1), dts_mul(dd, dts_mul(a2,b2)))),
+            dts_add(dts_mul(c2, dts_mul(a1,b1)), dts_mul(c2, dts_mul(dd, dts_mul(a2,b2)))),
+            dts_add(v1, v2));
+        lemma_dts_eqv_transitive(
+            dts_mul(dts_add(dts_mul(a1,b1), dts_mul(dd,dts_mul(a2,b2))), c2),
+            dts_mul(c2, dts_add(dts_mul(a1,b1), dts_mul(dd, dts_mul(a2,b2)))),
+            dts_add(v1, v2));
+        // ab_im~c1, c1~ab_im for mul_commutative(ab_im, c1)
+        lemma_dts_same_radicand_transitive(dts_mul(a1,b2), a1, c1);
+        // add_closed gives a1*b2~ab_im, sym → ab_im~a1*b2
+        lemma_dts_same_radicand_symmetric(dts_mul(a1,b2), dts_add(dts_mul(a1,b2), dts_mul(a2,b1))); // ab_im~a1*b2
+        lemma_dts_same_radicand_transitive(
+            dts_add(dts_mul(a1,b2), dts_mul(a2,b1)),
+            dts_mul(a1,b2), c1); // ab_im~c1
+        lemma_dts_same_radicand_symmetric(
+            dts_add(dts_mul(a1,b2), dts_mul(a2,b1)), c1); // c1~ab_im
+        // c1~a1*b2 for distributes_left(c1, a1*b2, a2*b1)
+        lemma_dts_same_radicand_symmetric(dts_mul(a1,b2), c1); // c1~a1*b2
+        // ab_im*c1 ≡ c1*ab_im ≡ c1*a1b2+c1*a2b1 ≡ v3+v4
+        lemma_dts_mul_commutative(dts_add(dts_mul(a1,b2), dts_mul(a2,b1)), c1);
+        lemma_dts_mul_distributes_left(c1, dts_mul(a1,b2), dts_mul(a2,b1));
+        lemma_dts_mul_commutative(c1, dts_mul(a1,b2));
+        // c1~a2*b1: a2*b1~a2~a1~c1
+        lemma_dts_same_radicand_transitive(dts_mul(a2,b1), a2, c1); // a2*b1~c1 (a2~b2~c1... a2~a1~c1)
+        lemma_dts_same_radicand_symmetric(dts_mul(a2,b1), c1); // c1~a2*b1
+        lemma_dts_mul_commutative(c1, dts_mul(a2,b1));
+        lemma_dts_add_congruence_left(dts_mul(c1, dts_mul(a1,b2)), v3, dts_mul(c1, dts_mul(a2,b1)));
+        lemma_dts_add_congruence_right(v3, dts_mul(c1, dts_mul(a2,b1)), v4);
+        lemma_dts_eqv_transitive(
+            dts_add(dts_mul(c1, dts_mul(a1,b2)), dts_mul(c1, dts_mul(a2,b1))),
+            dts_add(v3, dts_mul(c1, dts_mul(a2,b1))),
+            dts_add(v3, v4));
+        lemma_dts_eqv_transitive(
+            dts_mul(c1, dts_add(dts_mul(a1,b2), dts_mul(a2,b1))),
+            dts_add(dts_mul(c1, dts_mul(a1,b2)), dts_mul(c1, dts_mul(a2,b1))),
+            dts_add(v3, v4));
+        lemma_dts_eqv_transitive(
+            dts_mul(dts_add(dts_mul(a1,b2), dts_mul(a2,b1)), c1),
+            dts_mul(c1, dts_add(dts_mul(a1,b2), dts_mul(a2,b1))),
+            dts_add(v3, v4));
+        // rhs_im ≡ (v1+v2)+(v3+v4)
+        lemma_dts_add_congruence_left(
+            dts_mul(dts_add(dts_mul(a1,b1), dts_mul(dd,dts_mul(a2,b2))), c2),
+            dts_add(v1, v2),
+            dts_mul(dts_add(dts_mul(a1,b2), dts_mul(a2,b1)), c1));
+        lemma_dts_add_congruence_right(
+            dts_add(v1, v2),
+            dts_mul(dts_add(dts_mul(a1,b2), dts_mul(a2,b1)), c1),
+            dts_add(v3, v4));
+        lemma_dts_eqv_transitive(
+            rhs_im,
+            dts_add(dts_add(v1,v2), dts_mul(dts_add(dts_mul(a1,b2), dts_mul(a2,b1)), c1)),
+            dts_add(dts_add(v1,v2), dts_add(v3,v4)));
+    };
+
+    // eqv(lhs_im, rhs_im) via chain through s/v sums
+    assert(dts_eqv(lhs_im, rhs_im)) by {
+        lemma_dts_eqv_symmetric(rhs_im, dts_add(dts_add(v1,v2), dts_add(v3,v4)));
+        lemma_dts_eqv_transitive(dts_add(dts_add(s1,s2), dts_add(s3,s4)),
+            dts_add(dts_add(v1,v2), dts_add(v3,v4)), rhs_im);
+        lemma_dts_eqv_transitive(lhs_im, dts_add(dts_add(s1,s2), dts_add(s3,s4)), rhs_im);
+    };
+    // The ensures follows: Z3 unfolds dts_mul(Ext,dts_mul(Ext,Ext)) to Ext(lhs_re, lhs_im, dd)
+    // and dts_mul(dts_mul(Ext,Ext), Ext) to Ext(rhs_re, rhs_im, dd), then eqv(Ext,Ext) = eqv(re,re)&&eqv(im,im)
 }
 
 /// a·(b-c) ≡ a·b - a·c. Distributes mul over sub.
