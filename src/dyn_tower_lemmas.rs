@@ -3448,7 +3448,10 @@ pub proof fn lemma_dts_nonneg_add_closed_fuel(
                     lemma_dts_add_congruence_left(
                         dts_add(a1, a2), dts_add(a2, a1), dts_neg(a1));
                     // eqv(sub(sum_re, a1), sub(add(a2,a1), a1))
-                    // chain: p = a2 ≡ sub(add(a2,a1),a1) ≡ sub(sum_re, a1) = sub(sum_re, r)
+                    // chain: p = a2 ≡ sub(add(a2,a1),a1) ≡ sub(add(a1,a2), a1) = sub(sum_re, r)
+                    lemma_dts_eqv_symmetric(
+                        dts_sub(dts_add(a1, a2), a1),
+                        dts_sub(dts_add(a2, a1), a1));
                     lemma_dts_eqv_transitive(
                         a2, dts_sub(dts_add(a2, a1), a1),
                         dts_sub(dts_add(a1, a2), a1));
@@ -3538,6 +3541,8 @@ pub proof fn lemma_dts_nonneg_add_closed_fuel(
                     dts_sub(sum_re_sq, r_sq), r, r_sq);
                 lemma_dts_same_radicand_transitive(
                     dts_sub(sum_re_sq, r_sq), r_sq, dts_sub(r_sq, d_s_sq));
+                lemma_dts_nonneg_radicands_mul(sum_re, sum_re);
+                lemma_dts_nonneg_radicands_mul(r, r);
                 lemma_dts_nonneg_radicands_neg(r_sq);
                 lemma_dts_nonneg_radicands_add(sum_re_sq, dts_neg(r_sq));
                 lemma_dts_nonneg_radicands_neg(d_s_sq);
@@ -3549,16 +3554,61 @@ pub proof fn lemma_dts_nonneg_add_closed_fuel(
                 lemma_dts_depth_add_le(sum_re_sq, dts_neg(r_sq));
                 lemma_dts_depth_neg(d_s_sq);
                 lemma_dts_depth_add_le(r_sq, dts_neg(d_s_sq));
+                // ── Chain T1+T2 → nonneg(sub(sum_re², d*s²)) ──
+                // same_radicand chains for intermediate terms
+                lemma_dts_mul_closed(sum_re, sum_re);
+                lemma_dts_mul_closed(r, r);
+                lemma_dts_same_radicand_symmetric(sum_re, sum_re_sq);
+                lemma_dts_same_radicand_transitive(sum_re_sq, sum_re, r);
+                lemma_dts_same_radicand_symmetric(r, r_sq);
+                lemma_dts_same_radicand_transitive(sum_re_sq, r, r_sq);
+                lemma_dts_same_radicand_neg(r_sq);
+                lemma_dts_same_radicand_transitive(sum_re_sq, r_sq, dts_neg(r_sq));
+                lemma_dts_neg_well_formed(r_sq);
+                lemma_dts_add_closed(sum_re_sq, dts_neg(r_sq));
+                // r_sq ~ dd ~ d_s_sq chain
+                lemma_dts_same_radicand_transitive(r_sq, r, dd);
+                lemma_dts_same_radicand_symmetric(dd, d_s_sq);
+                lemma_dts_same_radicand_transitive(r_sq, dd, d_s_sq);
+                lemma_dts_same_radicand_neg(d_s_sq);
+                lemma_dts_same_radicand_transitive(r_sq, d_s_sq, dts_neg(d_s_sq));
+                lemma_dts_neg_well_formed(d_s_sq);
+                lemma_dts_add_closed(r_sq, dts_neg(d_s_sq));
+                // same_radicand between the two sub terms
+                lemma_dts_same_radicand_symmetric(sum_re_sq, dts_sub(sum_re_sq, r_sq));
+                lemma_dts_same_radicand_symmetric(r_sq, dts_sub(r_sq, d_s_sq));
+                lemma_dts_same_radicand_transitive(
+                    dts_sub(sum_re_sq, r_sq), sum_re_sq, r_sq);
+                lemma_dts_same_radicand_transitive(
+                    dts_sub(sum_re_sq, r_sq), r_sq, dts_sub(r_sq, d_s_sq));
+                // nonneg_radicands for sub terms
+                lemma_dts_nonneg_radicands_mul(sum_re, sum_re);
+                lemma_dts_nonneg_radicands_mul(r, r);
+                lemma_dts_nonneg_radicands_neg(r_sq);
+                lemma_dts_nonneg_radicands_add(sum_re_sq, dts_neg(r_sq));
+                lemma_dts_nonneg_radicands_neg(d_s_sq);
+                lemma_dts_nonneg_radicands_add(r_sq, dts_neg(d_s_sq));
+                // depth bounds
+                lemma_dts_depth_mul_le(sum_re, sum_re);
+                lemma_dts_depth_mul_le(r, r);
+                lemma_dts_depth_mul_le(dd, s_sq);
+                lemma_dts_depth_neg(r_sq);
+                lemma_dts_depth_add_le(sum_re_sq, dts_neg(r_sq));
+                lemma_dts_depth_neg(d_s_sq);
+                lemma_dts_depth_add_le(r_sq, dts_neg(d_s_sq));
+                // T2: nonneg(sub(r_sq, d_s_sq), f) from C2 norm bound
+                assert(dts_nonneg_fuel(dts_sub(r_sq, d_s_sq), f));
+                // nonneg_add(T1, T2) → nonneg(sub(sum_re², d*s²))
                 lemma_dts_nonneg_add_closed_fuel(
                     dts_sub(sum_re_sq, r_sq), dts_sub(r_sq, d_s_sq), f);
-                // Transfer: sub(sum_re²,r²) + sub(r²,d*s²) ≡ sub(sum_re²,d*s²)
-                // nonneg(sub(sum_re², d*s²)) by congruence
+                // Transfer via sub_add_sub: T1+T2 ≡ sub(sum_re², d*s²)
                 lemma_dts_add_closed(
                     dts_sub(sum_re_sq, r_sq), dts_sub(r_sq, d_s_sq));
                 lemma_dts_same_radicand_symmetric(
                     dts_sub(sum_re_sq, r_sq),
                     dts_add(dts_sub(sum_re_sq, r_sq), dts_sub(r_sq, d_s_sq)));
-                lemma_dts_neg_well_formed(d_s_sq);
+                lemma_dts_same_radicand_transitive(sum_re_sq, r_sq, d_s_sq);
+                lemma_dts_same_radicand_transitive(sum_re_sq, d_s_sq, dts_neg(d_s_sq));
                 lemma_dts_add_closed(sum_re_sq, dts_neg(d_s_sq));
                 lemma_dts_same_radicand_symmetric(sum_re_sq, dts_sub(sum_re_sq, d_s_sq));
                 lemma_dts_same_radicand_transitive(
