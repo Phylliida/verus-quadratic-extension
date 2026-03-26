@@ -3588,14 +3588,18 @@ pub proof fn lemma_dts_nonneg_add_closed_fuel(
                 lemma_dts_nonneg_radicands_add(sum_re_sq, dts_neg(r_sq));
                 lemma_dts_nonneg_radicands_neg(d_s_sq);
                 lemma_dts_nonneg_radicands_add(r_sq, dts_neg(d_s_sq));
-                // depth bounds
+                // depth bounds for all intermediate terms
                 lemma_dts_depth_mul_le(sum_re, sum_re);
                 lemma_dts_depth_mul_le(r, r);
+                lemma_dts_depth_mul_le(s, s);
                 lemma_dts_depth_mul_le(dd, s_sq);
                 lemma_dts_depth_neg(r_sq);
                 lemma_dts_depth_add_le(sum_re_sq, dts_neg(r_sq));
                 lemma_dts_depth_neg(d_s_sq);
                 lemma_dts_depth_add_le(r_sq, dts_neg(d_s_sq));
+                // Ghost var depth hints for Z3
+                assert(dts_depth(r) <= dts_depth(a1) || dts_depth(r) <= dts_depth(a2));
+                assert(dts_depth(s) <= dts_depth(b1) || dts_depth(s) <= dts_depth(b2));
                 // T2: nonneg(sub(r_sq, d_s_sq), f) from C2 norm bound
                 assert(dts_nonneg_fuel(dts_sub(r_sq, d_s_sq), f));
                 // nonneg_add(T1, T2) → nonneg(sub(sum_re², d*s²))
