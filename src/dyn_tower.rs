@@ -435,4 +435,22 @@ pub open spec fn dts_well_formed(x: DynTowerSpec) -> bool
     }
 }
 
+/// All radicands in the tower are non-negative.
+/// Required for ordered field properties (square_nonneg, nonneg_mul, etc.)
+/// since Q(√d) with d < 0 gives a complex (unordered) extension.
+/// In the constraint solver, all radicands come from discriminants A·r² - h²,
+/// which are nonneg when the circle-line intersection exists.
+pub open spec fn dts_nonneg_radicands(x: DynTowerSpec) -> bool
+    decreases x,
+{
+    match x {
+        DynTowerSpec::Rat(_) => true,
+        DynTowerSpec::Ext(re, im, d) =>
+            dts_nonneg_radicands(*re)
+            && dts_nonneg_radicands(*im)
+            && dts_nonneg_radicands(*d)
+            && dts_nonneg(*d),
+    }
+}
+
 } // verus!
