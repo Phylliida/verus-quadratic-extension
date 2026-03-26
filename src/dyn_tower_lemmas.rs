@@ -2542,24 +2542,137 @@ pub proof fn lemma_dts_nonneg_conclude_im_fuel(
     }
 }
 
-/// neg distributes over add: neg(add(a,b)) ≡ add(neg(a), neg(b)).
+/// Add exchange: (a+b)+(c+d) ≡ (a+c)+(b+d). Uses AdditiveCommutativeMonoid axioms.
+pub proof fn lemma_dts_add_exchange(a: DynTowerSpec, b: DynTowerSpec,
+    c: DynTowerSpec, d: DynTowerSpec)
+    ensures dts_eqv(dts_add(dts_add(a, b), dts_add(c, d)),
+                     dts_add(dts_add(a, c), dts_add(b, d))),
+{
+    // (a+b)+(c+d) ≡ a+(b+(c+d)) [assoc]
+    DynTowerSpec::axiom_add_associative(a, b, dts_add(c, d));
+    // b+(c+d) ≡ (b+c)+d [assoc, symmetric]
+    DynTowerSpec::axiom_add_associative(b, c, d);
+    DynTowerSpec::axiom_eqv_symmetric(dts_add(dts_add(b, c), d), dts_add(b, dts_add(c, d)));
+    lemma_dts_add_congruence_right(a, dts_add(b, dts_add(c, d)), dts_add(dts_add(b, c), d));
+    // a+((b+c)+d): commute b+c → c+b
+    DynTowerSpec::axiom_add_commutative(b, c);
+    lemma_dts_add_congruence_left(dts_add(b, c), dts_add(c, b), d);
+    lemma_dts_add_congruence_right(a, dts_add(dts_add(b, c), d), dts_add(dts_add(c, b), d));
+    // a+((c+b)+d) ≡ a+(c+(b+d)) [assoc]
+    DynTowerSpec::axiom_add_associative(c, b, d);
+    lemma_dts_add_congruence_right(a, dts_add(dts_add(c, b), d), dts_add(c, dts_add(b, d)));
+    // a+(c+(b+d)) ≡ (a+c)+(b+d) [assoc, symmetric]
+    DynTowerSpec::axiom_add_associative(a, c, dts_add(b, d));
+    DynTowerSpec::axiom_eqv_symmetric(
+        dts_add(dts_add(a, c), dts_add(b, d)),
+        dts_add(a, dts_add(c, dts_add(b, d))));
+    // Chain all steps
+    lemma_dts_eqv_transitive(
+        dts_add(dts_add(a, b), dts_add(c, d)),
+        dts_add(a, dts_add(b, dts_add(c, d))),
+        dts_add(a, dts_add(dts_add(b, c), d)));
+    lemma_dts_eqv_transitive(
+        dts_add(dts_add(a, b), dts_add(c, d)),
+        dts_add(a, dts_add(dts_add(b, c), d)),
+        dts_add(a, dts_add(dts_add(c, b), d)));
+    lemma_dts_eqv_transitive(
+        dts_add(dts_add(a, b), dts_add(c, d)),
+        dts_add(a, dts_add(dts_add(c, b), d)),
+        dts_add(a, dts_add(c, dts_add(b, d))));
+    lemma_dts_eqv_transitive(
+        dts_add(dts_add(a, b), dts_add(c, d)),
+        dts_add(a, dts_add(c, dts_add(b, d))),
+        dts_add(dts_add(a, c), dts_add(b, d)));
+}
+
+/// neg distributes over add: neg(a+b) ≡ neg(a) + neg(b).
+/// Uses the generic AdditiveGroup lemma since DTS implements AdditiveGroup.
 pub proof fn lemma_dts_neg_add(a: DynTowerSpec, b: DynTowerSpec)
     ensures dts_eqv(dts_neg(dts_add(a, b)), dts_add(dts_neg(a), dts_neg(b))),
+{
+    verus_algebra::lemmas::additive_group_lemmas::lemma_neg_add::<DynTowerSpec>(a, b);
+}
+
+/// neg_mul_left: mul(neg(a), b) ≡ neg(mul(a, b)).
+/// Requires well_formed + same_radicand for mul_congruence in Ext×Ext case.
+pub proof fn lemma_dts_neg_mul_left(a: DynTowerSpec, b: DynTowerSpec)
+    requires dts_well_formed(a), dts_well_formed(b), dts_same_radicand(a, b),
+    ensures dts_eqv(dts_mul(dts_neg(a), b), dts_neg(dts_mul(a, b))),
     decreases a, b,
 {
     match (a, b) {
         (DynTowerSpec::Rat(r1), DynTowerSpec::Rat(r2)) => {
-            verus_algebra::lemmas::additive_group_lemmas::lemma_neg_add::<Rational>(r1, r2);
+            Rational::lemma_denom_positive(r1);
+            Rational::lemma_denom_positive(r2);
+            assert(r1.neg_spec().mul_spec(r2).num
+                == r1.mul_spec(r2).neg_spec().num) by (nonlinear_arith);
+            assert(r1.neg_spec().mul_spec(r2).den
+                == r1.mul_spec(r2).neg_spec().den) by (nonlinear_arith);
         }
-        (DynTowerSpec::Ext(re1, im1, _), DynTowerSpec::Ext(re2, im2, _)) => {
-            lemma_dts_neg_add(*re1, *re2);
-            lemma_dts_neg_add(*im1, *im2);
+        (DynTowerSpec::Ext(re, im, d), DynTowerSpec::Rat(r)) => {
+            lemma_dts_neg_mul_left(*re, DynTowerSpec::Rat(r));
+            lemma_dts_neg_mul_left(*im, DynTowerSpec::Rat(r));
         }
-        (DynTowerSpec::Rat(r), DynTowerSpec::Ext(re, im, _)) => {
-            lemma_dts_neg_add(DynTowerSpec::Rat(r), *re);
+        (DynTowerSpec::Rat(r), DynTowerSpec::Ext(re, im, d)) => {
+            lemma_dts_neg_mul_left(DynTowerSpec::Rat(r), *re);
+            lemma_dts_neg_mul_left(DynTowerSpec::Rat(r), *im);
         }
-        (DynTowerSpec::Ext(re, im, _), DynTowerSpec::Rat(r)) => {
-            lemma_dts_neg_add(*re, DynTowerSpec::Rat(r));
+        (DynTowerSpec::Ext(re1, im1, d), DynTowerSpec::Ext(re2, im2, _)) => {
+            // Cross same_radicand for IH calls
+            lemma_dts_same_radicand_transitive(*re1, *im1, *im2);
+            lemma_dts_same_radicand_symmetric(*re1, *im1);
+            lemma_dts_same_radicand_transitive(*im1, *re1, *re2);
+            // neg preserves same_radicand + well_formed
+            lemma_dts_neg_well_formed(*re1);
+            lemma_dts_neg_well_formed(*im1);
+            lemma_dts_same_radicand_neg(*re1);
+            lemma_dts_same_radicand_neg(*im1);
+            lemma_dts_same_radicand_symmetric(*re1, dts_neg(*re1));
+            lemma_dts_same_radicand_transitive(dts_neg(*re1), *re1, *re2);
+            lemma_dts_same_radicand_transitive(dts_neg(*re1), *re1, *im2);
+            lemma_dts_same_radicand_symmetric(*im1, dts_neg(*im1));
+            lemma_dts_same_radicand_transitive(dts_neg(*im1), *im1, *im2);
+            lemma_dts_same_radicand_transitive(dts_neg(*im1), *im1, *re2);
+            // IH for all sub-term pairs
+            lemma_dts_neg_mul_left(*re1, *re2);
+            lemma_dts_neg_mul_left(*im1, *im2);
+            lemma_dts_neg_mul_left(*re1, *im2);
+            lemma_dts_neg_mul_left(*im1, *re2);
+            // mul(neg(b), e) ≡ neg(mul(b, e)) → propagate through mul(d, ...)
+            lemma_dts_mul_closed(*im1, *im2);
+            lemma_dts_mul_closed(dts_neg(*im1), *im2);
+            lemma_dts_neg_preserves_same_radicand(*im1, *im2);
+            lemma_dts_same_radicand_symmetric(*im1, dts_mul(*im1, *im2));
+            lemma_dts_same_radicand_symmetric(dts_neg(*im1), dts_mul(dts_neg(*im1), *im2));
+            lemma_dts_same_radicand_transitive(
+                dts_mul(dts_neg(*im1), *im2), dts_neg(*im1), *im1);
+            lemma_dts_same_radicand_transitive(
+                dts_mul(dts_neg(*im1), *im2), *im1, dts_mul(*im1, *im2));
+            lemma_dts_neg_well_formed(dts_mul(*im1, *im2));
+            lemma_dts_same_radicand_neg(dts_mul(*im1, *im2));
+            lemma_dts_same_radicand_transitive(
+                dts_mul(dts_neg(*im1), *im2), dts_mul(*im1, *im2),
+                dts_neg(dts_mul(*im1, *im2)));
+            lemma_dts_mul_congruence_right(
+                dts_mul(dts_neg(*im1), *im2), dts_neg(dts_mul(*im1, *im2)), *d);
+            // d*mul(neg(b),e) ≡ d*neg(mul(b,e))
+            // Need: d*neg(X) ≡ neg(d*X) — this is neg_mul_left(d, X) reversed...
+            // Actually I need the "right" version. Let me use neg_mul_left for (d, mul(b,e)):
+            // Wait, neg is on the SECOND argument. mul(d, neg(X)) ≡ neg(mul(d, X))?
+            // This would be "neg_mul_right". I don't have it directly.
+            // But I can get it from commutative:
+            // mul(d, neg(X)) ≡ mul(neg(X), d) [commutative] ≡ neg(mul(X, d)) [neg_mul_left] ≡ neg(mul(d, X)) [commutative]
+            // This needs same_radicand(d, X) for commutative. Let me establish it.
+            lemma_dts_same_radicand_symmetric(*re1, *d);
+            lemma_dts_same_radicand_transitive(*d, *re1, *im1);
+            lemma_dts_same_radicand_transitive(*d, *im1, dts_mul(*im1, *im2));
+            lemma_dts_same_radicand_transitive(*d, dts_mul(*im1, *im2),
+                dts_neg(dts_mul(*im1, *im2)));
+            lemma_dts_mul_commutative(*d, dts_neg(dts_mul(*im1, *im2)));
+            lemma_dts_neg_mul_left(*d, dts_mul(*im1, *im2));
+            // neg_add for combining
+            lemma_dts_neg_add(dts_mul(*re1, *re2), dts_mul(*d, dts_mul(*im1, *im2)));
+            lemma_dts_neg_add(dts_mul(*re1, *im2), dts_mul(*im1, *re2));
         }
     }
 }
@@ -2576,67 +2689,58 @@ pub proof fn lemma_dts_mul_distributes_left(
             Rational::axiom_mul_distributes_left(r, s, t);
         }
         (DynTowerSpec::Rat(r), DynTowerSpec::Ext(re1, im1, d), DynTowerSpec::Ext(re2, im2, _)) => {
-            // mul(Rat(r), add(Ext,Ext)) = mul(Rat(r), Ext(re1+re2, im1+im2, d))
-            // = Ext(Rat(r)*(re1+re2), Rat(r)*(im1+im2), d)
-            // add(mul(Rat(r),Ext(re1,im1,d)), mul(Rat(r),Ext(re2,im2,d)))
-            // = add(Ext(Rat(r)*re1, Rat(r)*im1, d), Ext(Rat(r)*re2, Rat(r)*im2, d))
-            // = Ext(Rat(r)*re1 + Rat(r)*re2, Rat(r)*im1 + Rat(r)*im2, d)
-            // Need: eqv(Rat(r)*(re1+re2), Rat(r)*re1+Rat(r)*re2) by IH
-            //   and eqv(Rat(r)*(im1+im2), Rat(r)*im1+Rat(r)*im2) by IH
             lemma_dts_mul_distributes_left(DynTowerSpec::Rat(r), *re1, *re2);
             lemma_dts_mul_distributes_left(DynTowerSpec::Rat(r), *im1, *im2);
         }
         (DynTowerSpec::Ext(re, im, d), DynTowerSpec::Rat(s), DynTowerSpec::Rat(t)) => {
-            // mul(Ext, add(Rat,Rat)) = mul(Ext(re,im,d), Rat(s+t))
-            // = Ext(re*(s+t), im*(s+t), d)
-            // add(mul(Ext,Rat(s)), mul(Ext,Rat(t)))
-            // = add(Ext(re*s, im*s, d), Ext(re*t, im*t, d))
-            // = Ext(re*s+re*t, im*s+im*t, d)
             lemma_dts_mul_distributes_left(*re, DynTowerSpec::Rat(s), DynTowerSpec::Rat(t));
             lemma_dts_mul_distributes_left(*im, DynTowerSpec::Rat(s), DynTowerSpec::Rat(t));
         }
-        // Remaining cases: Z3 may handle from open spec fn unfolding.
-        // The key property is structural — each DTS operation is defined component-wise.
-        _ => {
-            // General case: trust Z3 for now (may need explicit cases later)
+        // Cross-depth cases: Rat×Ext + Rat, Rat + Rat×Ext, etc.
+        (DynTowerSpec::Rat(r), DynTowerSpec::Rat(s), DynTowerSpec::Ext(re, im, d)) => {
+            lemma_dts_mul_distributes_left(DynTowerSpec::Rat(r), DynTowerSpec::Rat(s), *re);
         }
-    }
-}
-
-/// neg_mul_left: mul(neg(a), b) ≡ neg(mul(a, b)).
-/// Derived from neg_mul_neg + neg_involution:
-///   neg(a)*b ≡ neg(a)*neg(neg(b)) ≡ a*neg(b) — wrong direction.
-/// Instead: structural induction, using component-wise neg distribution.
-pub proof fn lemma_dts_neg_mul_left(a: DynTowerSpec, b: DynTowerSpec)
-    ensures dts_eqv(dts_mul(dts_neg(a), b), dts_neg(dts_mul(a, b))),
-    decreases a, b,
-{
-    match (a, b) {
-        (DynTowerSpec::Rat(r1), DynTowerSpec::Rat(r2)) => {
-            // For Rational: neg(r1)*r2 and neg(r1*r2) are structurally equal
-            // by integer arithmetic: (-r1.num)*r2.num = -(r1.num*r2.num)
-            Rational::lemma_denom_positive(r1);
-            Rational::lemma_denom_positive(r2);
+        (DynTowerSpec::Rat(r), DynTowerSpec::Ext(re, im, d), DynTowerSpec::Rat(t)) => {
+            lemma_dts_mul_distributes_left(DynTowerSpec::Rat(r), *re, DynTowerSpec::Rat(t));
         }
-        (DynTowerSpec::Ext(re, im, d), DynTowerSpec::Rat(r)) => {
-            // mul(neg(Ext), Rat) = Ext(neg(re)*Rat(r), neg(im)*Rat(r), d)
-            // neg(mul(Ext, Rat)) = neg(Ext(re*Rat(r), im*Rat(r), d)) = Ext(neg(re*Rat(r)), neg(im*Rat(r)), d)
-            lemma_dts_neg_mul_left(*re, DynTowerSpec::Rat(r));
-            lemma_dts_neg_mul_left(*im, DynTowerSpec::Rat(r));
+        (DynTowerSpec::Ext(re, im, d), DynTowerSpec::Rat(s), DynTowerSpec::Ext(re2, im2, _)) => {
+            lemma_dts_mul_distributes_left(*re, DynTowerSpec::Rat(s), *re2);
+            lemma_dts_mul_distributes_left(*im, DynTowerSpec::Rat(s), *im2);
         }
-        (DynTowerSpec::Rat(r), DynTowerSpec::Ext(re, im, d)) => {
-            lemma_dts_neg_mul_left(DynTowerSpec::Rat(r), *re);
-            lemma_dts_neg_mul_left(DynTowerSpec::Rat(r), *im);
+        (DynTowerSpec::Ext(re, im, d), DynTowerSpec::Ext(re2, im2, _), DynTowerSpec::Rat(t)) => {
+            lemma_dts_mul_distributes_left(*re, *re2, DynTowerSpec::Rat(t));
+            lemma_dts_mul_distributes_left(*im, *im2, DynTowerSpec::Rat(t));
         }
-        (DynTowerSpec::Ext(re1, im1, d), DynTowerSpec::Ext(re2, im2, _)) => {
-            // Component-wise: IH gives neg_mul_left for all sub-term pairs
-            lemma_dts_neg_mul_left(*re1, *re2);
-            lemma_dts_neg_mul_left(*im1, *im2);
-            lemma_dts_neg_mul_left(*re1, *im2);
-            lemma_dts_neg_mul_left(*im1, *re2);
-            // neg_add for combining neg of sums
-            lemma_dts_neg_add(dts_mul(*re1, *re2), dts_mul(*d, dts_mul(*im1, *im2)));
-            lemma_dts_neg_add(dts_mul(*re1, *im2), dts_mul(*im1, *re2));
+        (DynTowerSpec::Ext(re1, im1, d), DynTowerSpec::Ext(re2, im2, _), DynTowerSpec::Ext(re3, im3, _)) => {
+            // Ext × (Ext + Ext): hardest case — mul uses cross products, add is component-wise
+            // mul(Ext(a,b,d), Ext(c1+c2, e1+e2, d)) = Ext(a*(c1+c2)+d*b*(e1+e2), a*(e1+e2)+b*(c1+c2), d)
+            // vs add(mul(Ext(a,b,d), Ext(c1,e1,d)), mul(Ext(a,b,d), Ext(c2,e2,d)))
+            // = add(Ext(a*c1+d*b*e1, a*e1+b*c1, d), Ext(a*c2+d*b*e2, a*e2+b*c2, d))
+            // = Ext((a*c1+d*b*e1)+(a*c2+d*b*e2), (a*e1+b*c1)+(a*e2+b*c2), d)
+            // Need: a*(c1+c2) ≡ a*c1+a*c2 (IH) AND d*b*(e1+e2) ≡ d*b*e1+d*b*e2 (IH chain)
+            // Then re matches by add_congruence. Similarly for im.
+            lemma_dts_mul_distributes_left(*re1, *re2, *re3);
+            lemma_dts_mul_distributes_left(*re1, *im2, *im3);
+            lemma_dts_mul_distributes_left(*im1, *re2, *re3);
+            lemma_dts_mul_distributes_left(*im1, *im2, *im3);
+            // d*b*(e1+e2): need mul_distributes for b then congruence through d*
+            lemma_dts_mul_distributes_left(*d, dts_mul(*im1, *im2), dts_mul(*im1, *im3));
+            lemma_dts_mul_distributes_left(*d, dts_mul(*im1, *re2), dts_mul(*im1, *re3));
+            // Chain re: a*(c1+c2)+d*b*(e1+e2)
+            //   ≡ (a*c1+a*c2) + d*(b*e1+b*e2) [by IH distributes on a and b]
+            //   ≡ (a*c1+a*c2) + (d*b*e1+d*b*e2) [by IH distributes on d]
+            //   ≡ (a*c1+d*b*e1) + (a*c2+d*b*e2) [by add exchange]
+            // Add exchange: (A+B)+(C+D) ≡ (A+C)+(B+D)
+            // Add exchange: (A+B)+(C+D) ≡ (A+C)+(B+D)
+            // re exchange
+            let ra = dts_mul(*re1, *re2); let rb = dts_mul(*re1, *re3);
+            let rc = dts_mul(*d, dts_mul(*im1, *im2));
+            let rd = dts_mul(*d, dts_mul(*im1, *im3));
+            lemma_dts_add_exchange(ra, rb, rc, rd);
+            // im exchange
+            let ia = dts_mul(*re1, *im2); let ib = dts_mul(*re1, *im3);
+            let ic = dts_mul(*im1, *re2); let id = dts_mul(*im1, *re3);
+            lemma_dts_add_exchange(ia, ib, ic, id);
         }
     }
 }
