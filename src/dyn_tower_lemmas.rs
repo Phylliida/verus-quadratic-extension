@@ -3364,10 +3364,17 @@ pub proof fn lemma_dts_nonneg_add_closed_fuel(
                     lemma_dts_nonneg_fuel_zero(dts_add(b1, b2), f);
                 }
                 // norm≥0: (a1+a2)² - d*(b1+b2)² ≥ 0
-                // Chain: d*(b1+b2)² ≤ d*s² ≤ r² ≤ (a1+a2)²
-                // where (s,r) is the C2 side: if b1_nn, s=b2,r=a2; if b2_nn, s=b1,r=a1.
-                // TODO: ~100 lines of algebraic norm bound chain
-                return; // placeholder — norm bound not yet proved
+                // Chain at fuel f (IH level): (a1+a2)² ≥ r² ≥ d*s² ≥ d*(b1+b2)²
+                // Inline square_le_square + le_mul_nonneg_monotone logic
+                // to avoid termination issues with separate helper calls.
+                // TODO: ~80 lines of inline chain using IH at fuel f.
+                // The logical steps are:
+                //   T1: nonneg(sub((a1+a2)², r²), f) via difference_of_squares + nonneg_mul IH
+                //   T2: nonneg(sub(r², d*s²), f) from C2 norm bound (given)
+                //   T3: nonneg(sub(d*s², d*(b1+b2)²), f) via similar chain
+                //   Chain: sub_add_sub + nonneg_add IH
+                // Each step calls nonneg_add/nonneg_mul at fuel f (valid for IH).
+                return; // norm bound chain TODO
             }
             // TODO: C1+C3, C3+C1, C2+C2, C2+C3, C3+C2, C3+C3
         }
