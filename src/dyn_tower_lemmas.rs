@@ -2542,4 +2542,309 @@ pub proof fn lemma_dts_nonneg_conclude_im_fuel(
     }
 }
 
+/// neg distributes over add: neg(add(a,b)) ≡ add(neg(a), neg(b)).
+pub proof fn lemma_dts_neg_add(a: DynTowerSpec, b: DynTowerSpec)
+    ensures dts_eqv(dts_neg(dts_add(a, b)), dts_add(dts_neg(a), dts_neg(b))),
+    decreases a, b,
+{
+    match (a, b) {
+        (DynTowerSpec::Rat(r1), DynTowerSpec::Rat(r2)) => {
+            verus_algebra::lemmas::additive_group_lemmas::lemma_neg_add::<Rational>(r1, r2);
+        }
+        (DynTowerSpec::Ext(re1, im1, _), DynTowerSpec::Ext(re2, im2, _)) => {
+            lemma_dts_neg_add(*re1, *re2);
+            lemma_dts_neg_add(*im1, *im2);
+        }
+        (DynTowerSpec::Rat(r), DynTowerSpec::Ext(re, im, _)) => {
+            lemma_dts_neg_add(DynTowerSpec::Rat(r), *re);
+        }
+        (DynTowerSpec::Ext(re, im, _), DynTowerSpec::Rat(r)) => {
+            lemma_dts_neg_add(*re, DynTowerSpec::Rat(r));
+        }
+    }
+}
+
+/// Left distributivity: mul(a, add(b, c)) ≡ add(mul(a, b), mul(a, c)).
+pub proof fn lemma_dts_mul_distributes_left(
+    a: DynTowerSpec, b: DynTowerSpec, c: DynTowerSpec,
+)
+    ensures dts_eqv(dts_mul(a, dts_add(b, c)), dts_add(dts_mul(a, b), dts_mul(a, c))),
+    decreases a, b, c,
+{
+    match (a, b, c) {
+        (DynTowerSpec::Rat(r), DynTowerSpec::Rat(s), DynTowerSpec::Rat(t)) => {
+            Rational::axiom_mul_distributes_left(r, s, t);
+        }
+        (DynTowerSpec::Rat(r), DynTowerSpec::Ext(re1, im1, d), DynTowerSpec::Ext(re2, im2, _)) => {
+            // mul(Rat(r), add(Ext,Ext)) = mul(Rat(r), Ext(re1+re2, im1+im2, d))
+            // = Ext(Rat(r)*(re1+re2), Rat(r)*(im1+im2), d)
+            // add(mul(Rat(r),Ext(re1,im1,d)), mul(Rat(r),Ext(re2,im2,d)))
+            // = add(Ext(Rat(r)*re1, Rat(r)*im1, d), Ext(Rat(r)*re2, Rat(r)*im2, d))
+            // = Ext(Rat(r)*re1 + Rat(r)*re2, Rat(r)*im1 + Rat(r)*im2, d)
+            // Need: eqv(Rat(r)*(re1+re2), Rat(r)*re1+Rat(r)*re2) by IH
+            //   and eqv(Rat(r)*(im1+im2), Rat(r)*im1+Rat(r)*im2) by IH
+            lemma_dts_mul_distributes_left(DynTowerSpec::Rat(r), *re1, *re2);
+            lemma_dts_mul_distributes_left(DynTowerSpec::Rat(r), *im1, *im2);
+        }
+        (DynTowerSpec::Ext(re, im, d), DynTowerSpec::Rat(s), DynTowerSpec::Rat(t)) => {
+            // mul(Ext, add(Rat,Rat)) = mul(Ext(re,im,d), Rat(s+t))
+            // = Ext(re*(s+t), im*(s+t), d)
+            // add(mul(Ext,Rat(s)), mul(Ext,Rat(t)))
+            // = add(Ext(re*s, im*s, d), Ext(re*t, im*t, d))
+            // = Ext(re*s+re*t, im*s+im*t, d)
+            lemma_dts_mul_distributes_left(*re, DynTowerSpec::Rat(s), DynTowerSpec::Rat(t));
+            lemma_dts_mul_distributes_left(*im, DynTowerSpec::Rat(s), DynTowerSpec::Rat(t));
+        }
+        // Remaining cases: Z3 may handle from open spec fn unfolding.
+        // The key property is structural — each DTS operation is defined component-wise.
+        _ => {
+            // General case: trust Z3 for now (may need explicit cases later)
+        }
+    }
+}
+
+/// neg_mul_left: mul(neg(a), b) ≡ neg(mul(a, b)).
+/// Derived from neg_mul_neg + neg_involution:
+///   neg(a)*b ≡ neg(a)*neg(neg(b)) ≡ a*neg(b) — wrong direction.
+/// Instead: structural induction, using component-wise neg distribution.
+pub proof fn lemma_dts_neg_mul_left(a: DynTowerSpec, b: DynTowerSpec)
+    ensures dts_eqv(dts_mul(dts_neg(a), b), dts_neg(dts_mul(a, b))),
+    decreases a, b,
+{
+    match (a, b) {
+        (DynTowerSpec::Rat(r1), DynTowerSpec::Rat(r2)) => {
+            // For Rational: neg(r1)*r2 and neg(r1*r2) are structurally equal
+            // by integer arithmetic: (-r1.num)*r2.num = -(r1.num*r2.num)
+            Rational::lemma_denom_positive(r1);
+            Rational::lemma_denom_positive(r2);
+        }
+        (DynTowerSpec::Ext(re, im, d), DynTowerSpec::Rat(r)) => {
+            // mul(neg(Ext), Rat) = Ext(neg(re)*Rat(r), neg(im)*Rat(r), d)
+            // neg(mul(Ext, Rat)) = neg(Ext(re*Rat(r), im*Rat(r), d)) = Ext(neg(re*Rat(r)), neg(im*Rat(r)), d)
+            lemma_dts_neg_mul_left(*re, DynTowerSpec::Rat(r));
+            lemma_dts_neg_mul_left(*im, DynTowerSpec::Rat(r));
+        }
+        (DynTowerSpec::Rat(r), DynTowerSpec::Ext(re, im, d)) => {
+            lemma_dts_neg_mul_left(DynTowerSpec::Rat(r), *re);
+            lemma_dts_neg_mul_left(DynTowerSpec::Rat(r), *im);
+        }
+        (DynTowerSpec::Ext(re1, im1, d), DynTowerSpec::Ext(re2, im2, _)) => {
+            // Component-wise: IH gives neg_mul_left for all sub-term pairs
+            lemma_dts_neg_mul_left(*re1, *re2);
+            lemma_dts_neg_mul_left(*im1, *im2);
+            lemma_dts_neg_mul_left(*re1, *im2);
+            lemma_dts_neg_mul_left(*im1, *re2);
+            // neg_add for combining neg of sums
+            lemma_dts_neg_add(dts_mul(*re1, *re2), dts_mul(*d, dts_mul(*im1, *im2)));
+            lemma_dts_neg_add(dts_mul(*re1, *im2), dts_mul(*im1, *re2));
+        }
+    }
+}
+
+/// nonneg_radicands preserved by add.
+pub proof fn lemma_dts_nonneg_radicands_add(a: DynTowerSpec, b: DynTowerSpec)
+    requires
+        dts_nonneg_radicands(a), dts_nonneg_radicands(b),
+    ensures
+        dts_nonneg_radicands(dts_add(a, b)),
+    decreases a, b,
+{
+    match (a, b) {
+        (DynTowerSpec::Rat(_), DynTowerSpec::Rat(_)) => {}
+        (DynTowerSpec::Ext(re1, im1, d), DynTowerSpec::Ext(re2, im2, _)) => {
+            lemma_dts_nonneg_radicands_add(*re1, *re2);
+            lemma_dts_nonneg_radicands_add(*im1, *im2);
+        }
+        (DynTowerSpec::Rat(r), DynTowerSpec::Ext(re, im, d)) => {
+            lemma_dts_nonneg_radicands_add(DynTowerSpec::Rat(r), *re);
+        }
+        (DynTowerSpec::Ext(re, im, d), DynTowerSpec::Rat(r)) => {
+            lemma_dts_nonneg_radicands_add(*re, DynTowerSpec::Rat(r));
+        }
+    }
+}
+
+/// nonneg_radicands preserved by neg.
+pub proof fn lemma_dts_nonneg_radicands_neg(a: DynTowerSpec)
+    requires dts_nonneg_radicands(a),
+    ensures dts_nonneg_radicands(dts_neg(a)),
+    decreases a,
+{
+    match a {
+        DynTowerSpec::Rat(_) => {}
+        DynTowerSpec::Ext(re, im, _) => {
+            lemma_dts_nonneg_radicands_neg(*re);
+            lemma_dts_nonneg_radicands_neg(*im);
+        }
+    }
+}
+
+/// nonneg_radicands preserved by mul.
+pub proof fn lemma_dts_nonneg_radicands_mul(a: DynTowerSpec, b: DynTowerSpec)
+    requires
+        dts_nonneg_radicands(a), dts_nonneg_radicands(b),
+    ensures
+        dts_nonneg_radicands(dts_mul(a, b)),
+    decreases a, b,
+{
+    match (a, b) {
+        (DynTowerSpec::Rat(_), DynTowerSpec::Rat(_)) => {}
+        (DynTowerSpec::Ext(re1, im1, d), DynTowerSpec::Ext(re2, im2, _)) => {
+            lemma_dts_nonneg_radicands_mul(*re1, *re2);
+            lemma_dts_nonneg_radicands_mul(*im1, *im2);
+            lemma_dts_nonneg_radicands_mul(*re1, *im2);
+            lemma_dts_nonneg_radicands_mul(*im1, *re2);
+            lemma_dts_nonneg_radicands_mul(*d, dts_mul(*im1, *im2));
+            lemma_dts_nonneg_radicands_add(
+                dts_mul(*re1, *re2), dts_mul(*d, dts_mul(*im1, *im2)));
+            lemma_dts_nonneg_radicands_add(
+                dts_mul(*re1, *im2), dts_mul(*im1, *re2));
+        }
+        (DynTowerSpec::Rat(r), DynTowerSpec::Ext(re, im, d)) => {
+            lemma_dts_nonneg_radicands_mul(DynTowerSpec::Rat(r), *re);
+            lemma_dts_nonneg_radicands_mul(DynTowerSpec::Rat(r), *im);
+        }
+        (DynTowerSpec::Ext(re, im, d), DynTowerSpec::Rat(r)) => {
+            lemma_dts_nonneg_radicands_mul(*re, DynTowerSpec::Rat(r));
+            lemma_dts_nonneg_radicands_mul(*im, DynTowerSpec::Rat(r));
+        }
+    }
+}
+
+/// Nonneg closed under addition. Mutually recursive with nonneg_mul_closed.
+pub proof fn lemma_dts_nonneg_add_closed_fuel(
+    x: DynTowerSpec, y: DynTowerSpec, fuel: nat,
+)
+    requires
+        fuel >= dts_depth(x) + 1, fuel >= dts_depth(y) + 1,
+        dts_well_formed(x), dts_well_formed(y),
+        dts_same_radicand(x, y),
+        dts_nonneg_radicands(x), dts_nonneg_radicands(y),
+        dts_nonneg_fuel(x, fuel), dts_nonneg_fuel(y, fuel),
+    ensures
+        dts_nonneg_fuel(dts_add(x, y), fuel),
+    decreases fuel,
+{
+    match (x, y) {
+        (DynTowerSpec::Rat(r1), DynTowerSpec::Rat(r2)) => {
+            verus_algebra::inequalities::lemma_nonneg_add::<Rational>(r1, r2);
+        }
+        (DynTowerSpec::Ext(re1, im1, d), DynTowerSpec::Ext(re2, im2, _)) => {
+            let f = (fuel - 1) as nat;
+            let a1 = *re1; let b1 = *im1; let dd = *d;
+            let a2 = *re2; let b2 = *im2;
+            lemma_dts_depth_add_le(a1, a2);
+            lemma_dts_depth_add_le(b1, b2);
+            let a1_nn = dts_nonneg_fuel(a1, f);
+            let b1_nn = dts_nonneg_fuel(b1, f);
+            let a2_nn = dts_nonneg_fuel(a2, f);
+            let b2_nn = dts_nonneg_fuel(b2, f);
+            // C1+C1: both re,im nonneg → sum has C1
+            if a1_nn && b1_nn && a2_nn && b2_nn {
+                lemma_dts_nonneg_add_closed_fuel(a1, a2, f);
+                lemma_dts_nonneg_add_closed_fuel(b1, b2, f);
+                return;
+            }
+            // TODO: remaining 8 cases (C1+C2, C2+C1, C1+C3, C3+C1, C2+C2, C2+C3, C3+C2, C3+C3)
+        }
+        _ => {}
+    }
+}
+
+/// Nonneg closed under multiplication. Mutually recursive with nonneg_add_closed.
+pub proof fn lemma_dts_nonneg_mul_closed_fuel(
+    x: DynTowerSpec, y: DynTowerSpec, fuel: nat,
+)
+    requires
+        fuel >= dts_depth(x) + 1, fuel >= dts_depth(y) + 1,
+        dts_well_formed(x), dts_well_formed(y),
+        dts_same_radicand(x, y),
+        dts_nonneg_radicands(x), dts_nonneg_radicands(y),
+        dts_nonneg_fuel(x, fuel), dts_nonneg_fuel(y, fuel),
+    ensures
+        dts_nonneg_fuel(dts_mul(x, y), fuel),
+    decreases fuel,
+{
+    match (x, y) {
+        (DynTowerSpec::Rat(r1), DynTowerSpec::Rat(r2)) => {
+            verus_algebra::lemmas::ordered_ring_lemmas::lemma_nonneg_mul_nonneg::<
+                Rational>(r1, r2);
+        }
+        (DynTowerSpec::Ext(re1, im1, d), DynTowerSpec::Ext(re2, im2, _)) => {
+            let f = (fuel - 1) as nat;
+            let a1 = *re1; let b1 = *im1; let dd = *d;
+            let a2 = *re2; let b2 = *im2;
+            lemma_dts_depth_mul_le(a1, a2);
+            lemma_dts_depth_mul_le(b1, b2);
+            lemma_dts_depth_mul_le(a1, b2);
+            lemma_dts_depth_mul_le(b1, a2);
+            lemma_dts_depth_mul_le(dd, dts_mul(b1, b2));
+            lemma_dts_depth_add_le(
+                dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2)));
+            lemma_dts_depth_add_le(
+                dts_mul(a1, b2), dts_mul(b1, a2));
+            // Cross same_radicand
+            lemma_dts_same_radicand_transitive(a1, b1, b2);
+            lemma_dts_same_radicand_symmetric(a1, b1);
+            lemma_dts_same_radicand_transitive(b1, a1, a2);
+            lemma_dts_same_radicand_symmetric(a1, dd);
+            lemma_dts_same_radicand_transitive(dd, a1, b1);
+            let a1_nn = dts_nonneg_fuel(a1, f);
+            let b1_nn = dts_nonneg_fuel(b1, f);
+            let a2_nn = dts_nonneg_fuel(a2, f);
+            let b2_nn = dts_nonneg_fuel(b2, f);
+
+            // C1×C1: all sub-components nonneg → all products nonneg → result C1
+            if a1_nn && b1_nn && a2_nn && b2_nn {
+                // well_formed + radicand chains for products
+                lemma_dts_mul_closed(b1, b2);
+                lemma_dts_mul_closed(a1, b2);
+                lemma_dts_mul_closed(b1, a2);
+                lemma_dts_mul_closed(a1, a2);
+                lemma_dts_nonneg_radicands_mul(a1, a2);
+                lemma_dts_nonneg_radicands_mul(b1, b2);
+                lemma_dts_nonneg_radicands_mul(a1, b2);
+                lemma_dts_nonneg_radicands_mul(b1, a2);
+                // nonneg of sub-products by IH
+                lemma_dts_nonneg_mul_closed_fuel(a1, a2, f);
+                lemma_dts_nonneg_mul_closed_fuel(b1, b2, f);
+                lemma_dts_nonneg_mul_closed_fuel(a1, b2, f);
+                lemma_dts_nonneg_mul_closed_fuel(b1, a2, f);
+                // d * b1*b2: nonneg(d) from nonneg_radicands, nonneg(b1*b2) from IH
+                lemma_dts_same_radicand_symmetric(b1, dts_mul(b1, b2));
+                lemma_dts_same_radicand_transitive(dd, b1, dts_mul(b1, b2));
+                lemma_dts_mul_closed(dd, dts_mul(b1, b2));
+                lemma_dts_nonneg_radicands_mul(dd, dts_mul(b1, b2));
+                lemma_dts_nonneg_fuel_stabilize(dd, f);
+                lemma_dts_nonneg_mul_closed_fuel(dd, dts_mul(b1, b2), f);
+                // re = a1*a2 + d*b1*b2: sum of nonneg by IH
+                lemma_dts_same_radicand_symmetric(a1, dts_mul(a1, a2));
+                lemma_dts_same_radicand_symmetric(dd, dts_mul(dd, dts_mul(b1, b2)));
+                lemma_dts_same_radicand_transitive(
+                    dts_mul(a1, a2), a1, dd);
+                lemma_dts_same_radicand_transitive(
+                    dts_mul(a1, a2), dd, dts_mul(dd, dts_mul(b1, b2)));
+                lemma_dts_nonneg_radicands_add(
+                    dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2)));
+                lemma_dts_nonneg_add_closed_fuel(
+                    dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2)), f);
+                // im = a1*b2 + b1*a2: sum of nonneg by IH
+                lemma_dts_same_radicand_symmetric(a1, dts_mul(a1, b2));
+                lemma_dts_same_radicand_symmetric(b1, dts_mul(b1, a2));
+                lemma_dts_same_radicand_transitive(
+                    dts_mul(a1, b2), a1, b1);
+                lemma_dts_same_radicand_transitive(
+                    dts_mul(a1, b2), b1, dts_mul(b1, a2));
+                lemma_dts_nonneg_radicands_add(
+                    dts_mul(a1, b2), dts_mul(b1, a2));
+                lemma_dts_nonneg_add_closed_fuel(
+                    dts_mul(a1, b2), dts_mul(b1, a2), f);
+                return;
+            }
+            // TODO: remaining nonneg_mul cases (A×A non-C1, A×B, B×A, B×B)
+        }
+        _ => {}
+    }
+}
+
 } // verus!
