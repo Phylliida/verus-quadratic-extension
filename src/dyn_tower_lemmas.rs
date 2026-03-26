@@ -3098,7 +3098,24 @@ pub proof fn lemma_dts_mul_associative(
         }
         // ═══ EEE — IH assoc calls here, then delegate to helper ═══
         (DynTowerSpec::Ext(re1, im1, d), DynTowerSpec::Ext(re2, im2, _), DynTowerSpec::Ext(re3, im3, _)) => {
-            // IH assoc on all 8 sub-component triples (decreases: sub-components < Ext)
+            // Cross same_radicand for IH calls
+            // Direct: re1~re2, im1~im2 (from sr(a,b)), re2~re3, im2~im3 (from sr(b,c))
+            // From well_formed: re1~im1, re1~d, re2~im2, re2~d, re3~im3, re3~d
+            // Derived:
+            lemma_dts_same_radicand_transitive(*re2, *re3, *im3); // re2~im3
+            lemma_dts_same_radicand_symmetric(*re2, *im2);
+            lemma_dts_same_radicand_transitive(*re1, *re2, *im2); // re1~im2
+            lemma_dts_same_radicand_symmetric(*re3, *im3);
+            lemma_dts_same_radicand_transitive(*im2, *im3, *re3); // im2~re3
+            lemma_dts_same_radicand_symmetric(*re1, *im1);
+            lemma_dts_same_radicand_transitive(*im1, *re1, *re2); // im1~re2
+            lemma_dts_same_radicand_transitive(*im1, *re2, *re3); // im1~re3
+            lemma_dts_same_radicand_transitive(*im1, *re2, *im2); // im1~im2
+            lemma_dts_same_radicand_transitive(*im1, *im2, *im3); // im1~im3
+            lemma_dts_same_radicand_transitive(*im1, *re2, *im3); // im1~im3 (alt)
+            lemma_dts_same_radicand_transitive(*re1, *im2, *re3); // re1~re3 via im2
+            lemma_dts_same_radicand_transitive(*re1, *im2, *im3); // re1~im3 via im2
+            // IH assoc on all 8 sub-component triples
             lemma_dts_mul_associative(*re1, *re2, *re3);
             lemma_dts_mul_associative(*re1, *re2, *im3);
             lemma_dts_mul_associative(*re1, *im2, *re3);
@@ -3107,6 +3124,34 @@ pub proof fn lemma_dts_mul_associative(
             lemma_dts_mul_associative(*im1, *re2, *im3);
             lemma_dts_mul_associative(*im1, *im2, *re3);
             lemma_dts_mul_associative(*im1, *im2, *im3);
+            // Also need assoc with dd involved
+            lemma_dts_same_radicand_symmetric(*re1, *d);
+            lemma_dts_same_radicand_transitive(*d, *re1, *im1);
+            lemma_dts_same_radicand_transitive(*d, *re1, *re2);
+            lemma_dts_same_radicand_transitive(*d, *re1, *im2);
+            lemma_dts_mul_closed(*im2, *im3);
+            lemma_dts_same_radicand_symmetric(*im2, dts_mul(*im2, *im3));
+            lemma_dts_same_radicand_transitive(*d, *im2, dts_mul(*im2, *im3));
+            lemma_dts_mul_associative(*d, *im2, *im3);
+            lemma_dts_mul_closed(*im2, *re3);
+            lemma_dts_same_radicand_symmetric(*im2, dts_mul(*im2, *re3));
+            lemma_dts_same_radicand_transitive(*d, *im2, dts_mul(*im2, *re3));
+            lemma_dts_mul_associative(*d, *im2, *re3);
+            lemma_dts_mul_closed(*re2, *im3);
+            lemma_dts_same_radicand_symmetric(*re2, dts_mul(*re2, *im3));
+            lemma_dts_same_radicand_transitive(*d, *re2, dts_mul(*re2, *im3));
+            lemma_dts_mul_associative(*d, *re2, *im3);
+            lemma_dts_mul_closed(*re2, *re3);
+            lemma_dts_same_radicand_symmetric(*re2, dts_mul(*re2, *re3));
+            lemma_dts_same_radicand_transitive(*d, *re2, dts_mul(*re2, *re3));
+            lemma_dts_mul_associative(*d, *re2, *re3);
+            // d with a2*b2 products
+            lemma_dts_mul_closed(*im1, *im2);
+            lemma_dts_same_radicand_symmetric(*im1, dts_mul(*im1, *im2));
+            lemma_dts_same_radicand_transitive(*d, *im1, dts_mul(*im1, *im2));
+            lemma_dts_mul_closed(*im1, *re2);
+            lemma_dts_same_radicand_symmetric(*im1, dts_mul(*im1, *re2));
+            lemma_dts_same_radicand_transitive(*d, *im1, dts_mul(*im1, *re2));
             // Delegate rest to helper (no recursion, just chaining)
             lemma_dts_mul_associative_eee(*re1, *im1, *re2, *im2, *re3, *im3, *d);
         }
@@ -3148,11 +3193,8 @@ proof fn lemma_dts_mul_associative_eee(
                 DynTowerSpec::Ext(Box::new(c1), Box::new(c2), Box::new(dd)))),
     decreases a1, b1, c1,
 {
-            // ── Infrastructure: derive cross same_radicand ──
-            // Direct from preconditions: a1~b1, a2~b2, b1~c1, b2~c2
-            // From well_formed: a1~a2, a1~d, b1~b2, b1~d, c1~c2, c1~d
-            // Derived chains:
-            lemma_dts_same_radicand_transitive(b1, c1, c2); // b1~c2
+    // Cross same_radicand infrastructure
+    lemma_dts_same_radicand_transitive(b1, c1, c2); // b1~c2
             lemma_dts_same_radicand_transitive(a1, a2, b2); // a1~b2 (a1~a2, a2~b2)
             lemma_dts_same_radicand_symmetric(a1, b1);
             lemma_dts_same_radicand_transitive(b1, a1, a2); // b1~a2
