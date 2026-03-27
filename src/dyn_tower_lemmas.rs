@@ -7309,6 +7309,11 @@ proof fn lemma_dts_nonneg_mul_bb(
             (f + 1) as nat),
     decreases f, 1nat,
 {
+    let re_val = dts_add(dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2)));
+    let im_val = dts_add(dts_mul(a1, b2), dts_mul(b1, a2));
+
+    // ── re ≥ 0: a1*a2 (neg×neg=pos) + d*b1*b2 (pos×pos×pos) ──
+    assert(dts_nonneg_fuel(re_val, f)) by {
     // Infrastructure: derive cross same_radicand from preconditions a1~b1, a1~a2, a1~b2, a1~dd
     lemma_dts_same_radicand_symmetric(a1, b1);
     lemma_dts_same_radicand_transitive(b1, a1, a2);
@@ -7352,6 +7357,8 @@ proof fn lemma_dts_nonneg_mul_bb(
     lemma_dts_mul_closed(dd, dts_mul(b1, b2));
     lemma_dts_nonneg_radicands_mul(dd, dts_mul(b1, b2));
     lemma_dts_nonneg_fuel_stabilize(dd, f);
+    lemma_dts_depth_mul_le(b1, b2);
+    lemma_dts_depth_mul_le(dd, dts_mul(b1, b2));
     lemma_dts_nonneg_mul_closed_fuel(dd, dts_mul(b1, b2), f);
     // re = a1*a2 + d*b1*b2 ≥ 0
     lemma_dts_same_radicand_symmetric(a1, dts_mul(a1, a2));
@@ -7360,11 +7367,16 @@ proof fn lemma_dts_nonneg_mul_bb(
     lemma_dts_same_radicand_transitive(dts_mul(a1, a2), dd, dts_mul(dd, dts_mul(b1, b2)));
     lemma_dts_nonneg_radicands_mul(a1, a2);
     lemma_dts_nonneg_radicands_add(dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2)));
+    lemma_dts_depth_mul_le(a1, a2);
+    lemma_dts_depth_add_le(dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2)));
     lemma_dts_nonneg_add_closed_fuel(dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2)), f);
 
     // ── norm ≥ 0 via norm_mul + neg_mul_neg ──
-    // norm(x) = sub(a1², d*b1²). C3 gives nonneg(sub(d*b1², a1²)) = nonneg(neg(norm(x)))
-    // norm(y) similarly. neg(nx)*neg(ny) ≡ nx*ny nonneg. norm_prod ≡ nx*ny.
+    // Scoped in assert-by for rlimit management
+    let re_val = dts_add(dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2)));
+    let im_val = dts_add(dts_mul(a1, b2), dts_mul(b1, a2));
+    let norm_expr = dts_sub(dts_mul(re_val, re_val), dts_mul(dd, dts_mul(im_val, im_val)));
+    assert(dts_nonneg_fuel(norm_expr, f)) by {
     let a1sq = dts_mul(a1, a1);
     let b1sq = dts_mul(b1, b1);
     let a2sq = dts_mul(a2, a2);
