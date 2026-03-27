@@ -1,7 +1,7 @@
 /// Generic runtime quadratic extension field element.
 ///
 /// RuntimeQExt<FV, R, F> represents an element of SpecQuadExt<FV, R>
-/// where F is the runtime base field type implementing RuntimeFieldOps<FV>.
+/// where F is the runtime base field type implementing RuntimeOrderedFieldOps<FV>.
 ///
 /// This generalizes RuntimeQExtRat<R> (which is hardcoded to RuntimeRational/Rational)
 /// to support arbitrary base fields, enabling nested extensions:
@@ -40,7 +40,7 @@ use crate::spec::*;
 #[cfg(verus_keep_ghost)]
 use crate::ordered::*;
 #[cfg(verus_keep_ghost)]
-use crate::runtime_field::RuntimeFieldOps;
+use crate::runtime_field::{RuntimeRingOps, RuntimeFieldOps, RuntimeOrderedFieldOps};
 
 #[cfg(verus_keep_ghost)]
 verus! {
@@ -59,14 +59,14 @@ verus! {
 ///
 /// Unlike RuntimeQExtRat, this doesn't use RuntimeRadicand<R> for the radicand.
 /// Instead, the radicand is stored in the struct and validated by wf_spec.
-pub struct RuntimeQExt<FV: OrderedField, R: Radicand<FV>, F: RuntimeFieldOps<FV>> {
+pub struct RuntimeQExt<FV: OrderedField, R: Radicand<FV>, F: RuntimeOrderedFieldOps<FV>> {
     pub re: F,
     pub im: F,
     pub radicand_rt: F,
     pub model: Ghost<SpecQuadExt<FV, R>>,
 }
 
-impl<FV: OrderedField, R: Radicand<FV>, F: RuntimeFieldOps<FV>> RuntimeQExt<FV, R, F> {
+impl<FV: OrderedField, R: Radicand<FV>, F: RuntimeOrderedFieldOps<FV>> RuntimeQExt<FV, R, F> {
     /// Well-formedness: runtime components match the ghost model,
     /// and the stored radicand matches the spec-level radicand value.
     pub open spec fn wf_spec(&self) -> bool {
@@ -277,7 +277,7 @@ impl<FV: OrderedField, R: Radicand<FV>, F: RuntimeFieldOps<FV>> RuntimeQExt<FV, 
 //  Ordering operations (require PositiveRadicand)
 // ═══════════════════════════════════════════════════════════════════
 
-impl<FV: OrderedField, R: PositiveRadicand<FV>, F: RuntimeFieldOps<FV>> RuntimeQExt<FV, R, F> {
+impl<FV: OrderedField, R: PositiveRadicand<FV>, F: RuntimeOrderedFieldOps<FV>> RuntimeQExt<FV, R, F> {
     /// Non-negativity check: a + b√d ≥ 0.
     pub fn nonneg_exec(&self) -> (out: bool)
         requires self.wf_spec()
@@ -336,60 +336,24 @@ impl<FV: OrderedField, R: PositiveRadicand<FV>, F: RuntimeFieldOps<FV>> RuntimeQ
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  RuntimeFieldOps implementation for RuntimeQExt
+//  RuntimeRingOps / RuntimeFieldOps / RuntimeOrderedFieldOps
+//  implementation for RuntimeQExt
 // ═══════════════════════════════════════════════════════════════════
 
-impl<FV: OrderedField, R: PositiveRadicand<FV>, F: RuntimeFieldOps<FV>>
-    RuntimeFieldOps<SpecQuadExt<FV, R>> for RuntimeQExt<FV, R, F>
+impl<FV: OrderedField, R: PositiveRadicand<FV>, F: RuntimeOrderedFieldOps<FV>>
+    RuntimeRingOps<SpecQuadExt<FV, R>> for RuntimeQExt<FV, R, F>
 {
-    open spec fn rf_view(&self) -> SpecQuadExt<FV, R> {
-        self.model@
-    }
+    open spec fn rf_view(&self) -> SpecQuadExt<FV, R> { self.model@ }
 
     #[verifier::inline]
-    open spec fn wf_spec(&self) -> bool {
-        self.wf_spec()
-    }
+    open spec fn wf_spec(&self) -> bool { self.wf_spec() }
 
-    fn rf_add(&self, rhs: &Self) -> (out: Self) {
-        self.add_exec(rhs)
-    }
-
-    fn rf_sub(&self, rhs: &Self) -> (out: Self) {
-        self.sub_exec(rhs)
-    }
-
-    fn rf_neg(&self) -> (out: Self) {
-        self.neg_exec()
-    }
-
-    fn rf_mul(&self, rhs: &Self) -> (out: Self) {
-        self.mul_exec(rhs)
-    }
-
-    fn rf_eq(&self, rhs: &Self) -> (out: bool) {
-        self.eq_exec(rhs)
-    }
-
-    fn rf_le(&self, rhs: &Self) -> (out: bool) {
-        self.le_exec(rhs)
-    }
-
-    fn rf_lt(&self, rhs: &Self) -> (out: bool) {
-        self.lt_exec(rhs)
-    }
-
-    fn rf_recip(&self) -> (out: Self) {
-        self.recip_exec()
-    }
-
-    fn rf_div(&self, rhs: &Self) -> (out: Self) {
-        self.div_exec(rhs)
-    }
-
-    fn rf_copy(&self) -> (out: Self) {
-        self.copy_exec()
-    }
+    fn rf_add(&self, rhs: &Self) -> (out: Self) { self.add_exec(rhs) }
+    fn rf_sub(&self, rhs: &Self) -> (out: Self) { self.sub_exec(rhs) }
+    fn rf_neg(&self) -> (out: Self) { self.neg_exec() }
+    fn rf_mul(&self, rhs: &Self) -> (out: Self) { self.mul_exec(rhs) }
+    fn rf_eq(&self, rhs: &Self) -> (out: bool) { self.eq_exec(rhs) }
+    fn rf_copy(&self) -> (out: Self) { self.copy_exec() }
 
     fn rf_zero_like(&self) -> (out: Self) {
         let re = self.re.rf_zero_like();
@@ -418,6 +382,20 @@ impl<FV: OrderedField, R: PositiveRadicand<FV>, F: RuntimeFieldOps<FV>>
         let ghost model = qext::<FV, R>(F::spec_embed_rational(v@), FV::zero());
         RuntimeQExt { re, im, radicand_rt: radicand, model: Ghost(model) }
     }
+}
+
+impl<FV: OrderedField, R: PositiveRadicand<FV>, F: RuntimeOrderedFieldOps<FV>>
+    RuntimeFieldOps<SpecQuadExt<FV, R>> for RuntimeQExt<FV, R, F>
+{
+    fn rf_recip(&self) -> (out: Self) { self.recip_exec() }
+    fn rf_div(&self, rhs: &Self) -> (out: Self) { self.div_exec(rhs) }
+}
+
+impl<FV: OrderedField, R: PositiveRadicand<FV>, F: RuntimeOrderedFieldOps<FV>>
+    RuntimeOrderedFieldOps<SpecQuadExt<FV, R>> for RuntimeQExt<FV, R, F>
+{
+    fn rf_le(&self, rhs: &Self) -> (out: bool) { self.le_exec(rhs) }
+    fn rf_lt(&self, rhs: &Self) -> (out: bool) { self.lt_exec(rhs) }
 }
 
 // ═══════════════════════════════════════════════════════════════════
