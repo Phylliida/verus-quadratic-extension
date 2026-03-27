@@ -8629,9 +8629,11 @@ pub proof fn lemma_dts_le_antisymmetric_fuel(x: DynTowerSpec, fuel: nat)
                                 let norm_r = ra.mul_spec(ra).sub_spec(
                                     rd.mul_spec(rb.mul_spec(rb)));
                                 assert(norm == DynTowerSpec::Rat(norm_r));
+                                // nonneg_fuel(norm, f) → nonneg_fuel(Rat(norm_r), f) → 0 ≤ norm_r
+                                assert(dts_nonneg_fuel(norm, f));
+                                assert(dts_nonneg_fuel(DynTowerSpec::Rat(norm_r), f));
                                 let zero_r = Rational::from_int_spec(0);
                                 let neg_norm_r = norm_r.neg_spec();
-                                assert(zero_r.le_spec(norm_r)); // from nonneg_fuel(Rat(norm_r), f)
                                 assert(norm_r.le_spec(zero_r)) by (nonlinear_arith)
                                     requires zero_r.le_spec(neg_norm_r),
                                         zero_r.num == 0, zero_r.den == 0,
@@ -8818,9 +8820,11 @@ pub proof fn lemma_dts_le_antisymmetric_fuel(x: DynTowerSpec, fuel: nat)
                                 let norm_r = ra.mul_spec(ra).sub_spec(
                                     rd.mul_spec(rb.mul_spec(rb)));
                                 assert(norm == DynTowerSpec::Rat(norm_r));
+                                // nonneg_fuel(norm, f) → nonneg_fuel(Rat(norm_r), f) → 0 ≤ norm_r
+                                assert(dts_nonneg_fuel(norm, f));
+                                assert(dts_nonneg_fuel(DynTowerSpec::Rat(norm_r), f));
                                 let zero_r = Rational::from_int_spec(0);
                                 let neg_norm_r = norm_r.neg_spec();
-                                assert(zero_r.le_spec(norm_r)); // from nonneg_fuel(Rat(norm_r), f)
                                 assert(norm_r.le_spec(zero_r)) by (nonlinear_arith)
                                     requires zero_r.le_spec(neg_norm_r),
                                         zero_r.num == 0, zero_r.den == 0,
