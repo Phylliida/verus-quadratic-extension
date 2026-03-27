@@ -7343,6 +7343,7 @@ proof fn lemma_dts_nonneg_mul_cc(
         lemma_dts_same_radicand_transitive(dts_neg(b1), b2, dts_neg(b2));
         lemma_dts_nonneg_radicands_neg(b1); lemma_dts_nonneg_radicands_neg(b2);
         lemma_dts_depth_neg(b1); lemma_dts_depth_neg(b2);
+        lemma_norm_definite_neg(b1); lemma_norm_definite_neg(b2);
         lemma_dts_nonneg_mul_closed_fuel(dts_neg(b1), dts_neg(b2), f);
         // b1*b2 ≡ neg(b1)*neg(b2) → b1*b2 ≥ 0
         lemma_dts_neg_mul_neg(b1, b2);
@@ -7565,6 +7566,7 @@ proof fn lemma_dts_nonneg_mul_bb(
         lemma_dts_same_radicand_transitive(dts_neg(a1), a2, dts_neg(a2));
         lemma_dts_nonneg_radicands_neg(a1); lemma_dts_nonneg_radicands_neg(a2);
         lemma_dts_depth_neg(a1); lemma_dts_depth_neg(a2);
+        lemma_norm_definite_neg(a1); lemma_norm_definite_neg(a2);
         lemma_dts_nonneg_mul_closed_fuel(dts_neg(a1), dts_neg(a2), f);
         lemma_dts_neg_mul_neg(a1, a2);
         lemma_dts_mul_closed(dts_neg(a1), dts_neg(a2));
@@ -7951,6 +7953,14 @@ pub proof fn lemma_dts_nonneg_mul_closed_fuel(
                 lemma_dts_nonneg_radicands_mul(b1, b2);
                 lemma_dts_nonneg_radicands_mul(a1, b2);
                 lemma_dts_nonneg_radicands_mul(b1, a2);
+                // norm_definite propagation for products
+                lemma_norm_definite_mul(a1, a2);
+                lemma_norm_definite_mul(b1, b2);
+                lemma_dts_same_radicand_transitive(a1, b1, b2);
+                lemma_norm_definite_mul(a1, b2);
+                lemma_dts_same_radicand_symmetric(a1, b1);
+                lemma_dts_same_radicand_transitive(b1, a1, a2);
+                lemma_norm_definite_mul(b1, a2);
                 // nonneg of sub-products by IH
                 lemma_dts_nonneg_mul_closed_fuel(a1, a2, f);
                 lemma_dts_nonneg_mul_closed_fuel(b1, b2, f);
@@ -7961,6 +7971,7 @@ pub proof fn lemma_dts_nonneg_mul_closed_fuel(
                 lemma_dts_same_radicand_transitive(dd, b1, dts_mul(b1, b2));
                 lemma_dts_mul_closed(dd, dts_mul(b1, b2));
                 lemma_dts_nonneg_radicands_mul(dd, dts_mul(b1, b2));
+                lemma_norm_definite_mul(dd, dts_mul(b1, b2));
                 lemma_dts_nonneg_fuel_stabilize(dd, f);
                 lemma_dts_nonneg_mul_closed_fuel(dd, dts_mul(b1, b2), f);
                 // re = a1*a2 + d*b1*b2: sum of nonneg by IH
@@ -7972,6 +7983,8 @@ pub proof fn lemma_dts_nonneg_mul_closed_fuel(
                     dts_mul(a1, a2), dd, dts_mul(dd, dts_mul(b1, b2)));
                 lemma_dts_nonneg_radicands_add(
                     dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2)));
+                lemma_norm_definite_add(
+                    dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2)));
                 lemma_dts_nonneg_add_closed_fuel(
                     dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2)), f);
                 // im = a1*b2 + b1*a2: sum of nonneg by IH
@@ -7982,6 +7995,8 @@ pub proof fn lemma_dts_nonneg_mul_closed_fuel(
                 lemma_dts_same_radicand_transitive(
                     dts_mul(a1, b2), b1, dts_mul(b1, a2));
                 lemma_dts_nonneg_radicands_add(
+                    dts_mul(a1, b2), dts_mul(b1, a2));
+                lemma_norm_definite_add(
                     dts_mul(a1, b2), dts_mul(b1, a2));
                 lemma_dts_nonneg_add_closed_fuel(
                     dts_mul(a1, b2), dts_mul(b1, a2), f);
@@ -8025,6 +8040,7 @@ pub proof fn lemma_dts_square_nonneg(x: DynTowerSpec, fuel: nat)
         lemma_dts_same_radicand_symmetric(x, dts_neg(x));
         lemma_dts_nonneg_radicands_neg(x);
         lemma_dts_depth_neg(x);
+        lemma_norm_definite_neg(x);
         lemma_dts_same_radicand_reflexive(dts_neg(x));
         lemma_dts_nonneg_mul_closed_fuel(dts_neg(x), dts_neg(x), fuel);
         // mul(neg(x), neg(x)) ≡ mul(x, x) by neg_mul_neg
@@ -8364,6 +8380,8 @@ pub proof fn lemma_dts_le_antisymmetric_fuel(x: DynTowerSpec, fuel: nat)
                 lemma_dts_depth_mul_le(b, b);
                 lemma_dts_depth_mul_le(dd, dts_mul(b, b));
                 lemma_dts_square_nonneg(b, f);
+                lemma_norm_definite_mul(b, b);
+                lemma_norm_definite_mul(dd, dts_mul(b, b));
                 lemma_dts_nonneg_mul_closed_fuel(dd, dts_mul(b, b), f);
                 // nonneg(db2, f) ✓. Now get nonneg(neg(db2), f) from norm congruence.
                 // norm ≡ neg(db2). same_radicand chain for congruence transfer.
