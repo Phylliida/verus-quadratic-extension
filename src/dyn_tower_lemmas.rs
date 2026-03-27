@@ -8027,9 +8027,44 @@ pub proof fn lemma_dts_square_nonneg(x: DynTowerSpec, fuel: nat)
     }
 }
 
+/// norm_definite propagates through add: if both args are norm_definite
+/// with same radicand, the sum is norm_definite.
+proof fn lemma_norm_definite_add(x: DynTowerSpec, y: DynTowerSpec)
+    requires
+        dts_well_formed(x), dts_well_formed(y),
+        dts_same_radicand(x, y),
+        dts_norm_definite(x), dts_norm_definite(y),
+    ensures
+        dts_norm_definite(dts_add(x, y)),
+    decreases x, y,
+{
+    match (x, y) {
+        (DynTowerSpec::Rat(_), DynTowerSpec::Rat(_)) => {}
+        (DynTowerSpec::Ext(re1, im1, d), DynTowerSpec::Ext(re2, im2, _)) => {
+            lemma_norm_definite_add(*re1, *re2);
+            lemma_norm_definite_add(*im1, *im2);
+        }
+        _ => {} // cross-depth: same_radicand = false → vacuous
+    }
+}
+
+/// norm_definite propagates through neg.
+proof fn lemma_norm_definite_neg(x: DynTowerSpec)
+    requires dts_norm_definite(x),
+    ensures dts_norm_definite(dts_neg(x)),
+    decreases x,
+{
+    match x {
+        DynTowerSpec::Rat(_) => {}
+        DynTowerSpec::Ext(re, im, d) => {
+            lemma_norm_definite_neg(*re);
+            lemma_norm_definite_neg(*im);
+        }
+    }
+}
+
 /// norm_definite propagates through mul: if both args are norm_definite
 /// with same radicand, the product is norm_definite.
-/// Uses the universal quantifier version of norm_definite.
 proof fn lemma_norm_definite_mul(x: DynTowerSpec, y: DynTowerSpec)
     requires
         dts_well_formed(x), dts_well_formed(y),
@@ -8042,12 +8077,8 @@ proof fn lemma_norm_definite_mul(x: DynTowerSpec, y: DynTowerSpec)
     match (x, y) {
         (DynTowerSpec::Rat(_), DynTowerSpec::Rat(_)) => {}
         (DynTowerSpec::Ext(re1, im1, d), DynTowerSpec::Ext(re2, im2, _)) => {
-            // same_radicand chains for cross-component calls
-            // From same_radicand(x, y): same_radicand(re1, re2) and same_radicand(im1, im2)
-            // From well_formed(x): same_radicand(re1, im1) and same_radicand(re1, d)
-            // re1~im2: re1~im1 (wf x), im1~im2 (sr xy) → transitive
+            // Cross same_radicand chains
             lemma_dts_same_radicand_transitive(*re1, *im1, *im2);
-            // im1~re2: symmetric(re1, im1) → im1~re1, transitive(im1, re1, re2)
             lemma_dts_same_radicand_symmetric(*re1, *im1);
             lemma_dts_same_radicand_transitive(*im1, *re1, *re2);
             // IH on sub-component products
@@ -8055,17 +8086,34 @@ proof fn lemma_norm_definite_mul(x: DynTowerSpec, y: DynTowerSpec)
             lemma_norm_definite_mul(*im1, *im2);
             lemma_norm_definite_mul(*re1, *im2);
             lemma_norm_definite_mul(*im1, *re2);
-            // d * (im1*im2): chains for d~mul(im1,im2)
+            // d * (im1*im2)
             lemma_dts_mul_closed(*im1, *im2);
             lemma_dts_same_radicand_symmetric(*im1, dts_mul(*im1, *im2));
             lemma_dts_same_radicand_symmetric(*re1, *d);
             lemma_dts_same_radicand_transitive(*d, *re1, *im1);
             lemma_dts_same_radicand_transitive(*d, *im1, dts_mul(*im1, *im2));
             lemma_norm_definite_mul(*d, dts_mul(*im1, *im2));
-            // Z3 should now derive norm_definite(mul(x,y)) from the sub-products'
-            // norm_definite + the universal norm condition from norm_definite(x).
+            // Propagate through add for the result's re and im components
+            // re = add(re1*re2, d*(im1*im2))
+            lemma_dts_mul_closed(*re1, *re2);
+            lemma_dts_mul_closed(*d, dts_mul(*im1, *im2));
+            lemma_dts_same_radicand_symmetric(*re1, dts_mul(*re1, *re2));
+            lemma_dts_same_radicand_transitive(dts_mul(*re1, *re2), *re1, *d);
+            lemma_dts_same_radicand_symmetric(*d, dts_mul(*d, dts_mul(*im1, *im2)));
+            lemma_dts_same_radicand_transitive(dts_mul(*re1, *re2), *d,
+                dts_mul(*d, dts_mul(*im1, *im2)));
+            lemma_norm_definite_add(dts_mul(*re1, *re2), dts_mul(*d, dts_mul(*im1, *im2)));
+            // im = add(re1*im2, im1*re2)
+            lemma_dts_mul_closed(*re1, *im2);
+            lemma_dts_mul_closed(*im1, *re2);
+            lemma_dts_same_radicand_symmetric(*re1, dts_mul(*re1, *im2));
+            lemma_dts_same_radicand_transitive(dts_mul(*re1, *im2), *re1, *im1);
+            lemma_dts_same_radicand_symmetric(*im1, dts_mul(*im1, *re2));
+            lemma_dts_same_radicand_transitive(dts_mul(*re1, *im2), *im1,
+                dts_mul(*im1, *re2));
+            lemma_norm_definite_add(dts_mul(*re1, *im2), dts_mul(*im1, *re2));
         }
-        _ => {} // Rat*Ext and Ext*Rat: same_radicand = false → vacuously true
+        _ => {} // cross-depth: same_radicand = false → vacuous
     }
 }
 
