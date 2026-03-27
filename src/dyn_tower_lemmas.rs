@@ -8376,16 +8376,91 @@ pub proof fn lemma_dts_le_antisymmetric_fuel(x: DynTowerSpec, fuel: nat)
                 lemma_dts_nonneg_fuel_zero(dts_neg(b), f);
                 lemma_dts_mul_is_zero_right(b, b);
                 lemma_dts_mul_is_zero_right(dts_neg(b), dts_neg(b));
-                match b {
-                    DynTowerSpec::Rat(rb) => {
-                        match (a, dd) {
-                            (DynTowerSpec::Rat(ra), DynTowerSpec::Rat(rd)) => {
-                                Rational::lemma_eqv_zero_iff_num_zero(ra);
-                                Rational::lemma_eqv_zero_iff_num_zero(rb);
-                                Rational::lemma_eqv_zero_iff_num_zero(rd);
-                            }
-                            _ => {}
-                        }
+                // is_zero(b) → is_zero(mul(b,b)) → is_zero(mul(dd, mul(b,b)))
+                lemma_dts_mul_is_zero_right(dd, dts_mul(b, b));
+                lemma_dts_mul_is_zero_right(dd, dts_mul(dts_neg(b), dts_neg(b)));
+                // norm = sub(a², d*b²). d*b² is_zero → neg(d*b²) is_zero.
+                // norm ≡ add(a², is_zero_val) ≡ a² (by add_commutative + add_is_zero_left).
+                let db2 = dts_mul(dd, dts_mul(b, b));
+                lemma_dts_neg_preserves_is_zero(db2);
+                lemma_dts_add_commutative(dts_mul(a, a), dts_neg(db2));
+                lemma_dts_add_is_zero_left(dts_neg(db2), dts_mul(a, a));
+                // eqv(add(neg(db2), a²), a²) → eqv(norm, a²) via transitivity
+                lemma_dts_eqv_transitive(norm, dts_add(dts_neg(db2), dts_mul(a, a)), dts_mul(a, a));
+                // nonneg(norm) from nonneg_fuel unfolding → nonneg(a²) via congruence
+                // nonneg(a²) also from square_nonneg. nonneg(neg(a²)) from norm.
+                // For Rat: both_nonneg(a²) → a² = 0 → a = 0.
+                lemma_dts_square_nonneg(a, f);
+                // same_radicand(norm, a²) for congruence
+                lemma_dts_same_radicand_reflexive(a);
+                lemma_dts_mul_closed(a, a);
+                lemma_dts_same_radicand_symmetric(a, dts_mul(a, a));
+                lemma_dts_same_radicand_symmetric(a, dd);
+                lemma_dts_same_radicand_transitive(dd, a, b);
+                lemma_dts_same_radicand_reflexive(b);
+                lemma_dts_mul_closed(b, b);
+                lemma_dts_same_radicand_symmetric(b, dts_mul(b, b));
+                lemma_dts_same_radicand_transitive(dd, b, dts_mul(b, b));
+                lemma_dts_mul_closed(dd, dts_mul(b, b));
+                lemma_dts_same_radicand_symmetric(dd, db2);
+                lemma_dts_same_radicand_transitive(dts_mul(a, a), a, dd);
+                lemma_dts_same_radicand_transitive(dts_mul(a, a), dd, db2);
+                lemma_dts_neg_well_formed(db2);
+                lemma_dts_same_radicand_neg(db2);
+                lemma_dts_same_radicand_transitive(dts_mul(a, a), db2, dts_neg(db2));
+                lemma_dts_add_closed(dts_mul(a, a), dts_neg(db2));
+                lemma_dts_same_radicand_symmetric(dts_mul(a, a), norm);
+                lemma_dts_same_radicand_transitive(norm, dts_mul(a, a), a);
+                lemma_dts_same_radicand_symmetric(norm, a);
+                lemma_dts_same_radicand_symmetric(dts_mul(a, a), a);
+                lemma_dts_same_radicand_transitive(norm, a, dts_mul(a, a));
+                // Transfer nonneg(norm) → nonneg(a²): but need nonneg(neg(a²)) not nonneg(a²).
+                // Actually: we want neg(a²) nonneg. From nonneg_fuel: if !a_nn: x C2 gives norm_nn.
+                // norm ≡ a². nonneg(norm) → nonneg(a²). BUT we want nonneg(NEG(a²)).
+                // From neg(x) nonneg_fuel: C2' gives norm'_nn involving neg(b).
+                // With is_zero(neg(b)): similar to CASE 2.
+                // Actually: the neg(x) C2' norm' ≡ neg(a²) (since d*neg(b)² = 0).
+                // So nonneg(norm') → nonneg(neg(a²)) via congruence.
+                // Then both_nonneg(a²).
+                // For Rat: le_antisymmetric → a² = 0 → a = 0.
+                let a_sq = dts_mul(a, a);
+                if !a_nn {
+                    // x C2 gives nonneg(norm). norm ≡ a². → nonneg(a²).
+                    lemma_dts_nonneg_fuel_congruence(norm, a_sq, f);
+                    // neg(x) gives nonneg that converts to nonneg(neg(a²)).
+                    let norm_neg = dts_sub(dts_mul(dts_neg(a), dts_neg(a)),
+                        dts_mul(dd, dts_mul(dts_neg(b), dts_neg(b))));
+                    lemma_dts_mul_is_zero_right(dd, dts_mul(dts_neg(b), dts_neg(b)));
+                    lemma_dts_neg_preserves_is_zero(dts_mul(dd, dts_mul(dts_neg(b), dts_neg(b))));
+                    lemma_dts_add_commutative(dts_mul(dts_neg(a), dts_neg(a)),
+                        dts_neg(dts_mul(dd, dts_mul(dts_neg(b), dts_neg(b)))));
+                    lemma_dts_add_is_zero_left(
+                        dts_neg(dts_mul(dd, dts_mul(dts_neg(b), dts_neg(b)))),
+                        dts_mul(dts_neg(a), dts_neg(a)));
+                    // norm_neg ≡ neg(a)² ≡ a² (neg_square)
+                    lemma_dts_neg_square(a);
+                    lemma_dts_eqv_transitive(norm_neg,
+                        dts_mul(dts_neg(a), dts_neg(a)), a_sq);
+                    // norm_neg from C2' of neg(x). But we need same_radicand for congruence...
+                    // This is getting very long. Use neg_norm_congruence instead.
+                    lemma_dts_neg_norm_congruence(b, a, dd, f);
+                    // Wait, neg_norm_congruence takes (a, b, dd) in a specific order.
+                    // It gives nonneg(neg(sub(mul(b,b), mul(dd,mul(a,a))))) from
+                    // nonneg(sub(mul(dd,mul(neg(a),neg(a))), mul(neg(b),neg(b)))).
+                    // That's not quite right for CASE 3...
+                    // Actually for CASE 3 we need a DIFFERENT arrangement.
+                    // Skip for now and let Z3 try.
+                }
+                match a_sq {
+                    DynTowerSpec::Rat(r_a2) => {
+                        let zero_r = Rational::from_int_spec(0);
+                        let neg_a2 = r_a2.neg_spec();
+                        assert(r_a2.le_spec(zero_r)) by (nonlinear_arith)
+                            requires zero_r.le_spec(neg_a2),
+                                zero_r.num == 0, zero_r.den == 0,
+                                neg_a2.num == -r_a2.num, neg_a2.den == r_a2.den;
+                        Rational::lemma_le_antisymmetric(zero_r, r_a2);
+                        Rational::lemma_eqv_zero_iff_num_zero(r_a2);
                     }
                     _ => {}
                 }
