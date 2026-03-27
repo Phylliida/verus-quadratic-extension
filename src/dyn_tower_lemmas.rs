@@ -8628,6 +8628,7 @@ pub proof fn lemma_dts_le_antisymmetric_fuel(x: DynTowerSpec, fuel: nat)
                             (DynTowerSpec::Rat(rb), DynTowerSpec::Rat(rd)) => {
                                 let norm_r = ra.mul_spec(ra).sub_spec(
                                     rd.mul_spec(rb.mul_spec(rb)));
+                                assert(norm == DynTowerSpec::Rat(norm_r));
                                 let zero_r = Rational::from_int_spec(0);
                                 let neg_norm_r = norm_r.neg_spec();
                                 assert(zero_r.le_spec(norm_r)); // from nonneg_fuel(Rat(norm_r), f)
@@ -8816,6 +8817,7 @@ pub proof fn lemma_dts_le_antisymmetric_fuel(x: DynTowerSpec, fuel: nat)
                             (DynTowerSpec::Rat(rb), DynTowerSpec::Rat(rd)) => {
                                 let norm_r = ra.mul_spec(ra).sub_spec(
                                     rd.mul_spec(rb.mul_spec(rb)));
+                                assert(norm == DynTowerSpec::Rat(norm_r));
                                 let zero_r = Rational::from_int_spec(0);
                                 let neg_norm_r = norm_r.neg_spec();
                                 assert(zero_r.le_spec(norm_r)); // from nonneg_fuel(Rat(norm_r), f)
