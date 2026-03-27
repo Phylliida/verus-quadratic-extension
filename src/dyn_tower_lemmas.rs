@@ -8119,7 +8119,112 @@ pub proof fn lemma_dts_nonneg_mul_closed_fuel(
                 lemma_dts_nonneg_mul_cc(a1, b1, a2, b2, dd, f);
                 return;
             }
-            // TODO: remaining nonneg_mul cases (C1×C2, C2×C1, A×B, B×A)
+            // ═══ Remaining cases: use le_total on product components ═══
+            // Product = Ext(re_val, im_val, dd) where:
+            // re_val = add(mul(a1,a2), mul(dd,mul(b1,b2)))
+            // im_val = add(mul(a1,b2), mul(b1,a2))
+            // All depth/wf/radicand infrastructure already established above.
+            let re_val = dts_add(dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2)));
+            let im_val = dts_add(dts_mul(a1, b2), dts_mul(b1, a2));
+            // Infrastructure for re_val and im_val (needed for le_total)
+            lemma_dts_mul_closed(a1, a2);
+            lemma_dts_mul_closed(b1, b2);
+            lemma_dts_mul_closed(a1, b2);
+            lemma_dts_mul_closed(b1, a2);
+            lemma_dts_same_radicand_transitive(a1, b1, b2);
+            lemma_dts_same_radicand_symmetric(a1, b1);
+            lemma_dts_same_radicand_transitive(b1, a1, a2);
+            lemma_dts_same_radicand_symmetric(b1, dts_mul(b1, b2));
+            lemma_dts_same_radicand_symmetric(a1, dd);
+            lemma_dts_same_radicand_transitive(dd, a1, b1);
+            lemma_dts_same_radicand_transitive(dd, b1, dts_mul(b1, b2));
+            lemma_dts_mul_closed(dd, dts_mul(b1, b2));
+            lemma_dts_same_radicand_symmetric(a1, dts_mul(a1, a2));
+            lemma_dts_same_radicand_symmetric(dd, dts_mul(dd, dts_mul(b1, b2)));
+            lemma_dts_same_radicand_transitive(dts_mul(a1, a2), a1, dd);
+            lemma_dts_same_radicand_transitive(dts_mul(a1, a2), dd, dts_mul(dd, dts_mul(b1, b2)));
+            lemma_dts_add_closed(dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2)));
+            lemma_dts_same_radicand_symmetric(a1, dts_mul(a1, b2));
+            lemma_dts_same_radicand_symmetric(b1, dts_mul(b1, a2));
+            lemma_dts_same_radicand_transitive(dts_mul(a1, b2), a1, b1);
+            lemma_dts_same_radicand_transitive(dts_mul(a1, b2), b1, dts_mul(b1, a2));
+            lemma_dts_add_closed(dts_mul(a1, b2), dts_mul(b1, a2));
+            lemma_dts_depth_mul_le(a1, a2);
+            lemma_dts_depth_mul_le(b1, b2);
+            lemma_dts_depth_mul_le(dd, dts_mul(b1, b2));
+            lemma_dts_depth_add_le(dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2)));
+            lemma_dts_depth_mul_le(a1, b2);
+            lemma_dts_depth_mul_le(b1, a2);
+            lemma_dts_depth_add_le(dts_mul(a1, b2), dts_mul(b1, a2));
+            // le_total on product components
+            lemma_dts_nonneg_or_neg_nonneg_fuel(re_val, f);
+            lemma_dts_nonneg_or_neg_nonneg_fuel(im_val, f);
+            // Both nonneg: C1
+            if dts_nonneg_fuel(re_val, f) && dts_nonneg_fuel(im_val, f) {
+                return;
+            }
+            // Provide norm_mul identity and key norm facts for Z3
+            lemma_dts_norm_mul(a1, b1, a2, b2, dd);
+            // is_zero shortcuts
+            if dts_is_zero(im_val) {
+                lemma_dts_is_zero_implies_eqv_zero(im_val);
+                lemma_dts_nonneg_fuel_zero(im_val, f);
+                return;
+            }
+            if dts_is_zero(re_val) {
+                lemma_dts_is_zero_implies_eqv_zero(re_val);
+                lemma_dts_nonneg_fuel_zero(re_val, f);
+                return;
+            }
+            // Compute norm factors
+            let nx = dts_sub(dts_mul(a1, a1), dts_mul(dd, dts_mul(b1, b1)));
+            let ny = dts_sub(dts_mul(a2, a2), dts_mul(dd, dts_mul(b2, b2)));
+            // Norm infrastructure for conclude_re/conclude_im
+            lemma_dts_nonneg_radicands_mul(a1, a2);
+            lemma_dts_nonneg_radicands_mul(b1, b2);
+            lemma_dts_nonneg_radicands_mul(dd, dts_mul(b1, b2));
+            lemma_dts_nonneg_radicands_mul(a1, b2);
+            lemma_dts_nonneg_radicands_mul(b1, a2);
+            lemma_dts_nonneg_radicands_add(dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2)));
+            lemma_dts_nonneg_radicands_add(dts_mul(a1, b2), dts_mul(b1, a2));
+            // norm_definite for products
+            lemma_norm_definite_mul(a1, a2);
+            lemma_dts_same_radicand_symmetric(a1, b1);
+            lemma_dts_same_radicand_transitive(b1, a1, b2);
+            lemma_norm_definite_mul(b1, b2);
+            lemma_dts_mul_closed(b1, b2);
+            lemma_dts_same_radicand_symmetric(b1, dts_mul(b1, b2));
+            lemma_dts_same_radicand_transitive(dd, b1, dts_mul(b1, b2));
+            lemma_norm_definite_mul(dd, dts_mul(b1, b2));
+            lemma_dts_same_radicand_transitive(a1, b1, b2);
+            lemma_norm_definite_mul(a1, b2);
+            lemma_dts_same_radicand_symmetric(a1, b1);
+            lemma_dts_same_radicand_transitive(b1, a1, a2);
+            lemma_norm_definite_mul(b1, a2);
+            // well_formed for conclude_re/conclude_im
+            lemma_dts_mul_closed(a1, a2);
+            lemma_dts_mul_closed(dd, dts_mul(b1, b2));
+            lemma_dts_mul_closed(a1, b2);
+            lemma_dts_mul_closed(b1, a2);
+            // re≥0: use conclude_re
+            if dts_nonneg_fuel(re_val, f) {
+                lemma_dts_nonneg_conclude_re_fuel(re_val, im_val, dd, f);
+                return;
+            }
+            // im≥0: use conclude_im
+            if dts_nonneg_fuel(im_val, f) {
+                lemma_dts_nonneg_conclude_im_fuel(re_val, im_val, dd, f);
+                return;
+            }
+            // Both neg: both_nonneg of re and im from the two directions.
+            // le_antisymmetric should close: product is zero.
+            // Actually: if neg(re)≥0 and neg(im)≥0 and !is_zero(re) and !is_zero(im):
+            // neg(product) is C1 nonneg. But product has no valid C1/C2/C3 case.
+            // This means nonneg_fuel(product) = false... but we're PROVING it true.
+            // The resolution: this case CAN'T arise. Z3 should see from nonneg_fuel
+            // unfolding that is_zero(re) or is_zero(im) must hold.
+            // If either is zero: handled by the is_zero shortcuts above.
+            // Z3 should close this path as unreachable.
         }
         _ => {}
     }
