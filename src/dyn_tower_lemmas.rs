@@ -8085,6 +8085,10 @@ proof fn lemma_dts_neg_norm_congruence(
     lemma_dts_same_radicand_symmetric(b, dts_mul(b, b));
     lemma_dts_same_radicand_transitive(dd, b, dts_mul(b, b));
     lemma_dts_mul_closed(dd, dts_mul(b, b));
+    // dd~neg(b) for mul_closed(dd, mul(neg(b),neg(b)))
+    lemma_dts_same_radicand_transitive(dd, b, dts_neg(b));
+    lemma_dts_same_radicand_symmetric(dts_neg(b), dts_mul(dts_neg(b), dts_neg(b)));
+    lemma_dts_same_radicand_transitive(dd, dts_neg(b), dts_mul(dts_neg(b), dts_neg(b)));
     lemma_dts_mul_closed(dd, dts_mul(dts_neg(b), dts_neg(b)));
     lemma_dts_same_radicand_symmetric(dd, dts_mul(dd, dts_mul(dts_neg(b), dts_neg(b))));
     lemma_dts_same_radicand_symmetric(dd, dts_mul(dd, dts_mul(b, b)));
@@ -8092,6 +8096,10 @@ proof fn lemma_dts_neg_norm_congruence(
         dts_mul(dd, dts_mul(dts_neg(b), dts_neg(b))), dd, a);
     lemma_dts_same_radicand_transitive(
         dts_mul(dd, dts_mul(b, b)), dd, a);
+    // a~mul(dd,mul(b,b)) for the transitive chain
+    lemma_dts_same_radicand_symmetric(a, dd);
+    lemma_dts_same_radicand_transitive(a, dd, dts_mul(dd, dts_mul(b, b)));
+    lemma_dts_same_radicand_symmetric(a, dts_mul(dd, dts_mul(b, b)));
     lemma_dts_same_radicand_transitive(
         dts_mul(dd, dts_mul(dts_neg(b), dts_neg(b))), a, dts_mul(dd, dts_mul(b, b)));
     lemma_dts_sub_congruence_both(
@@ -8100,22 +8108,30 @@ proof fn lemma_dts_neg_norm_congruence(
         dts_mul(dd, dts_mul(b, b)),
         dts_mul(a, a));
     // neg_norm' ≡ neg_norm = sub(d*b², a²)
-    // Step 4: sub_antisymmetric: sub(d*b², a²) ≡ neg(sub(a², d*b²)) = neg(norm)
+    // Step 4: sub_antisymmetric(B, A): sub(B, A) ≡ neg(sub(A, B))
+    // Call with (mul(dd,mul(b,b)), mul(a,a)) to get: neg_norm ≡ neg(norm)
     lemma_dts_same_radicand_symmetric(a, dts_mul(a, a));
     lemma_dts_same_radicand_transitive(dts_mul(a, a), a, dd);
     lemma_dts_same_radicand_transitive(dts_mul(a, a), dd, dts_mul(dd, dts_mul(b, b)));
+    lemma_dts_same_radicand_symmetric(dts_mul(a, a), dts_mul(dd, dts_mul(b, b)));
     verus_algebra::lemmas::additive_group_lemmas::lemma_sub_antisymmetric::<DynTowerSpec>(
-        dts_mul(a, a), dts_mul(dd, dts_mul(b, b)));
-    // neg_norm ≡ neg(norm)
+        dts_mul(dd, dts_mul(b, b)), dts_mul(a, a));
+    // neg_norm = sub(d*b², a²) ≡ neg(sub(a², d*b²)) = neg(norm) ✓
     // Step 5: chain: neg_norm' ≡ neg_norm ≡ neg(norm)
     lemma_dts_eqv_transitive(neg_norm_p, neg_norm, dts_neg(norm));
     // Step 6: same_radicand chain for congruence transfer
-    lemma_dts_add_closed(dts_mul(dd, dts_mul(dts_neg(b), dts_neg(b))),
-        dts_neg(dts_mul(dts_neg(a), dts_neg(a))));
+    // First establish well_formed(neg_norm_p) via add_closed
     lemma_dts_neg_well_formed(dts_mul(dts_neg(a), dts_neg(a)));
     lemma_dts_same_radicand_neg(dts_mul(dts_neg(a), dts_neg(a)));
     lemma_dts_same_radicand_transitive(dts_mul(dd, dts_mul(dts_neg(b), dts_neg(b))),
+        a, dts_neg(a));
+    lemma_dts_same_radicand_transitive(dts_mul(dd, dts_mul(dts_neg(b), dts_neg(b))),
+        dts_neg(a), dts_mul(dts_neg(a), dts_neg(a)));
+    lemma_dts_same_radicand_transitive(dts_mul(dd, dts_mul(dts_neg(b), dts_neg(b))),
         dts_mul(dts_neg(a), dts_neg(a)), dts_neg(dts_mul(dts_neg(a), dts_neg(a))));
+    lemma_dts_add_closed(dts_mul(dd, dts_mul(dts_neg(b), dts_neg(b))),
+        dts_neg(dts_mul(dts_neg(a), dts_neg(a))));
+    // neg_norm_p ~ d*neg(b)² ~ dd ~ a
     lemma_dts_same_radicand_symmetric(dts_mul(dd, dts_mul(dts_neg(b), dts_neg(b))), neg_norm_p);
     lemma_dts_same_radicand_transitive(neg_norm_p,
         dts_mul(dd, dts_mul(dts_neg(b), dts_neg(b))), a);
@@ -8129,6 +8145,7 @@ proof fn lemma_dts_neg_norm_congruence(
     lemma_dts_same_radicand_neg(norm);
     lemma_dts_same_radicand_symmetric(dts_mul(a, a), norm);
     lemma_dts_same_radicand_transitive(norm, dts_mul(a, a), a);
+    lemma_dts_same_radicand_symmetric(norm, dts_neg(norm));
     lemma_dts_same_radicand_transitive(dts_neg(norm), norm, a);
     lemma_dts_same_radicand_symmetric(neg_norm_p, a);
     lemma_dts_same_radicand_symmetric(dts_neg(norm), a);
