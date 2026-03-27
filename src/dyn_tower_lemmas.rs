@@ -8042,51 +8042,30 @@ proof fn lemma_norm_definite_mul(x: DynTowerSpec, y: DynTowerSpec)
     match (x, y) {
         (DynTowerSpec::Rat(_), DynTowerSpec::Rat(_)) => {}
         (DynTowerSpec::Ext(re1, im1, d), DynTowerSpec::Ext(re2, im2, _)) => {
-            // mul(Ext, Ext) = Ext(re, im, d) where re, im are computed from components.
-            // norm_definite needs: norm_definite(re_prod), norm_definite(im_prod),
-            // norm_definite(d), and the universal norm condition for d.
-            // norm_definite(d): from norm_definite(x). ✓
-            // universal norm condition for d: from norm_definite(x). ✓
-            // norm_definite(re_prod) and norm_definite(im_prod):
-            //   re_prod = add(re1*re2, d*(im1*im2))
-            //   im_prod = add(re1*im2, im1*re2)
-            //   These need norm_definite to propagate through add and mul at inner level.
-            //   By induction (decreases x, y → sub-components are smaller).
+            // same_radicand chains for cross-component calls
+            // From same_radicand(x, y): same_radicand(re1, re2) and same_radicand(im1, im2)
+            // From well_formed(x): same_radicand(re1, im1) and same_radicand(re1, d)
+            // re1~im2: re1~im1 (wf x), im1~im2 (sr xy) → transitive
+            lemma_dts_same_radicand_transitive(*re1, *im1, *im2);
+            // im1~re2: symmetric(re1, im1) → im1~re1, transitive(im1, re1, re2)
+            lemma_dts_same_radicand_symmetric(*re1, *im1);
+            lemma_dts_same_radicand_transitive(*im1, *re1, *re2);
+            // IH on sub-component products
             lemma_norm_definite_mul(*re1, *re2);
             lemma_norm_definite_mul(*im1, *im2);
             lemma_norm_definite_mul(*re1, *im2);
             lemma_norm_definite_mul(*im1, *re2);
-            // d * (im1*im2): need norm_definite(mul(d, mul(im1,im2)))
+            // d * (im1*im2): chains for d~mul(im1,im2)
             lemma_dts_mul_closed(*im1, *im2);
-            lemma_dts_same_radicand_symmetric(*re1, *im1);
-            lemma_dts_same_radicand_transitive(*im1, *re1, *re2);
             lemma_dts_same_radicand_symmetric(*im1, dts_mul(*im1, *im2));
             lemma_dts_same_radicand_symmetric(*re1, *d);
             lemma_dts_same_radicand_transitive(*d, *re1, *im1);
             lemma_dts_same_radicand_transitive(*d, *im1, dts_mul(*im1, *im2));
             lemma_norm_definite_mul(*d, dts_mul(*im1, *im2));
-            // add propagation: add(X, Y) where X, Y are norm_definite
-            // For Ext add: add(Ext(a1,b1,e), Ext(a2,b2,e)) = Ext(add(a1,a2), add(b1,b2), e).
-            // norm_definite of add: sub-components are add of sub-components.
-            // norm_definite(add(a1,a2)): from norm_definite(a1) and norm_definite(a2)?
-            // For Rat: trivial. For Ext: need recursive propagation through add.
-            // Actually, norm_definite for the ADD result depends only on:
-            //   norm_definite of its sub-components + same radicand + universal condition.
-            //   The universal condition comes from the inputs (same radicand d at the outer level).
-            //   Sub-components of add(Ext(a1,b1,e), Ext(a2,b2,e)) = Ext(add(a1,a2), add(b1,b2), e).
-            //   norm_definite of add(a1,a2): for Rat → trivial. For Ext → need add propagation.
-            // This is getting recursive. For now: Z3 should handle the Rat sub-case.
-            // For deeper: need lemma_norm_definite_add.
+            // Z3 should now derive norm_definite(mul(x,y)) from the sub-products'
+            // norm_definite + the universal norm condition from norm_definite(x).
         }
-        (DynTowerSpec::Rat(r), DynTowerSpec::Ext(re, im, d)) => {
-            // mul(Rat, Ext) = Ext(Rat*re, Rat*im, d). norm_definite of Rat*re:
-            lemma_norm_definite_mul(DynTowerSpec::Rat(r), *re);
-            lemma_norm_definite_mul(DynTowerSpec::Rat(r), *im);
-        }
-        (DynTowerSpec::Ext(re, im, d), DynTowerSpec::Rat(r)) => {
-            lemma_norm_definite_mul(*re, DynTowerSpec::Rat(r));
-            lemma_norm_definite_mul(*im, DynTowerSpec::Rat(r));
-        }
+        _ => {} // Rat*Ext and Ext*Rat: same_radicand = false → vacuously true
     }
 }
 
@@ -8419,13 +8398,11 @@ pub proof fn lemma_dts_le_antisymmetric_fuel(x: DynTowerSpec, fuel: nat)
                         Rational::lemma_eqv_zero_iff_num_zero(r_db2);
                     }
                     _ => {
-                        // Ext db2: norm_definite propagates since db2 shares
-                        // the same inner radicand as a, b (from well_formed(x)).
-                        // The universal quantifier in norm_definite covers db2's components.
+                        // Ext db2: use norm_definite_mul propagation
                         lemma_dts_depth_neg(db2);
                         lemma_dts_nonneg_radicands_neg(db2);
-                        // Help Z3 see norm_definite(db2) from norm_definite(x)'s sub-components
-                        assert(dts_norm_definite(db2));
+                        lemma_norm_definite_mul(b, b);
+                        lemma_norm_definite_mul(dd, dts_mul(b, b));
                         lemma_dts_le_antisymmetric_fuel(db2, f);
                     }
                 }
