@@ -8341,6 +8341,7 @@ pub proof fn lemma_dts_le_antisymmetric_fuel(x: DynTowerSpec, fuel: nat)
                 lemma_dts_same_radicand_reflexive(dts_neg(b));
                 lemma_dts_mul_closed(dts_neg(b), dts_neg(b));
                 lemma_dts_same_radicand_symmetric(dts_neg(b), dts_mul(dts_neg(b), dts_neg(b)));
+                lemma_dts_same_radicand_symmetric(b, dts_neg(b));
                 lemma_dts_same_radicand_transitive(dts_mul(dts_neg(b), dts_neg(b)), dts_neg(b), b);
                 lemma_dts_same_radicand_transitive(dts_mul(dts_neg(b), dts_neg(b)), b, dts_mul(b, b));
                 lemma_dts_same_radicand_transitive(dd, b, dts_neg(b));
@@ -8350,6 +8351,7 @@ pub proof fn lemma_dts_le_antisymmetric_fuel(x: DynTowerSpec, fuel: nat)
                 lemma_dts_mul_congruence_right(
                     dts_mul(dts_neg(b), dts_neg(b)), dts_mul(b, b), dd);
                 lemma_dts_same_radicand_symmetric(dts_neg(a), dts_mul(dts_neg(a), dts_neg(a)));
+                lemma_dts_same_radicand_symmetric(a, dts_neg(a));
                 lemma_dts_same_radicand_transitive(dts_mul(dts_neg(a), dts_neg(a)), dts_neg(a), a);
                 lemma_dts_same_radicand_transitive(dts_mul(dts_neg(a), dts_neg(a)), a, dts_mul(a, a));
                 lemma_dts_same_radicand_symmetric(a, dts_mul(a, a));
@@ -8358,6 +8360,9 @@ pub proof fn lemma_dts_le_antisymmetric_fuel(x: DynTowerSpec, fuel: nat)
                 lemma_dts_same_radicand_symmetric(dd, dts_mul(dd, dts_mul(dts_neg(b), dts_neg(b))));
                 lemma_dts_same_radicand_transitive(
                     dts_mul(dd, dts_mul(dts_neg(b), dts_neg(b))), dd, a);
+                lemma_dts_same_radicand_symmetric(dd, dts_mul(dd, dts_mul(b, b)));
+                lemma_dts_same_radicand_symmetric(a, dd);
+                lemma_dts_same_radicand_transitive(a, dd, dts_mul(dd, dts_mul(b, b)));
                 lemma_dts_same_radicand_symmetric(a, dts_mul(dd, dts_mul(b, b)));
                 lemma_dts_same_radicand_transitive(
                     dts_mul(dd, dts_mul(dts_neg(b), dts_neg(b))), a, dts_mul(dd, dts_mul(b, b)));
@@ -8366,9 +8371,30 @@ pub proof fn lemma_dts_le_antisymmetric_fuel(x: DynTowerSpec, fuel: nat)
                     dts_mul(a, a), dts_mul(dd, dts_mul(b, b)));
                 let norm_p = dts_sub(dts_mul(dts_neg(a), dts_neg(a)),
                     dts_mul(dd, dts_mul(dts_neg(b), dts_neg(b))));
+                // well_formed(norm_p) via add_closed
+                lemma_dts_neg_well_formed(dts_mul(dd, dts_mul(dts_neg(b), dts_neg(b))));
+                lemma_dts_same_radicand_neg(dts_mul(dd, dts_mul(dts_neg(b), dts_neg(b))));
+                lemma_dts_same_radicand_transitive(dts_mul(dts_neg(a), dts_neg(a)),
+                    dts_neg(a), a);
+                lemma_dts_same_radicand_transitive(dts_mul(dts_neg(a), dts_neg(a)),
+                    a, dd);
+                lemma_dts_same_radicand_symmetric(dd, dts_mul(dd, dts_mul(dts_neg(b), dts_neg(b))));
+                lemma_dts_same_radicand_transitive(dts_mul(dts_neg(a), dts_neg(a)),
+                    dd, dts_mul(dd, dts_mul(dts_neg(b), dts_neg(b))));
+                lemma_dts_same_radicand_transitive(dts_mul(dts_neg(a), dts_neg(a)),
+                    dts_mul(dd, dts_mul(dts_neg(b), dts_neg(b))),
+                    dts_neg(dts_mul(dd, dts_mul(dts_neg(b), dts_neg(b)))));
+                lemma_dts_add_closed(dts_mul(dts_neg(a), dts_neg(a)),
+                    dts_neg(dts_mul(dd, dts_mul(dts_neg(b), dts_neg(b)))));
                 // norm_p ≡ norm, transfer nonneg
                 lemma_dts_same_radicand_symmetric(dts_mul(dts_neg(a), dts_neg(a)), norm_p);
                 lemma_dts_same_radicand_transitive(norm_p, dts_mul(dts_neg(a), dts_neg(a)), a);
+                // norm = sub(a², d*b²) = add(a², neg(d*b²)). add_closed gives a²~norm.
+                lemma_dts_neg_well_formed(dts_mul(dd, dts_mul(b, b)));
+                lemma_dts_same_radicand_neg(dts_mul(dd, dts_mul(b, b)));
+                lemma_dts_same_radicand_transitive(dts_mul(a, a), dts_mul(dd, dts_mul(b, b)),
+                    dts_neg(dts_mul(dd, dts_mul(b, b))));
+                lemma_dts_add_closed(dts_mul(a, a), dts_neg(dts_mul(dd, dts_mul(b, b))));
                 lemma_dts_same_radicand_symmetric(dts_mul(a, a), norm);
                 lemma_dts_same_radicand_transitive(norm, dts_mul(a, a), a);
                 lemma_dts_same_radicand_symmetric(norm_p, a);
