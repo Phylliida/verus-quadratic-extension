@@ -5921,6 +5921,7 @@ pub proof fn lemma_dts_square_le_square_fuel(
         fuel >= dts_depth(a) + 1, fuel >= dts_depth(b) + 1,
         dts_well_formed(a), dts_well_formed(b), dts_same_radicand(a, b),
         dts_nonneg_radicands(a), dts_nonneg_radicands(b),
+        dts_norm_definite(a), dts_norm_definite(b),
         dts_nonneg_fuel(a, fuel),
         dts_nonneg_fuel(dts_sub(b, a), fuel),
     ensures
@@ -6016,6 +6017,7 @@ pub proof fn lemma_dts_le_mul_nonneg_monotone_fuel(
         dts_well_formed(a), dts_well_formed(b), dts_well_formed(c),
         dts_same_radicand(a, b), dts_same_radicand(b, c),
         dts_nonneg_radicands(a), dts_nonneg_radicands(b), dts_nonneg_radicands(c),
+        dts_norm_definite(a), dts_norm_definite(b), dts_norm_definite(c),
         dts_nonneg_fuel(dts_sub(b, a), fuel),
         dts_nonneg_fuel(c, fuel),
     ensures
@@ -6192,6 +6194,8 @@ pub proof fn lemma_dts_c1c2_norm_bound(
         dts_nonneg_radicands(a1), dts_nonneg_radicands(b1),
         dts_nonneg_radicands(a2), dts_nonneg_radicands(b2),
         dts_nonneg_radicands(dd), dts_nonneg(dd),
+        dts_norm_definite(a1), dts_norm_definite(b1),
+        dts_norm_definite(a2), dts_norm_definite(b2), dts_norm_definite(dd),
         dts_nonneg_fuel(a1, f), dts_nonneg_fuel(a2, f),
         // One of b1,b2 nonneg, other not. Both a's nonneg.
         (dts_nonneg_fuel(b1, f) && !dts_nonneg_fuel(b2, f))
@@ -6669,6 +6673,7 @@ pub proof fn lemma_dts_nonneg_add_closed_fuel(
         dts_well_formed(x), dts_well_formed(y),
         dts_same_radicand(x, y),
         dts_nonneg_radicands(x), dts_nonneg_radicands(y),
+        dts_norm_definite(x), dts_norm_definite(y),
         dts_nonneg_fuel(x, fuel), dts_nonneg_fuel(y, fuel),
     ensures
         dts_nonneg_fuel(dts_add(x, y), fuel),
@@ -7294,6 +7299,8 @@ proof fn lemma_dts_nonneg_mul_cc(
         dts_nonneg_radicands(a1), dts_nonneg_radicands(b1),
         dts_nonneg_radicands(a2), dts_nonneg_radicands(b2),
         dts_nonneg_radicands(dd), dts_nonneg(dd),
+        dts_norm_definite(a1), dts_norm_definite(b1),
+        dts_norm_definite(a2), dts_norm_definite(b2), dts_norm_definite(dd),
         // Both C2: a nonneg, b not nonneg (so neg(b) nonneg from C2)
         dts_nonneg_fuel(a1, f), dts_nonneg_fuel(a2, f),
         !dts_nonneg_fuel(b1, f), !dts_nonneg_fuel(b2, f),
@@ -7521,6 +7528,8 @@ proof fn lemma_dts_nonneg_mul_bb(
         dts_nonneg_radicands(a1), dts_nonneg_radicands(b1),
         dts_nonneg_radicands(a2), dts_nonneg_radicands(b2),
         dts_nonneg_radicands(dd), dts_nonneg(dd),
+        dts_norm_definite(a1), dts_norm_definite(b1),
+        dts_norm_definite(a2), dts_norm_definite(b2), dts_norm_definite(dd),
         // Both C3: neg(a) nonneg, b nonneg
         !dts_nonneg_fuel(a1, f), !dts_nonneg_fuel(a2, f),
         dts_nonneg_fuel(b1, f), dts_nonneg_fuel(b2, f),
@@ -7657,6 +7666,8 @@ proof fn lemma_dts_nonneg_mul_bb_norm(
         dts_nonneg_radicands(a1), dts_nonneg_radicands(b1),
         dts_nonneg_radicands(a2), dts_nonneg_radicands(b2),
         dts_nonneg_radicands(dd),
+        dts_norm_definite(a1), dts_norm_definite(b1),
+        dts_norm_definite(a2), dts_norm_definite(b2), dts_norm_definite(dd),
         dts_nonneg_fuel(dts_sub(dts_mul(dd, dts_mul(b1, b1)), dts_mul(a1, a1)), f),
         dts_nonneg_fuel(dts_sub(dts_mul(dd, dts_mul(b2, b2)), dts_mul(a2, a2)), f),
     ensures {
@@ -7894,6 +7905,7 @@ pub proof fn lemma_dts_nonneg_mul_closed_fuel(
         dts_well_formed(x), dts_well_formed(y),
         dts_same_radicand(x, y),
         dts_nonneg_radicands(x), dts_nonneg_radicands(y),
+        dts_norm_definite(x), dts_norm_definite(y),
         dts_nonneg_fuel(x, fuel), dts_nonneg_fuel(y, fuel),
     ensures
         dts_nonneg_fuel(dts_mul(x, y), fuel),
@@ -7998,6 +8010,7 @@ pub proof fn lemma_dts_square_nonneg(x: DynTowerSpec, fuel: nat)
         fuel >= dts_depth(x) + 1,
         dts_well_formed(x),
         dts_nonneg_radicands(x),
+        dts_norm_definite(x),
     ensures
         dts_nonneg_fuel(dts_mul(x, x), fuel),
 {
