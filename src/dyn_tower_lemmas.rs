@@ -8233,10 +8233,6 @@ pub proof fn lemma_dts_le_antisymmetric_fuel(x: DynTowerSpec, fuel: nat)
             // For CASE 2 (a_nn && na_nn): IH gives is_zero(a). Use norm_definite.
             if a_nn && na_nn {
                 lemma_dts_le_antisymmetric_fuel(a, f);
-                // is_zero(a) and norm_definite: if is_zero(norm) then is_zero(b).
-                // But: norm = sub(0, d*b²). is_zero(norm) iff is_zero(d*b²).
-                // Need to show is_zero(norm). From nonneg definitions:
-                // is_zero(a) + nonneg_fuel unfolding → Z3 should derive.
                 lemma_dts_neg_preserves_is_zero(a);
                 lemma_dts_is_zero_implies_eqv_zero(a);
                 lemma_dts_is_zero_implies_eqv_zero(dts_neg(a));
@@ -8244,9 +8240,63 @@ pub proof fn lemma_dts_le_antisymmetric_fuel(x: DynTowerSpec, fuel: nat)
                 lemma_dts_nonneg_fuel_zero(dts_neg(a), f);
                 lemma_dts_mul_is_zero_right(a, a);
                 lemma_dts_mul_is_zero_right(dts_neg(a), dts_neg(a));
+                // is_zero(a) → is_zero(mul(a,a)).
+                // norm = sub(mul(a,a), mul(dd, mul(b,b))) = add(mul(a,a), neg(mul(dd, mul(b,b)))).
+                // add_is_zero_left: is_zero(mul(a,a)) → eqv(norm, neg(mul(dd, mul(b,b)))).
+                let db2 = dts_mul(dd, dts_mul(b, b));
+                lemma_dts_add_is_zero_left(dts_mul(a, a), dts_neg(db2));
+                // eqv(norm, neg(db2)). nonneg(norm, f) [from nonneg_fuel of x/neg(x) unfolding]
+                // → nonneg(neg(db2), f) via congruence.
+                // Also: nonneg(db2, f) from square_nonneg + nonneg_mul.
+                lemma_dts_same_radicand_reflexive(b);
+                lemma_dts_mul_closed(b, b);
+                lemma_dts_same_radicand_symmetric(b, dts_mul(b, b));
+                lemma_dts_same_radicand_symmetric(a, dd);
+                lemma_dts_same_radicand_transitive(dd, a, b);
+                lemma_dts_same_radicand_transitive(dd, b, dts_mul(b, b));
+                lemma_dts_mul_closed(dd, dts_mul(b, b));
+                lemma_dts_nonneg_radicands_mul(b, b);
+                lemma_dts_nonneg_radicands_mul(dd, dts_mul(b, b));
+                lemma_dts_nonneg_fuel_stabilize(dd, f);
+                lemma_dts_depth_mul_le(b, b);
+                lemma_dts_depth_mul_le(dd, dts_mul(b, b));
+                lemma_dts_square_nonneg(b, f);
+                lemma_dts_nonneg_mul_closed_fuel(dd, dts_mul(b, b), f);
+                // nonneg(db2, f) ✓. Now get nonneg(neg(db2), f) from norm congruence.
+                // norm ≡ neg(db2). same_radicand chain for congruence transfer.
+                lemma_dts_same_radicand_reflexive(a);
+                lemma_dts_mul_closed(a, a);
+                lemma_dts_same_radicand_symmetric(a, dts_mul(a, a));
+                lemma_dts_same_radicand_transitive(dts_mul(a, a), a, dd);
+                lemma_dts_same_radicand_symmetric(dd, dts_mul(dd, dts_mul(b, b)));
+                lemma_dts_same_radicand_transitive(dts_mul(a, a), dd, db2);
+                lemma_dts_neg_well_formed(db2);
+                lemma_dts_same_radicand_neg(db2);
+                lemma_dts_same_radicand_transitive(dts_mul(a, a), db2, dts_neg(db2));
+                lemma_dts_add_closed(dts_mul(a, a), dts_neg(db2));
+                // norm ~ neg(db2) via a
+                lemma_dts_same_radicand_symmetric(dts_mul(a, a), norm);
+                lemma_dts_same_radicand_transitive(norm, dts_mul(a, a), a);
+                lemma_dts_same_radicand_symmetric(dd, db2);
+                lemma_dts_same_radicand_transitive(db2, dd, a);
+                lemma_dts_same_radicand_symmetric(db2, dts_neg(db2));
+                lemma_dts_same_radicand_transitive(dts_neg(db2), db2, a);
+                lemma_dts_same_radicand_symmetric(norm, a);
+                lemma_dts_same_radicand_symmetric(dts_neg(db2), a);
+                lemma_dts_same_radicand_transitive(norm, a, dts_neg(db2));
+                // Transfer nonneg: nonneg(norm) → nonneg(neg(db2))
+                // Z3 knows nonneg(norm, f) from nonneg_fuel unfolding.
+                lemma_dts_nonneg_fuel_congruence(norm, dts_neg(db2), f);
+                // neg(db2) ≡ neg(db2) → nonneg(neg(db2)) → combined with nonneg(db2): both_nonneg(db2)
+                // le_antisymmetric on db2: is_zero(db2)
+                lemma_dts_depth_neg(db2);
+                lemma_dts_nonneg_radicands_neg(db2);
+                lemma_dts_le_antisymmetric_fuel(db2, f);
+                // is_zero(db2) → is_zero(neg(db2)) → is_zero(norm) via eqv
+                lemma_dts_neg_preserves_is_zero(db2);
+                // is_zero(norm) established. norm_definite(x): is_zero(a) ∧ is_zero(b).
                 return;
             }
-            // For CASE 3 (b_nn && nb_nn): IH gives is_zero(b). Symmetric.
             if b_nn && nb_nn {
                 lemma_dts_le_antisymmetric_fuel(b, f);
                 lemma_dts_neg_preserves_is_zero(b);
@@ -8256,6 +8306,19 @@ pub proof fn lemma_dts_le_antisymmetric_fuel(x: DynTowerSpec, fuel: nat)
                 lemma_dts_nonneg_fuel_zero(dts_neg(b), f);
                 lemma_dts_mul_is_zero_right(b, b);
                 lemma_dts_mul_is_zero_right(dts_neg(b), dts_neg(b));
+                match b {
+                    DynTowerSpec::Rat(rb) => {
+                        match (a, dd) {
+                            (DynTowerSpec::Rat(ra), DynTowerSpec::Rat(rd)) => {
+                                Rational::lemma_eqv_zero_iff_num_zero(ra);
+                                Rational::lemma_eqv_zero_iff_num_zero(rb);
+                                Rational::lemma_eqv_zero_iff_num_zero(rd);
+                            }
+                            _ => {}
+                        }
+                    }
+                    _ => {}
+                }
                 return;
             }
             // CASE 4: !(a_nn && na_nn) && !(b_nn && nb_nn).
