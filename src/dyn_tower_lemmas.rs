@@ -8342,13 +8342,29 @@ pub proof fn lemma_dts_le_antisymmetric_fuel(x: DynTowerSpec, fuel: nat)
                     lemma_dts_nonneg_fuel_congruence(norm_p, dts_neg(db2), f);
                 }
                 // neg(db2) ≡ neg(db2) → nonneg(neg(db2)) → combined with nonneg(db2): both_nonneg(db2)
-                // le_antisymmetric on db2: is_zero(db2)
-                lemma_dts_depth_neg(db2);
-                lemma_dts_nonneg_radicands_neg(db2);
-                lemma_dts_le_antisymmetric_fuel(db2, f);
-                // is_zero(db2) → is_zero(neg(db2)) → is_zero(norm) via eqv
+                // both_nonneg(db2). For Rat: le_antisymmetric directly. For Ext: IH.
+                match db2 {
+                    DynTowerSpec::Rat(r_db2) => {
+                        // nonneg(Rat(v)) ∧ nonneg(neg(Rat(v))) → v=0
+                        let zero_r = Rational::from_int_spec(0);
+                        let neg_db2_r = r_db2.neg_spec();
+                        assert(r_db2.le_spec(zero_r)) by (nonlinear_arith)
+                            requires zero_r.le_spec(neg_db2_r),
+                                zero_r.num == 0, zero_r.den == 0,
+                                neg_db2_r.num == -r_db2.num, neg_db2_r.den == r_db2.den;
+                        Rational::lemma_le_antisymmetric(zero_r, r_db2);
+                        Rational::lemma_eqv_zero_iff_num_zero(r_db2);
+                    }
+                    _ => {
+                        // Ext db2: need norm_definite propagation (deferred)
+                        lemma_dts_depth_neg(db2);
+                        lemma_dts_nonneg_radicands_neg(db2);
+                        lemma_dts_le_antisymmetric_fuel(db2, f);
+                    }
+                }
+                // is_zero(db2) → is_zero(neg(db2))
                 lemma_dts_neg_preserves_is_zero(db2);
-                // is_zero(norm) established. norm_definite(x): is_zero(a) ∧ is_zero(b).
+                // is_zero(norm): norm ≡ neg(db2) and is_zero(neg(db2)). norm_definite → is_zero(b).
                 return;
             }
             if b_nn && nb_nn {
