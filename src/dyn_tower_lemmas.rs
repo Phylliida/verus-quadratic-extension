@@ -6671,6 +6671,12 @@ pub proof fn lemma_dts_c1c2_norm_bound(
     // depth bounds for d_sum_im_sq and sub(sum_re_sq, d_s_sq)
     lemma_dts_depth_mul_le(dd, sum_im_sq);
     lemma_dts_depth_add_le(sum_re_sq, dts_neg(d_s_sq));
+    // norm_definite for the two sub values
+    lemma_norm_definite_neg(d_s_sq);
+    lemma_norm_definite_add(sum_re_sq, dts_neg(d_s_sq));
+    lemma_norm_definite_mul(dd, sum_im_sq);
+    lemma_norm_definite_neg(d_sum_im_sq);
+    lemma_norm_definite_add(d_s_sq, dts_neg(d_sum_im_sq));
     lemma_dts_nonneg_add_closed_fuel(
         dts_sub(sum_re_sq, d_s_sq), dts_sub(d_s_sq, d_sum_im_sq), f);
     // Transfer via sub_add_sub congruence
