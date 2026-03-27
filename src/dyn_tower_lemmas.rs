@@ -8628,8 +8628,14 @@ pub proof fn lemma_dts_le_antisymmetric_fuel(x: DynTowerSpec, fuel: nat)
                             (DynTowerSpec::Rat(rb), DynTowerSpec::Rat(rd)) => {
                                 let norm_r = ra.mul_spec(ra).sub_spec(
                                     rd.mul_spec(rb.mul_spec(rb)));
-                                Rational::lemma_le_antisymmetric(
-                                    Rational::from_int_spec(0), norm_r);
+                                let zero_r = Rational::from_int_spec(0);
+                                let neg_norm_r = norm_r.neg_spec();
+                                assert(zero_r.le_spec(norm_r)); // from nonneg_fuel(Rat(norm_r), f)
+                                assert(norm_r.le_spec(zero_r)) by (nonlinear_arith)
+                                    requires zero_r.le_spec(neg_norm_r),
+                                        zero_r.num == 0, zero_r.den == 0,
+                                        neg_norm_r.num == -norm_r.num, neg_norm_r.den == norm_r.den;
+                                Rational::lemma_le_antisymmetric(zero_r, norm_r);
                                 Rational::lemma_eqv_zero_iff_num_zero(norm_r);
                             }
                             _ => {} // unreachable: same_radicand(Rat, Ext) = false
@@ -8810,8 +8816,14 @@ pub proof fn lemma_dts_le_antisymmetric_fuel(x: DynTowerSpec, fuel: nat)
                             (DynTowerSpec::Rat(rb), DynTowerSpec::Rat(rd)) => {
                                 let norm_r = ra.mul_spec(ra).sub_spec(
                                     rd.mul_spec(rb.mul_spec(rb)));
-                                Rational::lemma_le_antisymmetric(
-                                    Rational::from_int_spec(0), norm_r);
+                                let zero_r = Rational::from_int_spec(0);
+                                let neg_norm_r = norm_r.neg_spec();
+                                assert(zero_r.le_spec(norm_r)); // from nonneg_fuel(Rat(norm_r), f)
+                                assert(norm_r.le_spec(zero_r)) by (nonlinear_arith)
+                                    requires zero_r.le_spec(neg_norm_r),
+                                        zero_r.num == 0, zero_r.den == 0,
+                                        neg_norm_r.num == -norm_r.num, neg_norm_r.den == norm_r.den;
+                                Rational::lemma_le_antisymmetric(zero_r, norm_r);
                                 Rational::lemma_eqv_zero_iff_num_zero(norm_r);
                             }
                             _ => {} // unreachable: same_radicand(Rat, Ext) = false
