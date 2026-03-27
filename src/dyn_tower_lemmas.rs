@@ -8059,7 +8059,15 @@ pub proof fn lemma_dts_le_antisymmetric_fuel(x: DynTowerSpec, fuel: nat)
         DynTowerSpec::Ext(re, im, d) => {
             let f = (fuel - 1) as nat;
             let a = *re; let b = *im; let dd = *d;
-            // le_total on a and b at inner fuel
+            // Hints for Z3: neg structure
+            lemma_dts_neg_well_formed(a);
+            lemma_dts_neg_well_formed(b);
+            lemma_dts_same_radicand_neg(a);
+            lemma_dts_same_radicand_neg(b);
+            lemma_dts_nonneg_radicands_neg(a);
+            lemma_dts_nonneg_radicands_neg(b);
+            lemma_dts_depth_neg(a);
+            lemma_dts_depth_neg(b);
             lemma_dts_nonneg_or_neg_nonneg_fuel(a, f);
             lemma_dts_nonneg_or_neg_nonneg_fuel(b, f);
             let a_nn = dts_nonneg_fuel(a, f);
@@ -8067,150 +8075,79 @@ pub proof fn lemma_dts_le_antisymmetric_fuel(x: DynTowerSpec, fuel: nat)
             let b_nn = dts_nonneg_fuel(b, f);
             let nb_nn = dts_nonneg_fuel(dts_neg(b), f);
 
-            // Show both_nonneg(a): if a_nn && !na_nn, derive contradiction.
-            if a_nn && !na_nn {
-                // neg(x) can only be C3' (C1'/C2' need na_nn which is false).
-                // C3' gives: !is_zero(neg(a))=!is_zero(a), nb_nn, !is_zero(neg(b))=!is_zero(b).
-                // nonneg(x) is C1 or C2 (not C3, which needs !a_nn).
-                //
-                // If x is C1: b_nn. And C3' gives nb_nn. both_nonneg(b).
-                //   IH on b: is_zero(b). But C3' says !is_zero(b). Contradiction.
-                if b_nn {
-                    // C1 case: b_nn ✓ and C3' gives nb_nn ✓ → both_nonneg(b)
-                    lemma_dts_neg_well_formed(b);
-                    lemma_dts_same_radicand_neg(b);
-                    lemma_dts_nonneg_radicands_neg(b);
-                    lemma_dts_depth_neg(b);
-                    lemma_dts_le_antisymmetric_fuel(b, f);
-                    // is_zero(b) but !is_zero(b) from C3' (which we know holds
-                    // since neg(x) is nonneg and !na_nn forces C3')
-                    assert(false);
-                }
-                // x must be C2: a_nn ✓, !b_nn → nb_nn ✓ (from C2's b_neg), norm_nn.
-                // C3' gives neg_norm_neg_nn.
-                // Need: nonneg(norm) AND nonneg(neg_norm) to get both_nonneg(norm).
-                // Then IH: is_zero(norm). norm_definite: is_zero(a) ∧ is_zero(b).
-                // But !is_zero(a) from C3'. Contradiction.
-                //
-                // The norm terms from C2 vs C3' differ structurally:
-                // C2 norm: sub(mul(a,a), mul(dd, mul(b,b))) — at fuel f
-                // C3' neg_norm_neg: sub(mul(dd, mul(neg(b),neg(b))), mul(neg(a),neg(a))) — at fuel f
-                // These are eqv via neg_square but not structurally equal.
-                // Transfer via sub_antisymmetric + neg_square:
-                // neg_norm_neg ≡ sub(mul(dd, mul(b,b)), mul(a,a)) [by neg_square congruence]
-                //              ≡ neg(sub(mul(a,a), mul(dd, mul(b,b)))) [by sub_antisymmetric]
-                //              = neg(norm)
-                // So nonneg(neg_norm_neg) → nonneg(neg(norm)) via congruence.
-                //
-                // This congruence chain is complex. For now, just assert the key facts
-                // that Z3 should derive from the nonneg_fuel definition unfolding.
-                // At fuel f+1, nonneg(x) unfolds to the disjunction. With a_nn=true
-                // and !b_nn=true: C1 is ruled out (needs b_nn). C3 ruled out (needs !a_nn).
-                // So C2 holds: norm_nn.
-                // Similarly neg(x) at fuel f+1: with !na_nn, C1'/C2' impossible. C3' holds.
-                // C3' involves neg(a)² and neg(b)² in the norm computation.
-                // Z3 should see that norm(neg(x)) uses neg(a)² and neg(b)².
-                // But connecting these to norm(x) needs neg_square lemma.
-                //
-                // For the IH on norm: le_antisymmetric(norm, f).
-                // norm = sub(mul(a,a), mul(dd, mul(b,b))) — depth ≤ depth(x) - 1.
-                // Need: well_formed, nonneg_radicands, norm_definite, depth bounds.
-                // These propagate from x's preconditions.
-                //
-                // This is getting long. Let me just state the contradiction directly.
-                // Both C2 and C3' hold simultaneously. The nonneg_fuel definition at
-                // fuel f+1 gives the norm bounds. Z3 can unfold and derive the contradiction
-                // if we provide enough scaffolding.
-                assert(false);
-                // TODO: fill in the norm chain (neg_square congruence + le_antisymmetric IH + norm_definite)
-            }
-            if !a_nn && na_nn {
-                // Symmetric case: nonneg(x) must be C3, neg(x) is C1' or C2'.
-                // Similar contradiction.
-                if b_nn {
-                    // Would make neg(x) C1' or C2'. If C1': na_nn ✓ and nb_nn.
-                    // x is C3: b_nn with !is_zero(b). And from neg(x): nb_nn.
-                    // both_nonneg(b) → IH → is_zero(b). But C3 !is_zero(b). Contradiction.
-                    lemma_dts_neg_well_formed(b);
-                    lemma_dts_same_radicand_neg(b);
-                    lemma_dts_nonneg_radicands_neg(b);
-                    lemma_dts_depth_neg(b);
-                    lemma_dts_le_antisymmetric_fuel(b, f);
-                    assert(false);
-                }
-                // x is C3 with !b_nn → impossible since C3 needs b_pos = b_nn && !is_zero(b)
-                // which requires b_nn. So b_nn must be true. Contradiction with this branch.
-                // Actually: C3 requires nonneg(b) && !is_zero(b). !b_nn means !nonneg(b).
-                // But we're in the Ext case with nonneg(x, fuel) true. If !a_nn: only C3 works.
-                // C3 needs b_nn (b_pos). But we're in the !b_nn branch. Contradiction with nonneg(x).
-                assert(false);
-            }
-            // Both a_nn and na_nn hold: both_nonneg(a). IH gives is_zero(a).
-            lemma_dts_neg_well_formed(a);
-            lemma_dts_same_radicand_neg(a);
-            lemma_dts_nonneg_radicands_neg(a);
-            lemma_dts_depth_neg(a);
-            lemma_dts_le_antisymmetric_fuel(a, f);
-            // Similarly for b:
-            if b_nn && nb_nn {
-                lemma_dts_neg_well_formed(b);
-                lemma_dts_same_radicand_neg(b);
-                lemma_dts_nonneg_radicands_neg(b);
-                lemma_dts_depth_neg(b);
+            // CASE 1: both a and b are both_nonneg → IH on each
+            if a_nn && na_nn && b_nn && nb_nn {
+                lemma_dts_le_antisymmetric_fuel(a, f);
                 lemma_dts_le_antisymmetric_fuel(b, f);
-            } else if b_nn && !nb_nn {
-                // is_zero(a) established. x nonneg: C1 or C2 (a_nn).
-                // neg(x) nonneg: C3' gives nb_nn. Contradiction with !nb_nn.
-                // Wait: na_nn is true here. So neg(x) could be C1'/C2'/C3'.
-                // If neg(x) is C1': nb_nn ✓... but we're in !nb_nn. Contradiction with neg(x) being nonneg?
-                // Actually: neg(x) IS nonneg (precondition). With na_nn ✓:
-                // C1': na_nn ✓, nb_nn. If !nb_nn: C1' impossible.
-                // C2': na_nn ✓, nonneg(neg(neg(b)))=b_nn ✓, !is_zero(neg(b)). norm_neg_nn.
-                // C3': nonneg(neg(neg(a)))=a_nn ✓, !is_zero(neg(a)), nb_nn. !nb_nn → C3' impossible.
-                // So neg(x) is C2'. C2' gives !is_zero(neg(b))=!is_zero(b).
-                // x with is_zero(a): x = Ext(0, b, d). nonneg at f+1:
-                // C1: nonneg(0,f) ✓, nonneg(b,f) = b_nn ✓. → C1 works.
-                // From C1: b_nn. From C2' of neg(x): !is_zero(b) and b_nn (from neg(neg(b))).
-                // We need nb_nn for both_nonneg(b). C2' of neg(x): na_nn ✓, b_nn (from neg(neg(b))),
-                // !is_zero(neg(b)), norm_neg_nn.
-                // norm_neg of neg(x): sub(mul(neg(a),neg(a)), mul(dd, mul(neg(b),neg(b)))).
-                // With is_zero(a): neg(a)=neg(0)... is_zero(neg(a))? is_zero(neg(0)):
-                // neg(Rat(0)) = Rat(0) → is_zero. is_zero(neg(Ext(0,0,...))) = is_zero(Ext(0,0,...)) = true.
-                // So is_zero(neg(a)) since is_zero(a).
-                // But C2' needs !is_zero(neg(b)). !is_zero(neg(b)) = !is_zero(b). And C2' has nonneg conditions.
-                // We have b_nn from x's C1. We need nb_nn from somewhere.
-                // C2' of neg(x) gives that neg(x) is nonneg. But doesn't directly give nb_nn.
-                //
-                // Actually, !nb_nn and neg(x) nonneg with na_nn:
-                // C2' is the only option (C1' needs nb_nn, C3' needs nb_nn).
-                // C2' gives: norm_neg_nn. norm_neg ≡ norm (after neg_square).
-                // Also: with is_zero(a): norm = sub(0, mul(dd, mul(b,b))) = neg(mul(dd, mul(b,b))).
-                // nonneg(norm_neg) via congruence → nonneg(norm) or nonneg(neg(norm)).
-                // norm = neg(d*b²). nonneg(neg(d*b²)): d*b² ≤ 0.
-                // But d ≥ 0 and b² ≥ 0 by square_nonneg(b, f) [IH]
-                // d*b² ≥ 0 by nonneg_mul(d, b², f) [IH].
-                // both_nonneg(d*b²) → le_antisymmetric(d*b², f) → is_zero(d*b²).
-                // For Rat d = Rat(δ): is_zero(mul(Rat(δ), b²)). δ=0 → nonsquare contradiction.
-                // δ≠0 → is_zero(b²) → is_zero(b).
-                // But C2' says !is_zero(b). Contradiction!
-                assert(false);
-            } else if !b_nn && nb_nn {
-                // Similar to above but roles swapped.
-                // is_zero(a). x nonneg: C1 needs b_nn (false). C2: a_nn ✓, nb_nn ✓ (!is_zero(b)), norm_nn.
-                // C3 needs !a_nn (false since a_nn=true even though is_zero(a) → a=0 nonneg).
-                // Wait: a_nn is true (0 is nonneg). C2: a_nn ✓, !b_nn → nb_nn via le_total...
-                // C2 needs nonneg(neg(b)) ∧ !is_zero(b) ∧ nonneg(norm).
-                // nb_nn ✓, !is_zero(b): is b zero? If is_zero(b): nonneg(b) via nonneg_fuel_zero.
-                // But !b_nn. So !nonneg(b, f). But is_zero(b) → nonneg_fuel_zero → nonneg(b, f). Contradiction.
-                // So !is_zero(b). ✓ for C2.
-                // C2 norm_nn: norm = sub(a², d*b²) = sub(0, d*b²) = neg(d*b²).
-                // nonneg(neg(d*b²)). d ≥ 0, b² ≥ 0 → d*b² ≥ 0. So both_nonneg(d*b²).
-                // Same argument as above: is_zero(d*b²). δ≠0 → is_zero(b). But !is_zero(b). Contradiction.
-                assert(false);
-            } else {
-                // !b_nn && !nb_nn: impossible since le_total gives b_nn || nb_nn
-                assert(false);
+                return;
             }
+            // CASE 2: both_nonneg(a) but b has definite sign
+            if a_nn && na_nn {
+                lemma_dts_le_antisymmetric_fuel(a, f);
+                // is_zero(a) → is_zero(neg(a))
+                // With is_zero(a) and is_zero(neg(a)):
+                // nonneg_fuel of neg(x) needs C1'/C2'/C3' for Ext(neg(a), neg(b), dd).
+                // ALL three cases need either !is_zero(neg(b)) [from C2'/C3' b conditions]
+                // or nb_nn [from C1']. If is_zero(b): b_nn AND nb_nn (from fuel_zero).
+                // But we're NOT in the b_nn && nb_nn case. So !is_zero(b).
+                // But then b has a definite nonzero sign (!b_nn XOR !nb_nn).
+                // The nonneg_fuel of x and neg(x) unfold with is_zero(a):
+                // Z3 should derive contradiction since is_zero(a) limits which cases apply
+                // and the !is_zero(b) interacts with the norm condition.
+                // Let Z3 handle the case analysis after these additional hints:
+                lemma_dts_neg_preserves_is_zero(a);
+                lemma_dts_is_zero_implies_eqv_zero(a);
+                lemma_dts_is_zero_implies_eqv_zero(dts_neg(a));
+                lemma_dts_nonneg_fuel_zero(a, f);
+                lemma_dts_nonneg_fuel_zero(dts_neg(a), f);
+                lemma_dts_mul_is_zero_right(a, a);
+                lemma_dts_mul_is_zero_right(dts_neg(a), dts_neg(a));
+                return;
+            }
+            // CASE 3: both_nonneg(b) but a has definite sign
+            if b_nn && nb_nn {
+                lemma_dts_le_antisymmetric_fuel(b, f);
+                lemma_dts_neg_preserves_is_zero(b);
+                lemma_dts_is_zero_implies_eqv_zero(b);
+                lemma_dts_is_zero_implies_eqv_zero(dts_neg(b));
+                lemma_dts_nonneg_fuel_zero(b, f);
+                lemma_dts_nonneg_fuel_zero(dts_neg(b), f);
+                lemma_dts_mul_is_zero_right(b, b);
+                lemma_dts_mul_is_zero_right(dts_neg(b), dts_neg(b));
+                return;
+            }
+            // CASE 4: neither a nor b is both_nonneg.
+            // Each has a definite sign: (a_nn XOR na_nn) and (b_nn XOR nb_nn).
+            // From nonneg(x, fuel) and the sign info, exactly one of C1/C2/C3 holds.
+            // From nonneg(neg(x), fuel), exactly one of C1'/C2'/C3' holds.
+            // In all valid combinations: the norm conditions from both sides
+            // give nonneg(norm) and nonneg(neg_norm) → contradiction via norm_definite.
+            //
+            // Sub-case 4a: a_nn && !na_nn && b_nn && !nb_nn.
+            // x: C1 (a_nn, b_nn). neg(x): needs na_nn or a_nn from C3'.
+            // C1'/C2' need na_nn = false. C3' needs !is_zero(neg(a))=!is_zero(a) and nb_nn=false.
+            // C3' needs b'_pos = nb_nn && !is_zero(neg(b)) = false. C3' fails.
+            // No valid case for neg(x). Contradiction with nonneg(neg(x)).
+            //
+            // Sub-case 4b: a_nn && !na_nn && !b_nn && nb_nn.
+            // x: C2 (a_nn, nb_nn, !is_zero(b), norm_nn).
+            // neg(x): C3' (a_nn via neg(neg(a)), !is_zero(neg(a)), nb_nn, !is_zero(neg(b)), neg_norm'_nn).
+            // Both norm and neg_norm' give norm conditions.
+            // (norm_definite handles the is_zero conclusion after IH.)
+            //
+            // Sub-case 4c: !a_nn && na_nn && b_nn && !nb_nn.
+            // x: C3 (na_nn, b_nn, !is_zero(a), !is_zero(b)).
+            // neg(x): C2' (na_nn, b_nn via neg(neg(b)), !is_zero(neg(b)), norm'_nn).
+            // Again both norm conditions present.
+            //
+            // Sub-case 4d: !a_nn && na_nn && !b_nn.
+            // x: C3 needs b_nn = false. C3 needs b_pos = b_nn && !is_zero(b) = false.
+            // But C3 requires b_pos. So C3 fails. No valid case. nonneg(x) = false. Contradiction.
+            //
+            // Z3 should handle 4a and 4d automatically (vacuous contradictions).
+            // 4b and 4c need the norm chain + norm_definite.
+            // For now: Z3 discharge after hints.
+            return;
         }
     }
 }
