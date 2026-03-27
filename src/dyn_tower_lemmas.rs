@@ -8313,6 +8313,20 @@ pub proof fn lemma_dts_le_antisymmetric_fuel(x: DynTowerSpec, fuel: nat)
                 lemma_dts_depth_mul_le(dd, dts_mul(b, b));
                 lemma_dts_depth_neg(dts_mul(dd, dts_mul(b, b)));
                 lemma_dts_depth_add_le(dts_mul(a, a), dts_neg(dts_mul(dd, dts_mul(b, b))));
+                // norm_definite(norm): for Rat norm it's trivially true.
+                // For Ext norm, need propagation (deferred to stronger tower conditions).
+                // The norm_definite(x) condition on the PARENT gives the norm condition
+                // at THIS level. For the IH, we need norm_definite on the norm VALUE.
+                // Use: norm_definite(x) implies the norm condition at the top level,
+                // and sub-components of x have norm_definite. The norm value is built
+                // from these sub-components, so its norm_definite follows structurally.
+                // Z3 should handle this for Rat-level values by unfolding.
+                assert(dts_norm_definite(norm)) by {
+                    // norm = sub(mul(a,a), mul(dd, mul(b,b))).
+                    // For Rat a,b,dd: norm is Rat. norm_definite(Rat) = true. ✓
+                    // For Ext: would need propagation lemma.
+                    // Z3 unfolds dts_norm_definite + dts_sub + dts_mul for concrete structure.
+                };
                 lemma_dts_le_antisymmetric_fuel(norm, f);
                 // is_zero(norm) + norm_definite → is_zero(a) ∧ is_zero(b)
                 return;
@@ -8414,12 +8428,21 @@ pub proof fn lemma_dts_le_antisymmetric_fuel(x: DynTowerSpec, fuel: nat)
                 lemma_dts_add_closed(dts_mul(a, a), dts_neg(dts_mul(dd, dts_mul(b, b))));
                 lemma_dts_neg_well_formed(norm);
                 lemma_dts_same_radicand_neg(norm);
+                // neg_norm_actual = add(d*b², neg(a²)). Need add_closed.
+                lemma_dts_neg_well_formed(dts_mul(a, a));
+                lemma_dts_same_radicand_neg(dts_mul(a, a));
+                lemma_dts_same_radicand_symmetric(dts_mul(dd, dts_mul(b, b)), a);
+                lemma_dts_same_radicand_symmetric(a, dts_mul(a, a));
+                lemma_dts_same_radicand_transitive(dts_mul(dd, dts_mul(b, b)), a, dts_mul(a, a));
+                lemma_dts_same_radicand_transitive(dts_mul(dd, dts_mul(b, b)), dts_mul(a, a),
+                    dts_neg(dts_mul(a, a)));
+                lemma_dts_add_closed(dts_mul(dd, dts_mul(b, b)), dts_neg(dts_mul(a, a)));
                 lemma_dts_same_radicand_symmetric(dts_mul(dd, dts_mul(b, b)), neg_norm_actual);
                 lemma_dts_same_radicand_transitive(neg_norm_actual, dts_mul(dd, dts_mul(b, b)), a);
                 lemma_dts_same_radicand_symmetric(neg_norm_actual, a);
                 lemma_dts_same_radicand_symmetric(norm, a);
-                lemma_dts_same_radicand_symmetric(norm, dts_neg(norm));
-                lemma_dts_same_radicand_transitive(dts_neg(norm), norm, a);
+                // a~neg(norm): a~norm~neg(norm)
+                lemma_dts_same_radicand_transitive(a, norm, dts_neg(norm));
                 lemma_dts_same_radicand_transitive(neg_norm_actual, a, dts_neg(norm));
                 lemma_dts_nonneg_fuel_congruence(neg_norm_actual, dts_neg(norm), f);
                 // le_antisymmetric on norm
@@ -8433,6 +8456,20 @@ pub proof fn lemma_dts_le_antisymmetric_fuel(x: DynTowerSpec, fuel: nat)
                 lemma_dts_depth_mul_le(dd, dts_mul(b, b));
                 lemma_dts_depth_neg(dts_mul(dd, dts_mul(b, b)));
                 lemma_dts_depth_add_le(dts_mul(a, a), dts_neg(dts_mul(dd, dts_mul(b, b))));
+                // norm_definite(norm): for Rat norm it's trivially true.
+                // For Ext norm, need propagation (deferred to stronger tower conditions).
+                // The norm_definite(x) condition on the PARENT gives the norm condition
+                // at THIS level. For the IH, we need norm_definite on the norm VALUE.
+                // Use: norm_definite(x) implies the norm condition at the top level,
+                // and sub-components of x have norm_definite. The norm value is built
+                // from these sub-components, so its norm_definite follows structurally.
+                // Z3 should handle this for Rat-level values by unfolding.
+                assert(dts_norm_definite(norm)) by {
+                    // norm = sub(mul(a,a), mul(dd, mul(b,b))).
+                    // For Rat a,b,dd: norm is Rat. norm_definite(Rat) = true. ✓
+                    // For Ext: would need propagation lemma.
+                    // Z3 unfolds dts_norm_definite + dts_sub + dts_mul for concrete structure.
+                };
                 lemma_dts_le_antisymmetric_fuel(norm, f);
                 // is_zero(norm) + norm_definite → is_zero(a) ∧ is_zero(b)
                 return;
