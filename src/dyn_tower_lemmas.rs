@@ -7307,181 +7307,86 @@ proof fn lemma_dts_nonneg_mul_bb(
                 Box::new(dts_add(dts_mul(a1, b2), dts_mul(b1, a2))),
                 Box::new(dd)),
             (f + 1) as nat),
-    decreases f, 1nat,
+    decreases f, 2nat,
 {
     let re_val = dts_add(dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2)));
     let im_val = dts_add(dts_mul(a1, b2), dts_mul(b1, a2));
 
-    // ── re ≥ 0: a1*a2 (neg×neg=pos) + d*b1*b2 (pos×pos×pos) ──
+    // ── Block 1: re ≥ 0 (scoped for rlimit) ──
     assert(dts_nonneg_fuel(re_val, f)) by {
-    // Infrastructure: derive cross same_radicand from preconditions a1~b1, a1~a2, a1~b2, a1~dd
+        lemma_dts_same_radicand_symmetric(a1, b1);
+        lemma_dts_same_radicand_transitive(b1, a1, a2);
+        lemma_dts_same_radicand_transitive(b1, a1, b2);
+        lemma_dts_same_radicand_symmetric(a1, dd);
+        lemma_dts_same_radicand_transitive(dd, a1, b1);
+        // a1*a2 ≥ 0 via neg_mul_neg
+        lemma_dts_nonneg_or_neg_nonneg_fuel(a1, f);
+        lemma_dts_nonneg_or_neg_nonneg_fuel(a2, f);
+        lemma_dts_neg_well_formed(a1); lemma_dts_neg_well_formed(a2);
+        lemma_dts_same_radicand_neg(a1); lemma_dts_same_radicand_neg(a2);
+        lemma_dts_same_radicand_symmetric(a1, dts_neg(a1));
+        lemma_dts_same_radicand_transitive(dts_neg(a1), a1, a2);
+        lemma_dts_same_radicand_transitive(dts_neg(a1), a2, dts_neg(a2));
+        lemma_dts_nonneg_radicands_neg(a1); lemma_dts_nonneg_radicands_neg(a2);
+        lemma_dts_depth_neg(a1); lemma_dts_depth_neg(a2);
+        lemma_dts_nonneg_mul_closed_fuel(dts_neg(a1), dts_neg(a2), f);
+        lemma_dts_neg_mul_neg(a1, a2);
+        lemma_dts_mul_closed(dts_neg(a1), dts_neg(a2));
+        lemma_dts_mul_closed(a1, a2);
+        lemma_dts_same_radicand_symmetric(dts_neg(a1), dts_mul(dts_neg(a1), dts_neg(a2)));
+        lemma_dts_same_radicand_transitive(
+            dts_mul(dts_neg(a1), dts_neg(a2)), dts_neg(a1), a1);
+        lemma_dts_same_radicand_symmetric(a1, dts_mul(a1, a2));
+        lemma_dts_same_radicand_transitive(
+            dts_mul(dts_neg(a1), dts_neg(a2)), a1, dts_mul(a1, a2));
+        lemma_dts_nonneg_fuel_congruence(
+            dts_mul(dts_neg(a1), dts_neg(a2)), dts_mul(a1, a2), f);
+        // d*b1*b2 ≥ 0
+        lemma_dts_mul_closed(b1, b2);
+        lemma_dts_nonneg_radicands_mul(b1, b2);
+        lemma_dts_nonneg_mul_closed_fuel(b1, b2, f);
+        lemma_dts_same_radicand_symmetric(b1, dts_mul(b1, b2));
+        lemma_dts_same_radicand_transitive(dd, b1, dts_mul(b1, b2));
+        lemma_dts_mul_closed(dd, dts_mul(b1, b2));
+        lemma_dts_nonneg_radicands_mul(dd, dts_mul(b1, b2));
+        lemma_dts_nonneg_fuel_stabilize(dd, f);
+        lemma_dts_depth_mul_le(b1, b2);
+        lemma_dts_depth_mul_le(dd, dts_mul(b1, b2));
+        lemma_dts_nonneg_mul_closed_fuel(dd, dts_mul(b1, b2), f);
+        // sum ≥ 0
+        lemma_dts_same_radicand_symmetric(a1, dts_mul(a1, a2));
+        lemma_dts_same_radicand_symmetric(dd, dts_mul(dd, dts_mul(b1, b2)));
+        lemma_dts_same_radicand_transitive(dts_mul(a1, a2), a1, dd);
+        lemma_dts_same_radicand_transitive(dts_mul(a1, a2), dd, dts_mul(dd, dts_mul(b1, b2)));
+        lemma_dts_nonneg_radicands_mul(a1, a2);
+        lemma_dts_nonneg_radicands_add(dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2)));
+        lemma_dts_depth_mul_le(a1, a2);
+        lemma_dts_depth_add_le(dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2)));
+        lemma_dts_nonneg_add_closed_fuel(dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2)), f);
+    };
+
+    // ── is_zero shortcut → C1 ──
+    // im_val well_formed infrastructure
     lemma_dts_same_radicand_symmetric(a1, b1);
     lemma_dts_same_radicand_transitive(b1, a1, a2);
-    lemma_dts_same_radicand_transitive(b1, a1, b2);
-    lemma_dts_same_radicand_symmetric(a1, dd);
-    lemma_dts_same_radicand_transitive(dd, a1, b1);
-
-    // neg(a1) and neg(a2) nonneg from le_total since !a1_nn
-    // precondition is f >= depth, but nonneg_or_neg needs f >= depth + 1
-    // From the caller, f = fuel-1 and fuel >= depth(Ext)+1 >= depth(a1)+2, so f >= depth(a1)+1 ✓
-    lemma_dts_nonneg_or_neg_nonneg_fuel(a1, f);
-    lemma_dts_nonneg_or_neg_nonneg_fuel(a2, f);
-
-    // ── re = a1*a2 + d*b1*b2 ≥ 0 ──
-    // a1*a2 ≥ 0 via neg_mul_neg
-    lemma_dts_neg_well_formed(a1); lemma_dts_neg_well_formed(a2);
-    lemma_dts_same_radicand_neg(a1); lemma_dts_same_radicand_neg(a2);
-    lemma_dts_same_radicand_symmetric(a1, dts_neg(a1));
-    lemma_dts_same_radicand_transitive(dts_neg(a1), a1, a2);
-    lemma_dts_same_radicand_transitive(dts_neg(a1), a2, dts_neg(a2));
-    lemma_dts_nonneg_radicands_neg(a1); lemma_dts_nonneg_radicands_neg(a2);
-    lemma_dts_depth_neg(a1); lemma_dts_depth_neg(a2);
-    lemma_dts_nonneg_mul_closed_fuel(dts_neg(a1), dts_neg(a2), f);
-    lemma_dts_neg_mul_neg(a1, a2);
-    lemma_dts_mul_closed(dts_neg(a1), dts_neg(a2));
-    lemma_dts_mul_closed(a1, a2);
-    lemma_dts_same_radicand_symmetric(dts_neg(a1), dts_mul(dts_neg(a1), dts_neg(a2)));
-    lemma_dts_same_radicand_transitive(
-        dts_mul(dts_neg(a1), dts_neg(a2)), dts_neg(a1), a1);
-    lemma_dts_same_radicand_symmetric(a1, dts_mul(a1, a2));
-    lemma_dts_same_radicand_transitive(
-        dts_mul(dts_neg(a1), dts_neg(a2)), a1, dts_mul(a1, a2));
-    lemma_dts_nonneg_fuel_congruence(
-        dts_mul(dts_neg(a1), dts_neg(a2)), dts_mul(a1, a2), f);
-    // d*b1*b2 ≥ 0
-    lemma_dts_mul_closed(b1, b2);
-    lemma_dts_nonneg_radicands_mul(b1, b2);
-    lemma_dts_nonneg_mul_closed_fuel(b1, b2, f);
-    lemma_dts_same_radicand_symmetric(b1, dts_mul(b1, b2));
-    lemma_dts_same_radicand_transitive(dd, b1, dts_mul(b1, b2));
-    lemma_dts_mul_closed(dd, dts_mul(b1, b2));
-    lemma_dts_nonneg_radicands_mul(dd, dts_mul(b1, b2));
-    lemma_dts_nonneg_fuel_stabilize(dd, f);
-    lemma_dts_depth_mul_le(b1, b2);
-    lemma_dts_depth_mul_le(dd, dts_mul(b1, b2));
-    lemma_dts_nonneg_mul_closed_fuel(dd, dts_mul(b1, b2), f);
-    // re = a1*a2 + d*b1*b2 ≥ 0
-    lemma_dts_same_radicand_symmetric(a1, dts_mul(a1, a2));
-    lemma_dts_same_radicand_symmetric(dd, dts_mul(dd, dts_mul(b1, b2)));
-    lemma_dts_same_radicand_transitive(dts_mul(a1, a2), a1, dd);
-    lemma_dts_same_radicand_transitive(dts_mul(a1, a2), dd, dts_mul(dd, dts_mul(b1, b2)));
-    lemma_dts_nonneg_radicands_mul(a1, a2);
-    lemma_dts_nonneg_radicands_add(dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2)));
-    lemma_dts_depth_mul_le(a1, a2);
-    lemma_dts_depth_add_le(dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2)));
-    lemma_dts_nonneg_add_closed_fuel(dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2)), f);
-
-    // ── norm ≥ 0 via norm_mul + neg_mul_neg ──
-    // Scoped in assert-by for rlimit management
-    let re_val = dts_add(dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2)));
-    let im_val = dts_add(dts_mul(a1, b2), dts_mul(b1, a2));
-    let norm_expr = dts_sub(dts_mul(re_val, re_val), dts_mul(dd, dts_mul(im_val, im_val)));
-    assert(dts_nonneg_fuel(norm_expr, f)) by {
-    let a1sq = dts_mul(a1, a1);
-    let b1sq = dts_mul(b1, b1);
-    let a2sq = dts_mul(a2, a2);
-    let b2sq = dts_mul(b2, b2);
-    lemma_dts_same_radicand_reflexive(a1); lemma_dts_mul_closed(a1, a1);
-    lemma_dts_same_radicand_reflexive(b1); lemma_dts_mul_closed(b1, b1);
-    lemma_dts_same_radicand_reflexive(a2); lemma_dts_mul_closed(a2, a2);
-    lemma_dts_same_radicand_reflexive(b2); lemma_dts_mul_closed(b2, b2);
-    lemma_dts_same_radicand_symmetric(b1, b1sq);
-    lemma_dts_same_radicand_transitive(dd, b1, b1sq);
-    lemma_dts_mul_closed(dd, b1sq);
-    lemma_dts_same_radicand_symmetric(b2, b2sq);
-    lemma_dts_same_radicand_transitive(dd, b2, b2sq);
-    lemma_dts_same_radicand_transitive(a1, b1, dd);
-    lemma_dts_mul_closed(dd, b2sq);
-    let nx = dts_sub(a1sq, dts_mul(dd, b1sq));
-    let ny = dts_sub(a2sq, dts_mul(dd, b2sq));
-    let neg_nx = dts_sub(dts_mul(dd, b1sq), a1sq);
-    let neg_ny = dts_sub(dts_mul(dd, b2sq), a2sq);
-    // neg_nx and neg_ny are nonneg from C3 preconditions
-    // neg_nx ≡ neg(nx) by sub_antisymmetric
-    lemma_dts_same_radicand_symmetric(a1, a1sq);
-    lemma_dts_same_radicand_transitive(a1sq, a1, dd);
-    lemma_dts_same_radicand_transitive(a1sq, dd, dts_mul(dd, b1sq));
-    verus_algebra::lemmas::additive_group_lemmas::lemma_sub_antisymmetric::<DynTowerSpec>(
-        dts_mul(dd, b1sq), a1sq);
-    lemma_dts_same_radicand_symmetric(a2, a2sq);
-    lemma_dts_same_radicand_transitive(a1, a2, a2sq);
-    lemma_dts_same_radicand_transitive(a2sq, a1, dd);
-    lemma_dts_same_radicand_transitive(a2sq, dd, dts_mul(dd, b2sq));
-    verus_algebra::lemmas::additive_group_lemmas::lemma_sub_antisymmetric::<DynTowerSpec>(
-        dts_mul(dd, b2sq), a2sq);
-    // neg(nx)*neg(ny) nonneg (both nonneg from C3)
-    // Need same_radicand(neg_nx, neg_ny)
-    lemma_dts_neg_well_formed(a1sq); lemma_dts_same_radicand_neg(a1sq);
-    lemma_dts_same_radicand_transitive(dts_mul(dd, b1sq), a1sq, dts_neg(a1sq));
-    lemma_dts_add_closed(dts_mul(dd, b1sq), dts_neg(a1sq));
-    lemma_dts_neg_well_formed(a2sq); lemma_dts_same_radicand_neg(a2sq);
-    lemma_dts_same_radicand_transitive(dts_mul(dd, b2sq), a2sq, dts_neg(a2sq));
-    lemma_dts_add_closed(dts_mul(dd, b2sq), dts_neg(a2sq));
-    // neg_nx~a1: ddb1sq~a1sq, a1sq→a1 → neg_nx~a1sq~a1
-    lemma_dts_same_radicand_symmetric(dts_mul(dd, b1sq), neg_nx);
-    lemma_dts_same_radicand_transitive(neg_nx, dts_mul(dd, b1sq), a1sq);
-    lemma_dts_same_radicand_transitive(neg_nx, a1sq, a1);
-    // neg_ny~a1: ddb2sq~a2sq~a2~a1
-    lemma_dts_same_radicand_symmetric(dts_mul(dd, b2sq), neg_ny);
-    lemma_dts_same_radicand_transitive(neg_ny, dts_mul(dd, b2sq), a2sq);
-    lemma_dts_same_radicand_transitive(neg_ny, a2sq, a1);
-    lemma_dts_same_radicand_symmetric(neg_nx, a1);
-    lemma_dts_same_radicand_transitive(neg_nx, a1, neg_ny);
-    // nonneg_radicands for neg_nx, neg_ny
-    lemma_dts_nonneg_radicands_mul(dd, b1sq);
-    lemma_dts_nonneg_radicands_mul(a1, a1);
-    lemma_dts_nonneg_radicands_neg(a1sq);
-    lemma_dts_nonneg_radicands_add(dts_mul(dd, b1sq), dts_neg(a1sq));
-    lemma_dts_nonneg_radicands_mul(dd, b2sq);
-    lemma_dts_nonneg_radicands_mul(a2, a2);
-    lemma_dts_nonneg_radicands_neg(a2sq);
-    lemma_dts_nonneg_radicands_add(dts_mul(dd, b2sq), dts_neg(a2sq));
-    // depth for neg_nx, neg_ny
-    lemma_dts_depth_mul_le(a1, a1); lemma_dts_depth_mul_le(b1, b1);
-    lemma_dts_depth_mul_le(dd, b1sq);
-    lemma_dts_depth_neg(a1sq);
-    lemma_dts_depth_add_le(dts_mul(dd, b1sq), dts_neg(a1sq));
-    lemma_dts_depth_mul_le(a2, a2); lemma_dts_depth_mul_le(b2, b2);
-    lemma_dts_depth_mul_le(dd, b2sq);
-    lemma_dts_depth_neg(a2sq);
-    lemma_dts_depth_add_le(dts_mul(dd, b2sq), dts_neg(a2sq));
-    // neg_nx * neg_ny nonneg by IH
-    lemma_dts_nonneg_mul_closed_fuel(neg_nx, neg_ny, f);
-    // neg_mul_neg: neg_nx*neg_ny ≡ nx*ny... hmm, we have neg_nx ≡ neg(nx)
-    // neg(nx)*neg(ny) ≡ nx*ny by neg_mul_neg
-    // neg_nx ≡ neg(nx): from sub_antisymmetric
-    // neg_ny ≡ neg(ny)
-    // So: nonneg(neg_nx*neg_ny). neg_nx*neg_ny ≡ neg(nx)*neg(ny) ≡ nx*ny.
-    // Actually sub_antisymmetric gives sub(ddb1sq, a1sq) ≡ neg(sub(a1sq, ddb1sq)) = neg(nx).
-    // So neg_nx ≡ neg(nx). By congruence: neg_nx*neg_ny ≡ neg(nx)*neg(ny).
-    // Then neg_mul_neg gives neg(nx)*neg(ny) ≡ nx*ny.
-    // Transfer nonneg through the chain.
-    // For now, use norm_mul to get norm_prod ≡ nx*ny, then use conclude_re.
-    // conclude_re needs: nonneg(re, f) [done above] and nonneg(norm, f)
-    // norm = sub(re², d*im²). norm_mul says this ≡ nx*ny.
-    // nonneg(nx*ny, f) via the chain above.
-    // But we need nonneg at fuel f of the STRUCTURAL norm expression, not of nx*ny.
-    // So: norm_mul gives eqv, congruence transfers nonneg.
-    lemma_dts_norm_mul(a1, b1, a2, b2, dd);
-    // This gives eqv(norm_prod_structural, mul(nx, ny))
-    // We showed nonneg(neg_nx*neg_ny, f). neg_nx*neg_ny ≡ nx*ny.
-    // Transfer: nonneg(neg_nx*neg_ny) → nonneg(nx*ny) by congruence.
-    lemma_dts_mul_closed(neg_nx, neg_ny);
-    lemma_dts_neg_mul_neg(nx, ny);
-    // neg_mul_neg: neg(nx)*neg(ny) ≡ nx*ny. But neg_nx ≡ neg(nx), neg_ny ≡ neg(ny).
-    // mul_congruence: neg_nx*neg_ny ≡ neg(nx)*neg(ny) via congruence from sub_antisymmetric.
-    // Then neg_mul_neg chain.
-    // This is getting long. Let me just establish nonneg(norm, f) and call conclude_re.
-    // For now, the re ≥ 0 is established. Mark norm as TODO and return.
-    // Actually, let me try: conclude_re just needs nonneg of the norm sub expression.
-    // I have norm_mul giving eqv. I need same_radicand for congruence transfer.
-    // This is too much boilerplate. Let me just call conclude_re and hope Z3 connects it.
     lemma_dts_mul_closed(a1, b2);
     lemma_dts_mul_closed(b1, a2);
     lemma_dts_same_radicand_symmetric(a1, dts_mul(a1, b2));
     lemma_dts_same_radicand_symmetric(b1, dts_mul(b1, a2));
     lemma_dts_same_radicand_transitive(dts_mul(a1, b2), a1, b1);
     lemma_dts_same_radicand_transitive(dts_mul(a1, b2), b1, dts_mul(b1, a2));
+    lemma_dts_add_closed(dts_mul(a1, b2), dts_mul(b1, a2));
+    lemma_dts_depth_mul_le(a1, b2);
+    lemma_dts_depth_mul_le(b1, a2);
+    lemma_dts_depth_add_le(dts_mul(a1, b2), dts_mul(b1, a2));
+    if dts_is_zero(im_val) {
+        lemma_dts_is_zero_implies_eqv_zero(im_val);
+        lemma_dts_nonneg_fuel_zero(im_val, f);
+        return;
+    }
+
+    // ── conclude_re: re ≥ 0 + norm ≥ 0 ──
+    // Depth infrastructure for conclude_re
     lemma_dts_depth_mul_le(a1, a2);
     lemma_dts_depth_mul_le(b1, b2);
     lemma_dts_depth_mul_le(dd, dts_mul(b1, b2));
@@ -7489,102 +7394,203 @@ proof fn lemma_dts_nonneg_mul_bb(
     lemma_dts_depth_mul_le(a1, b2);
     lemma_dts_depth_mul_le(b1, a2);
     lemma_dts_depth_add_le(dts_mul(a1, b2), dts_mul(b1, a2));
-    // For conclude_re, need nonneg of the norm = sub(re², d*im²)
-    // This requires establishing the full norm chain. Skip for now and just assert.
-    // Actually, let me try a different approach: DON'T use conclude_re.
-    // Instead, directly show C1 or C2 for the nonneg_fuel definition.
-    // The result is Ext(re, im, dd) at fuel f+1.
-    // nonneg_fuel at f+1 checks: C1 || C2 || C3 at fuel f.
-    // C1: re_nn && im_nn. re_nn = true (established). im_nn = ?.
-    // im = a1*b2 + b1*a2. a1<0, b2>0 → a1*b2 ≤ 0. b1>0, a2<0 → b1*a2 ≤ 0. im ≤ 0. NOT C1.
-    // C2: re_nn && neg(im) nn && !is_zero(im) && norm ≥ 0.
-    // re_nn ✓. neg(im) nn: neg(a1*b2) = neg(a1)*b2 nn, neg(b1*a2) = b1*neg(a2) nn, sum nn.
-    // !is_zero(im): case split. If is_zero(im): C1 works since re≥0 and im=0→nonneg.
-    // norm ≥ 0: from norm_mul + neg×neg argument.
-    // So C2 works for !is_zero case. C1 for is_zero case.
-    // Let me handle is_zero(im) case → C1 directly.
+    // conclude_re needs nonneg(sub(re², d*im²), f) which is the norm
+    // ── norm ≥ 0 via extracted helper ──
+    lemma_dts_nonneg_mul_bb_norm(a1, b1, a2, b2, dd, f);
+    lemma_dts_nonneg_conclude_re_fuel(re_val, im_val, dd, f);
+}
+
+/// B×B norm helper: establishes nonneg(sub(re², d*im²), f) for conclude_re.
+/// norm(product) ≡ nx*ny by norm_mul. nx ≤ 0 and ny ≤ 0 → nx*ny ≥ 0 by neg_mul_neg.
+proof fn lemma_dts_nonneg_mul_bb_norm(
+    a1: DynTowerSpec, b1: DynTowerSpec, a2: DynTowerSpec, b2: DynTowerSpec,
+    dd: DynTowerSpec, f: nat,
+)
+    requires
+        f >= dts_depth(a1) + 1, f >= dts_depth(b1) + 1,
+        f >= dts_depth(a2) + 1, f >= dts_depth(b2) + 1, f >= dts_depth(dd) + 1,
+        dts_well_formed(a1), dts_well_formed(b1), dts_well_formed(a2),
+        dts_well_formed(b2), dts_well_formed(dd),
+        dts_same_radicand(a1, b1), dts_same_radicand(a1, a2),
+        dts_same_radicand(a1, b2), dts_same_radicand(a1, dd),
+        dts_nonneg_radicands(a1), dts_nonneg_radicands(b1),
+        dts_nonneg_radicands(a2), dts_nonneg_radicands(b2),
+        dts_nonneg_radicands(dd),
+        dts_nonneg_fuel(dts_sub(dts_mul(dd, dts_mul(b1, b1)), dts_mul(a1, a1)), f),
+        dts_nonneg_fuel(dts_sub(dts_mul(dd, dts_mul(b2, b2)), dts_mul(a2, a2)), f),
+    ensures {
+        let re_val = dts_add(dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2)));
+        let im_val = dts_add(dts_mul(a1, b2), dts_mul(b1, a2));
+        dts_nonneg_fuel(dts_sub(dts_mul(re_val, re_val), dts_mul(dd, dts_mul(im_val, im_val))), f)
+    },
+    decreases f, 1nat,
+{
     let re_val = dts_add(dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2)));
     let im_val = dts_add(dts_mul(a1, b2), dts_mul(b1, a2));
-    if dts_is_zero(im_val) {
-        // im is zero → nonneg (zero is always nonneg)
-        lemma_dts_nonneg_fuel_zero(im_val, f);
-        // C1: re ≥ 0 (established), im ≥ 0 (zero). Z3 sees C1.
-        return;
-    }
-    // !is_zero(im). Need C2: re_nn ✓, neg(im) nn, !is_zero ✓, norm ≥ 0.
-    // neg(im) nn: neg(a1*b2+b1*a2) ≡ neg(a1*b2)+neg(b1*a2) by neg_add
-    // neg(a1*b2) ≡ neg(a1)*b2 by neg_mul_left → nonneg by mul_closed IH
-    // neg(b1*a2) ≡ b1*neg(a2) by neg_mul_right → nonneg by mul_closed IH
-    // Sum nonneg by nonneg_add IH.
-    // Then congruence: neg(im) nonneg.
-    lemma_dts_neg_mul_left(a1, b2);
-    lemma_dts_nonneg_mul_closed_fuel(dts_neg(a1), b2, f);
-    lemma_dts_mul_closed(dts_neg(a1), b2);
-    lemma_dts_same_radicand_symmetric(dts_neg(a1), dts_mul(dts_neg(a1), b2));
-    lemma_dts_same_radicand_transitive(dts_mul(dts_neg(a1), b2), dts_neg(a1), a1);
-    lemma_dts_mul_closed(a1, b2);
-    lemma_dts_same_radicand_symmetric(a1, dts_mul(a1, b2));
-    lemma_dts_same_radicand_transitive(dts_mul(dts_neg(a1), b2), a1, dts_mul(a1, b2));
-    lemma_dts_neg_well_formed(dts_mul(a1, b2));
-    lemma_dts_same_radicand_neg(dts_mul(a1, b2));
-    lemma_dts_same_radicand_transitive(dts_mul(dts_neg(a1), b2), dts_mul(a1, b2),
-        dts_neg(dts_mul(a1, b2)));
-    lemma_dts_nonneg_fuel_congruence(dts_mul(dts_neg(a1), b2), dts_neg(dts_mul(a1, b2)), f);
-    lemma_dts_neg_mul_right(b1, a2);
-    lemma_dts_same_radicand_symmetric(a2, dts_neg(a2));
-    lemma_dts_same_radicand_symmetric(a1, b1);
-    lemma_dts_same_radicand_transitive(b1, a1, dts_neg(a2));
-    lemma_dts_nonneg_mul_closed_fuel(b1, dts_neg(a2), f);
-    lemma_dts_mul_closed(b1, dts_neg(a2));
-    lemma_dts_same_radicand_symmetric(b1, dts_mul(b1, dts_neg(a2)));
-    lemma_dts_same_radicand_transitive(dts_mul(b1, dts_neg(a2)), b1, a1);
-    lemma_dts_mul_closed(b1, a2);
-    lemma_dts_same_radicand_symmetric(a1, dts_mul(b1, a2));
-    lemma_dts_same_radicand_transitive(dts_mul(b1, dts_neg(a2)), a1, dts_mul(b1, a2));
-    lemma_dts_neg_well_formed(dts_mul(b1, a2));
-    lemma_dts_same_radicand_neg(dts_mul(b1, a2));
-    lemma_dts_same_radicand_transitive(dts_mul(b1, dts_neg(a2)), dts_mul(b1, a2),
-        dts_neg(dts_mul(b1, a2)));
-    lemma_dts_nonneg_fuel_congruence(dts_mul(b1, dts_neg(a2)), dts_neg(dts_mul(b1, a2)), f);
-    // neg(a1*b2) + neg(b1*a2) nonneg by nonneg_add
-    lemma_dts_nonneg_radicands_neg(dts_mul(a1, b2));
-    lemma_dts_nonneg_radicands_neg(dts_mul(b1, a2));
-    lemma_dts_nonneg_radicands_mul(a1, b2);
-    lemma_dts_nonneg_radicands_mul(b1, a2);
-    lemma_dts_same_radicand_symmetric(dts_mul(a1, b2), dts_neg(dts_mul(a1, b2)));
-    lemma_dts_same_radicand_transitive(dts_neg(dts_mul(a1, b2)), dts_mul(a1, b2), a1);
-    lemma_dts_same_radicand_symmetric(dts_mul(b1, a2), dts_neg(dts_mul(b1, a2)));
-    lemma_dts_same_radicand_transitive(dts_neg(dts_mul(b1, a2)), dts_mul(b1, a2), a1);
-    lemma_dts_same_radicand_symmetric(dts_neg(dts_mul(a1, b2)), a1);
-    lemma_dts_same_radicand_transitive(dts_neg(dts_mul(a1, b2)), a1,
-        dts_neg(dts_mul(b1, a2)));
-    lemma_dts_depth_neg(dts_mul(a1, b2));
-    lemma_dts_depth_neg(dts_mul(b1, a2));
-    lemma_dts_nonneg_add_closed_fuel(
-        dts_neg(dts_mul(a1, b2)), dts_neg(dts_mul(b1, a2)), f);
-    // neg(im) ≡ neg(a1*b2) + neg(b1*a2) by neg_add
-    verus_algebra::lemmas::additive_group_lemmas::lemma_neg_add::<DynTowerSpec>(
-        dts_mul(a1, b2), dts_mul(b1, a2));
-    lemma_dts_neg_well_formed(im_val);
-    lemma_dts_add_closed(dts_neg(dts_mul(a1, b2)), dts_neg(dts_mul(b1, a2)));
-    lemma_dts_same_radicand_symmetric(dts_neg(dts_mul(a1, b2)),
-        dts_add(dts_neg(dts_mul(a1, b2)), dts_neg(dts_mul(b1, a2))));
-    lemma_dts_same_radicand_neg(im_val);
-    lemma_dts_same_radicand_transitive(
-        dts_add(dts_neg(dts_mul(a1, b2)), dts_neg(dts_mul(b1, a2))),
-        dts_neg(dts_mul(a1, b2)), a1);
-    lemma_dts_same_radicand_transitive(
-        dts_add(dts_neg(dts_mul(a1, b2)), dts_neg(dts_mul(b1, a2))),
-        a1, im_val);
-    lemma_dts_same_radicand_transitive(
-        dts_add(dts_neg(dts_mul(a1, b2)), dts_neg(dts_mul(b1, a2))),
-        im_val, dts_neg(im_val));
-    lemma_dts_nonneg_fuel_congruence(
-        dts_add(dts_neg(dts_mul(a1, b2)), dts_neg(dts_mul(b1, a2))),
-        dts_neg(im_val), f);
-    // Now: re nonneg ✓, neg(im) nonneg ✓, !is_zero(im) ✓
-    // Z3 should see C2 if norm ≥ 0. For the norm, use conclude_re.
-    lemma_dts_nonneg_conclude_re_fuel(re_val, im_val, dd, f);
+    // norm(product) ≡ nx*ny by norm_mul. nx ≤ 0 and ny ≤ 0 from C3.
+    // neg(nx)*neg(ny) nonneg by IH. neg_mul_neg gives nx*ny nonneg.
+    // Congruence transfers to norm(product).
+        lemma_dts_same_radicand_symmetric(a1, b1);
+        lemma_dts_same_radicand_transitive(b1, a1, a2);
+        lemma_dts_same_radicand_transitive(b1, a1, b2);
+        lemma_dts_same_radicand_symmetric(a1, dd);
+        lemma_dts_same_radicand_transitive(dd, a1, b1);
+        // neg_nx = sub(d*b1², a1²) nonneg from C3 precondition
+        // neg_ny = sub(d*b2², a2²) nonneg from C3 precondition
+        let neg_nx = dts_sub(dts_mul(dd, dts_mul(b1, b1)), dts_mul(a1, a1));
+        let neg_ny = dts_sub(dts_mul(dd, dts_mul(b2, b2)), dts_mul(a2, a2));
+        // same_radicand(neg_nx, neg_ny) via a1
+        lemma_dts_same_radicand_reflexive(a1); lemma_dts_mul_closed(a1, a1);
+        lemma_dts_same_radicand_reflexive(b1); lemma_dts_mul_closed(b1, b1);
+        lemma_dts_same_radicand_reflexive(a2); lemma_dts_mul_closed(a2, a2);
+        lemma_dts_same_radicand_reflexive(b2); lemma_dts_mul_closed(b2, b2);
+        lemma_dts_same_radicand_symmetric(b1, dts_mul(b1, b1));
+        lemma_dts_same_radicand_transitive(dd, b1, dts_mul(b1, b1));
+        lemma_dts_mul_closed(dd, dts_mul(b1, b1));
+        lemma_dts_same_radicand_symmetric(b2, dts_mul(b2, b2));
+        lemma_dts_same_radicand_transitive(dd, a1, b2);
+        lemma_dts_same_radicand_transitive(dd, b2, dts_mul(b2, b2));
+        lemma_dts_mul_closed(dd, dts_mul(b2, b2));
+        // neg_nx~a1: ddb1sq→dd→a1, a1sq→a1
+        lemma_dts_same_radicand_symmetric(dd, dts_mul(dd, dts_mul(b1, b1)));
+        lemma_dts_same_radicand_transitive(dts_mul(dd, dts_mul(b1, b1)), dd, a1);
+        lemma_dts_same_radicand_symmetric(a1, dts_mul(a1, a1));
+        lemma_dts_same_radicand_transitive(dts_mul(dd, dts_mul(b1, b1)), a1, dts_mul(a1, a1));
+        lemma_dts_nonneg_radicands_mul(b1, b1);
+        lemma_dts_nonneg_radicands_mul(dd, dts_mul(b1, b1));
+        lemma_dts_nonneg_radicands_mul(a1, a1);
+        lemma_dts_neg_well_formed(dts_mul(a1, a1));
+        lemma_dts_same_radicand_neg(dts_mul(a1, a1));
+        lemma_dts_same_radicand_transitive(dts_mul(dd, dts_mul(b1, b1)), dts_mul(a1, a1), dts_neg(dts_mul(a1, a1)));
+        lemma_dts_nonneg_radicands_neg(dts_mul(a1, a1));
+        lemma_dts_add_closed(dts_mul(dd, dts_mul(b1, b1)), dts_neg(dts_mul(a1, a1)));
+        lemma_dts_depth_mul_le(a1, a1); lemma_dts_depth_mul_le(b1, b1);
+        lemma_dts_depth_mul_le(dd, dts_mul(b1, b1));
+        lemma_dts_depth_neg(dts_mul(a1, a1));
+        lemma_dts_depth_add_le(dts_mul(dd, dts_mul(b1, b1)), dts_neg(dts_mul(a1, a1)));
+        // neg_ny similarly
+        lemma_dts_same_radicand_symmetric(dd, dts_mul(dd, dts_mul(b2, b2)));
+        lemma_dts_same_radicand_transitive(dts_mul(dd, dts_mul(b2, b2)), dd, a1);
+        lemma_dts_same_radicand_symmetric(a1, a2);
+        lemma_dts_same_radicand_transitive(dts_mul(dd, dts_mul(b2, b2)), a1, a2);
+        lemma_dts_same_radicand_symmetric(a2, dts_mul(a2, a2));
+        lemma_dts_same_radicand_transitive(dts_mul(dd, dts_mul(b2, b2)), a2, dts_mul(a2, a2));
+        lemma_dts_nonneg_radicands_mul(b2, b2);
+        lemma_dts_nonneg_radicands_mul(dd, dts_mul(b2, b2));
+        lemma_dts_nonneg_radicands_mul(a2, a2);
+        lemma_dts_neg_well_formed(dts_mul(a2, a2));
+        lemma_dts_same_radicand_neg(dts_mul(a2, a2));
+        lemma_dts_same_radicand_transitive(dts_mul(dd, dts_mul(b2, b2)), dts_mul(a2, a2), dts_neg(dts_mul(a2, a2)));
+        lemma_dts_nonneg_radicands_neg(dts_mul(a2, a2));
+        lemma_dts_add_closed(dts_mul(dd, dts_mul(b2, b2)), dts_neg(dts_mul(a2, a2)));
+        lemma_dts_depth_mul_le(a2, a2); lemma_dts_depth_mul_le(b2, b2);
+        lemma_dts_depth_mul_le(dd, dts_mul(b2, b2));
+        lemma_dts_depth_neg(dts_mul(a2, a2));
+        lemma_dts_depth_add_le(dts_mul(dd, dts_mul(b2, b2)), dts_neg(dts_mul(a2, a2)));
+        // same_radicand(neg_nx, neg_ny): both ~a1
+        lemma_dts_same_radicand_symmetric(dts_mul(dd, dts_mul(b1, b1)), neg_nx);
+        lemma_dts_same_radicand_transitive(neg_nx, dts_mul(dd, dts_mul(b1, b1)), a1);
+        lemma_dts_same_radicand_symmetric(dts_mul(dd, dts_mul(b2, b2)), neg_ny);
+        lemma_dts_same_radicand_transitive(neg_ny, dts_mul(dd, dts_mul(b2, b2)), a1);
+        lemma_dts_same_radicand_symmetric(neg_nx, a1);
+        lemma_dts_same_radicand_symmetric(neg_ny, a1);
+        lemma_dts_same_radicand_transitive(neg_nx, a1, neg_ny);
+        // nonneg(neg_nx * neg_ny) by IH
+        lemma_dts_nonneg_mul_closed_fuel(neg_nx, neg_ny, f);
+        // neg_nx ≡ neg(nx) by sub_antisymmetric
+        let nx = dts_sub(dts_mul(a1, a1), dts_mul(dd, dts_mul(b1, b1)));
+        let ny = dts_sub(dts_mul(a2, a2), dts_mul(dd, dts_mul(b2, b2)));
+        lemma_dts_same_radicand_symmetric(a1, dts_mul(a1, a1));
+        lemma_dts_same_radicand_transitive(dts_mul(a1, a1), a1, dd);
+        lemma_dts_same_radicand_transitive(dts_mul(a1, a1), dd, dts_mul(dd, dts_mul(b1, b1)));
+        verus_algebra::lemmas::additive_group_lemmas::lemma_sub_antisymmetric::<DynTowerSpec>(
+            dts_mul(dd, dts_mul(b1, b1)), dts_mul(a1, a1));
+        lemma_dts_same_radicand_transitive(dts_mul(a2, a2), a2, a1);
+        lemma_dts_same_radicand_transitive(dts_mul(a2, a2), a1, dd);
+        lemma_dts_same_radicand_transitive(dts_mul(a2, a2), dd, dts_mul(dd, dts_mul(b2, b2)));
+        verus_algebra::lemmas::additive_group_lemmas::lemma_sub_antisymmetric::<DynTowerSpec>(
+            dts_mul(dd, dts_mul(b2, b2)), dts_mul(a2, a2));
+        // neg_nx*neg_ny ≡ neg(nx)*neg(ny) by congruence
+        // neg(nx)*neg(ny) ≡ nx*ny by neg_mul_neg
+        lemma_dts_neg_mul_neg(nx, ny);
+        // Transfer nonneg: neg_nx*neg_ny → nx*ny
+        lemma_dts_mul_closed(neg_nx, neg_ny);
+        lemma_dts_neg_well_formed(nx); lemma_dts_neg_well_formed(ny);
+        lemma_dts_same_radicand_neg(nx); lemma_dts_same_radicand_neg(ny);
+        lemma_dts_same_radicand_symmetric(neg_nx, dts_mul(neg_nx, neg_ny));
+        lemma_dts_same_radicand_transitive(dts_mul(neg_nx, neg_ny), neg_nx, a1);
+        lemma_dts_neg_well_formed(dts_mul(a1, a1));
+        lemma_dts_same_radicand_neg(dts_mul(a1, a1));
+        lemma_dts_same_radicand_transitive(dts_mul(a1, a1), a1, dd);
+        lemma_dts_same_radicand_transitive(dts_mul(a1, a1), dd, dts_mul(dd, dts_mul(b1, b1)));
+        lemma_dts_add_closed(dts_mul(a1, a1), dts_neg(dts_mul(dd, dts_mul(b1, b1))));
+        lemma_dts_same_radicand_neg(dts_mul(dd, dts_mul(b1, b1)));
+        lemma_dts_same_radicand_transitive(dts_mul(a1, a1), dts_mul(dd, dts_mul(b1, b1)), dts_neg(dts_mul(dd, dts_mul(b1, b1))));
+        lemma_dts_depth_neg(dts_mul(dd, dts_mul(b1, b1)));
+        lemma_dts_depth_add_le(dts_mul(a1, a1), dts_neg(dts_mul(dd, dts_mul(b1, b1))));
+        lemma_dts_add_closed(dts_mul(a2, a2), dts_neg(dts_mul(dd, dts_mul(b2, b2))));
+        lemma_dts_same_radicand_neg(dts_mul(dd, dts_mul(b2, b2)));
+        lemma_dts_same_radicand_transitive(dts_mul(a2, a2), dts_mul(dd, dts_mul(b2, b2)), dts_neg(dts_mul(dd, dts_mul(b2, b2))));
+        lemma_dts_depth_neg(dts_mul(dd, dts_mul(b2, b2)));
+        lemma_dts_depth_add_le(dts_mul(a2, a2), dts_neg(dts_mul(dd, dts_mul(b2, b2))));
+        lemma_dts_mul_closed(dts_neg(nx), dts_neg(ny));
+        // neg_nx ≡ neg(nx), neg_ny ≡ neg(ny): congruence gives neg_nx*neg_ny ≡ neg(nx)*neg(ny)
+        lemma_dts_same_radicand_symmetric(neg_nx, a1);
+        lemma_dts_same_radicand_transitive(neg_nx, a1, nx);
+        lemma_dts_same_radicand_transitive(neg_nx, nx, dts_neg(nx));
+        lemma_dts_same_radicand_symmetric(neg_ny, a1);
+        lemma_dts_same_radicand_transitive(neg_ny, a1, ny);
+        lemma_dts_same_radicand_transitive(neg_ny, ny, dts_neg(ny));
+        lemma_dts_mul_congruence_left(neg_nx, dts_neg(nx), neg_ny);
+        lemma_dts_mul_congruence_right(neg_ny, dts_neg(ny), dts_neg(nx));
+        lemma_dts_eqv_transitive(dts_mul(neg_nx, neg_ny), dts_mul(dts_neg(nx), neg_ny), dts_mul(dts_neg(nx), dts_neg(ny)));
+        // neg(nx)*neg(ny) ≡ nx*ny: chain
+        lemma_dts_eqv_transitive(dts_mul(neg_nx, neg_ny), dts_mul(dts_neg(nx), dts_neg(ny)), dts_mul(nx, ny));
+        // nx*ny ≡ norm(product) by norm_mul (symmetric direction)
+        lemma_dts_norm_mul(a1, b1, a2, b2, dd);
+        lemma_dts_eqv_symmetric(
+            dts_sub(dts_mul(re_val, re_val), dts_mul(dd, dts_mul(im_val, im_val))),
+            dts_mul(nx, ny));
+        // Chain: neg_nx*neg_ny → nx*ny → norm(product)
+        lemma_dts_eqv_transitive(dts_mul(neg_nx, neg_ny), dts_mul(nx, ny),
+            dts_sub(dts_mul(re_val, re_val), dts_mul(dd, dts_mul(im_val, im_val))));
+        // Transfer nonneg via congruence
+        lemma_dts_mul_closed(nx, ny);
+        lemma_dts_same_radicand_symmetric(neg_nx, a1);
+        lemma_dts_same_radicand_transitive(dts_mul(neg_nx, neg_ny), neg_nx, a1);
+        lemma_dts_same_radicand_transitive(dts_mul(neg_nx, neg_ny), a1, nx);
+        lemma_dts_same_radicand_symmetric(nx, dts_mul(nx, ny));
+        lemma_dts_same_radicand_transitive(dts_mul(neg_nx, neg_ny), nx, dts_mul(nx, ny));
+        lemma_dts_nonneg_fuel_congruence(dts_mul(neg_nx, neg_ny), dts_mul(nx, ny), f);
+        // norm nonneg via congruence from nx*ny
+        lemma_dts_same_radicand_symmetric(nx, dts_mul(nx, ny));
+        lemma_dts_same_radicand_transitive(dts_mul(nx, ny), nx, a1);
+        lemma_dts_mul_closed(re_val, re_val);
+        lemma_dts_mul_closed(im_val, im_val);
+        lemma_dts_mul_closed(dd, dts_mul(im_val, im_val));
+        lemma_dts_same_radicand_reflexive(re_val);
+        lemma_dts_same_radicand_reflexive(im_val);
+        lemma_dts_same_radicand_symmetric(a1, re_val);
+        lemma_dts_same_radicand_transitive(re_val, a1, dts_mul(re_val, re_val));
+        lemma_dts_same_radicand_transitive(dts_mul(nx, ny), a1, re_val);
+        lemma_dts_same_radicand_transitive(dts_mul(nx, ny), re_val, dts_mul(re_val, re_val));
+        lemma_dts_same_radicand_symmetric(im_val, dts_mul(im_val, im_val));
+        lemma_dts_same_radicand_transitive(dd, a1, im_val);
+        lemma_dts_same_radicand_transitive(dd, im_val, dts_mul(im_val, im_val));
+        lemma_dts_mul_closed(dd, dts_mul(im_val, im_val));
+        lemma_dts_same_radicand_symmetric(dts_mul(re_val, re_val), re_val);
+        lemma_dts_same_radicand_transitive(dts_mul(re_val, re_val), re_val, a1);
+        lemma_dts_same_radicand_transitive(dts_mul(re_val, re_val), a1, dd);
+        lemma_dts_same_radicand_symmetric(dd, dts_mul(dd, dts_mul(im_val, im_val)));
+        lemma_dts_same_radicand_transitive(dts_mul(re_val, re_val), dd, dts_mul(dd, dts_mul(im_val, im_val)));
+        lemma_dts_neg_well_formed(dts_mul(dd, dts_mul(im_val, im_val)));
+        lemma_dts_same_radicand_neg(dts_mul(dd, dts_mul(im_val, im_val)));
+        lemma_dts_same_radicand_transitive(dts_mul(re_val, re_val), dts_mul(dd, dts_mul(im_val, im_val)), dts_neg(dts_mul(dd, dts_mul(im_val, im_val))));
+        lemma_dts_add_closed(dts_mul(re_val, re_val), dts_neg(dts_mul(dd, dts_mul(im_val, im_val))));
+        lemma_dts_same_radicand_transitive(dts_mul(nx, ny), dts_mul(re_val, re_val),
+            dts_sub(dts_mul(re_val, re_val), dts_mul(dd, dts_mul(im_val, im_val))));
+        lemma_dts_nonneg_fuel_congruence(dts_mul(nx, ny),
+            dts_sub(dts_mul(re_val, re_val), dts_mul(dd, dts_mul(im_val, im_val))), f);
 }
 
 /// Nonneg closed under multiplication. Mutually recursive with nonneg_add_closed.
