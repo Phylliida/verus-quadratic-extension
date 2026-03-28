@@ -8120,6 +8120,48 @@ pub proof fn lemma_dts_nonneg_mul_closed_fuel(
                 lemma_dts_nonneg_mul_cc(a1, b1, a2, b2, dd, f);
                 return;
             }
+            // ═══ Remaining cases: extracted to helper for rlimit ═══
+            lemma_dts_nonneg_mul_remaining(a1, b1, a2, b2, dd, f);
+            return;
+        }
+        _ => {}
+    }
+}
+
+/// Helper for remaining nonneg_mul cases (C1×C2, C2×C1, A×B, B×A).
+/// Extracted from nonneg_mul_closed_fuel for rlimit management.
+#[verifier::rlimit(200)]
+proof fn lemma_dts_nonneg_mul_remaining(
+    a1: DynTowerSpec, b1: DynTowerSpec, a2: DynTowerSpec, b2: DynTowerSpec,
+    dd: DynTowerSpec, f: nat,
+)
+    requires
+        f >= dts_depth(a1) + 1, f >= dts_depth(b1) + 1,
+        f >= dts_depth(a2) + 1, f >= dts_depth(b2) + 1, f >= dts_depth(dd) + 1,
+        dts_well_formed(a1), dts_well_formed(b1), dts_well_formed(a2),
+        dts_well_formed(b2), dts_well_formed(dd),
+        dts_same_radicand(a1, b1), dts_same_radicand(a1, a2),
+        dts_same_radicand(a1, b2), dts_same_radicand(a1, dd),
+        dts_nonneg_radicands(a1), dts_nonneg_radicands(b1),
+        dts_nonneg_radicands(a2), dts_nonneg_radicands(b2),
+        dts_nonneg_radicands(dd), dts_nonneg(dd),
+        dts_norm_definite(a1), dts_norm_definite(b1),
+        dts_norm_definite(a2), dts_norm_definite(b2), dts_norm_definite(dd),
+        dts_nonneg_fuel(DynTowerSpec::Ext(
+            Box::new(a1), Box::new(b1), Box::new(dd)), (f + 1) as nat),
+        dts_nonneg_fuel(DynTowerSpec::Ext(
+            Box::new(a2), Box::new(b2), Box::new(dd)), (f + 1) as nat),
+    ensures
+        dts_nonneg_fuel(
+            DynTowerSpec::Ext(
+                Box::new(dts_add(dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2)))),
+                Box::new(dts_add(dts_mul(a1, b2), dts_mul(b1, a2))),
+                Box::new(dd)),
+            (f + 1) as nat),
+    decreases f, 2nat,
+{
+            let a1_nn = dts_nonneg_fuel(a1, f);
+            let a2_nn = dts_nonneg_fuel(a2, f);
             // ═══ Remaining cases: use le_total on product components ═══
             // Product = Ext(re_val, im_val, dd) where:
             // re_val = add(mul(a1,a2), mul(dd,mul(b1,b2)))
@@ -8127,14 +8169,15 @@ pub proof fn lemma_dts_nonneg_mul_closed_fuel(
             // All depth/wf/radicand infrastructure already established above.
             let re_val = dts_add(dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2)));
             let im_val = dts_add(dts_mul(a1, b2), dts_mul(b1, a2));
+            // Cross same_radicand chains: establish b1~b2 and b1~a2
+            lemma_dts_same_radicand_symmetric(a1, b1);
+            lemma_dts_same_radicand_transitive(b1, a1, b2); // b1~b2
+            lemma_dts_same_radicand_transitive(b1, a1, a2); // b1~a2
             // Infrastructure for re_val and im_val (needed for le_total)
             lemma_dts_mul_closed(a1, a2);
             lemma_dts_mul_closed(b1, b2);
             lemma_dts_mul_closed(a1, b2);
             lemma_dts_mul_closed(b1, a2);
-            lemma_dts_same_radicand_transitive(a1, b1, b2);
-            lemma_dts_same_radicand_symmetric(a1, b1);
-            lemma_dts_same_radicand_transitive(b1, a1, a2);
             lemma_dts_same_radicand_symmetric(b1, dts_mul(b1, b2));
             lemma_dts_same_radicand_symmetric(a1, dd);
             lemma_dts_same_radicand_transitive(dd, a1, b1);
@@ -8328,7 +8371,8 @@ pub proof fn lemma_dts_nonneg_mul_closed_fuel(
                 lemma_dts_nonneg_radicands_neg(ny);
                 lemma_dts_depth_neg(ny);
                 lemma_norm_definite_neg(ny);
-                if dts_nonneg_fuel(dts_neg(nx), f) {
+                if dts_nonneg_fuel(dts_neg(nx), f) && dts_nonneg_fuel(ny, f) {
+                    // neg(nx)≥0 && ny≥0: neg(nx)*ny ≥ 0 ≡ neg(nx*ny)
                     lemma_dts_nonneg_mul_closed_fuel(dts_neg(nx), ny, f);
                     lemma_dts_neg_mul_left(nx, ny);
                     lemma_dts_mul_closed(dts_neg(nx), ny);
@@ -8342,8 +8386,8 @@ pub proof fn lemma_dts_nonneg_mul_closed_fuel(
                     lemma_dts_same_radicand_transitive(dts_mul(dts_neg(nx), ny), dts_mul(nx, ny),
                         dts_neg(dts_mul(nx, ny)));
                     lemma_dts_nonneg_fuel_congruence(dts_mul(dts_neg(nx), ny), dts_neg(dts_mul(nx, ny)), f);
-                } else if dts_nonneg_fuel(dts_neg(ny), f) {
-                    // nx≥0, neg(ny)≥0: nx*neg(ny) ≥ 0 ≡ neg(nx*ny)
+                } else if dts_nonneg_fuel(nx, f) && dts_nonneg_fuel(dts_neg(ny), f) {
+                    // nx≥0 && neg(ny)≥0: nx*neg(ny) ≥ 0 ≡ neg(nx*ny)
                     lemma_dts_same_radicand_transitive(nx, ny, dts_neg(ny));
                     lemma_dts_nonneg_mul_closed_fuel(nx, dts_neg(ny), f);
                     lemma_dts_neg_mul_right(nx, ny);
@@ -8357,7 +8401,11 @@ pub proof fn lemma_dts_nonneg_mul_closed_fuel(
                         dts_neg(dts_mul(nx, ny)));
                     lemma_dts_nonneg_fuel_congruence(dts_mul(nx, dts_neg(ny)), dts_neg(dts_mul(nx, ny)), f);
                 } else {
-                    // nx≥0, ny≥0, neg(re)≥0: Cauchy-Schwarz shows re=0.
+                    // Remaining: neg(nx)≥0 && neg(ny)≥0 (norm≥0 → conclude_re),
+                    // or nx≥0 && ny≥0 (norm≥0 → conclude_re).
+                    // Both give norm≥0. Use conclude_re (re_val nonneg from le_total,
+                    // but we're in neg(re)≥0 branch... Z3 should close as unreachable
+                    // since these sub-cases force re≥0 by Cauchy-Schwarz or B×B pattern).
                     // P*S = (a1*a2)² - (dd*b1*|b2|)² ≥ 0 via le_mul_nonneg_monotone.
                     // S = a1*a2 + dd*b1*|b2| ≥ 0.
                     // neg(P)*S ≥ 0 (nonneg_mul). neg(P*S) ≥ 0 (neg_mul_left).
@@ -8538,9 +8586,6 @@ pub proof fn lemma_dts_nonneg_mul_closed_fuel(
             // unfolding that is_zero(re) or is_zero(im) must hold.
             // If either is zero: handled by the is_zero shortcuts above.
             // Z3 should close this path as unreachable.
-        }
-        _ => {}
-    }
 }
 
 /// Square is nonneg: mul(x, x) ≥ 0 for any well-formed DTS value.
