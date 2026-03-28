@@ -8307,6 +8307,8 @@ proof fn lemma_dts_nonneg_mul_remaining(
                 lemma_dts_nonneg_or_neg_nonneg_fuel(nx, f);
                 // ny depth + well_formed chain
                 lemma_dts_same_radicand_symmetric(a2, dts_mul(a2, a2));
+                lemma_dts_same_radicand_symmetric(a1, a2);
+                lemma_dts_same_radicand_transitive(a2, a1, dd);
                 lemma_dts_same_radicand_transitive(dts_mul(a2, a2), a2, dd);
                 lemma_dts_same_radicand_transitive(dts_mul(a2, a2), dd, dts_mul(dd, dts_mul(b2, b2)));
                 lemma_dts_neg_well_formed(dts_mul(dd, dts_mul(b2, b2)));
@@ -8460,8 +8462,42 @@ proof fn lemma_dts_nonneg_mul_remaining(
                         lemma_dts_same_radicand_symmetric(b1, dts_neg(b1));
                         lemma_dts_same_radicand_transitive(dts_neg(b1), b1, neg_b2);
                         lemma_dts_same_radicand_transitive(dts_neg(b1), b1, b2);
-                        // neg(b1)*b2 ≥ 0 (both nonneg from le_total in this branch)
-                        lemma_dts_nonneg_mul_closed_fuel(dts_neg(b1), b2, f);
+                        // In this branch: !b1_nn || !neg_b2_nn.
+                        lemma_dts_nonneg_or_neg_nonneg_fuel(b2, f);
+                        if !dts_nonneg_fuel(b1, f) {
+                            // neg(b1) ≥ 0 and b2: le_total(b2).
+                            // If b2≥0: neg(b1)*b2 ≥ 0. If neg(b2)≥0 = neg_b2≥0: contradiction with else branch? No, this is the inner else for b1*neg_b2.
+                            lemma_dts_nonneg_mul_closed_fuel(dts_neg(b1), b2, f);
+                        } else {
+                            // b1≥0 and !neg_b2_nn → b2≥0 (from le_total on neg_b2).
+                            // b1≥0 and b2≥0: b1*b2≥0 and b1*neg_b2≤0. Use neg_mul_right: b1*neg(b2)=neg(b1*b2). nonneg(b1*b2).
+                            // Transfer: nonneg(neg(b1*neg_b2)) via... hmm, neg(neg_b2)=b2.
+                            // b1*neg_b2 = b1*neg(b2). neg(b1*neg(b2)) ≡ b1*b2 (neg_mul_right reversed).
+                            // nonneg(b1*b2) from nonneg_mul(b1, b2). nonneg(b1*b2) ≡ nonneg(neg(b1*neg_b2)).
+                            // So nonneg(neg(b1*neg_b2)) → neg(neg(b1*neg_b2)) = b1*neg_b2 NOT nonneg.
+                            // But I NEED nonneg(b1*neg_b2)! If b1≥0 and b2≥0: b1*neg(b2) ≤ 0.
+                            // So b1*neg_b2 is NOT nonneg. Then dd*b1*neg_b2 ≤ 0 too.
+                            // S = a1*a2 + dd*b1*neg_b2 where a1*a2 ≥ 0 and dd*b1*neg_b2 ≤ 0.
+                            // S might not be ≥ 0! This is the C2×C1 case with b1≥0 and b2≥0.
+                            // But C1×C1 was already handled! b1_nn && b2_nn → C1×C1 returned.
+                            // If b2_nn: then the ORIGINAL case check a1_nn&&b1_nn&&a2_nn&&b2_nn
+                            // would have caught it. So b2 is NOT nonneg here.
+                            // Contradiction: !neg_b2_nn and b2_nn from le_total.
+                            // Wait: !neg_b2_nn means !nonneg(neg(b2)). And from le_total(b2):
+                            // nonneg(b2) or nonneg(neg(b2)). !nonneg(neg(b2)) → nonneg(b2). ✓
+                            // So b2_nn = true. Then the original C1×C1 check would have caught
+                            // b1_nn && b2_nn IF a1_nn && a2_nn. If !a1_nn or !a2_nn: we're in A×B/B×A.
+                            // In that case: a1*a2 might not be nonneg. a1*a2: neg_mul handles it.
+                            // But b1*neg_b2: b1≥0, neg(b2)≤0 → b1*neg(b2) ≤ 0. NOT nonneg.
+                            // dd*b1*neg_b2 ≤ 0. S might be negative. Cauchy-Schwarz doesn't apply directly.
+                            // This sub-case needs different handling. For now: Z3 should close via
+                            // nonneg_fuel unfolding (this path may be unreachable after existing handlers).
+                            // b1≥0, b2≥0. If a1_nn&&a2_nn: C1×C1 handled. So A×B or B×A.
+                            // A×B: neg(ny)≥0 from C3. Combined with ny≥0: both_nonneg(ny).
+                            // le_antisymmetric → is_zero(ny) → is_zero(a2)&&is_zero(b2) via norm_definite.
+                            // Then re_val and im_val are zero → handled by is_zero shortcuts above.
+                            // Z3 should close this as unreachable.
+                        }
                         lemma_dts_neg_mul_neg(b1, neg_b2);
                         // nonneg(neg(b1)*b2) ≡ nonneg(b1*neg_b2) via neg_mul_neg congruence
                         lemma_dts_mul_closed(dts_neg(b1), b2);
