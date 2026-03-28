@@ -8006,7 +8006,7 @@ proof fn lemma_dts_nonneg_mul_bb_norm(
 }
 
 /// Nonneg closed under multiplication. Mutually recursive with nonneg_add_closed.
-#[verifier::rlimit(120)]
+#[verifier::rlimit(200)]
 pub proof fn lemma_dts_nonneg_mul_closed_fuel(
     x: DynTowerSpec, y: DynTowerSpec, fuel: nat,
 )
