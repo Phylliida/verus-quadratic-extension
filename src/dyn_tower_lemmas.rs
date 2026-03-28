@@ -8446,7 +8446,32 @@ proof fn lemma_dts_nonneg_mul_remaining(
                     lemma_norm_definite_mul(b1, neg_b2);
                     lemma_norm_definite_mul(dd, dts_mul(b1, neg_b2));
                     lemma_dts_nonneg_or_neg_nonneg_fuel(neg_b2, f);
-                    lemma_dts_nonneg_mul_closed_fuel(b1, neg_b2, f);
+                    lemma_dts_nonneg_or_neg_nonneg_fuel(b1, f);
+                    // b1*neg_b2 ≥ 0: dispatch by signs
+                    if dts_nonneg_fuel(b1, f) && dts_nonneg_fuel(neg_b2, f) {
+                        lemma_dts_nonneg_mul_closed_fuel(b1, neg_b2, f);
+                    } else {
+                        // neg(b1)≥0 or b2≥0: use neg_mul chains
+                        lemma_dts_neg_well_formed(b1);
+                        lemma_dts_same_radicand_neg(b1);
+                        lemma_dts_nonneg_radicands_neg(b1);
+                        lemma_dts_depth_neg(b1);
+                        lemma_norm_definite_neg(b1);
+                        lemma_dts_same_radicand_symmetric(b1, dts_neg(b1));
+                        lemma_dts_same_radicand_transitive(dts_neg(b1), b1, neg_b2);
+                        lemma_dts_same_radicand_transitive(dts_neg(b1), b1, b2);
+                        // neg(b1)*b2 ≥ 0 (both nonneg from le_total in this branch)
+                        lemma_dts_nonneg_mul_closed_fuel(dts_neg(b1), b2, f);
+                        lemma_dts_neg_mul_neg(b1, neg_b2);
+                        // nonneg(neg(b1)*b2) ≡ nonneg(b1*neg_b2) via neg_mul_neg congruence
+                        lemma_dts_mul_closed(dts_neg(b1), b2);
+                        lemma_dts_mul_closed(b1, neg_b2);
+                        lemma_dts_same_radicand_symmetric(dts_neg(b1), dts_mul(dts_neg(b1), b2));
+                        lemma_dts_same_radicand_transitive(dts_mul(dts_neg(b1), b2), dts_neg(b1), b1);
+                        lemma_dts_same_radicand_symmetric(b1, dts_mul(b1, neg_b2));
+                        lemma_dts_same_radicand_transitive(dts_mul(dts_neg(b1), b2), b1, dts_mul(b1, neg_b2));
+                        lemma_dts_nonneg_fuel_congruence(dts_mul(dts_neg(b1), b2), dts_mul(b1, neg_b2), f);
+                    }
                     lemma_dts_nonneg_fuel_stabilize(dd, f);
                     lemma_dts_nonneg_mul_closed_fuel(dd, dts_mul(b1, neg_b2), f);
                     // S = a1*a2 + dd*b1*|b2| ≥ 0
