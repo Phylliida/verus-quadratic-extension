@@ -8468,6 +8468,15 @@ proof fn lemma_dts_nonneg_mul_remaining(
                             // neg(b1) ≥ 0 and b2: le_total(b2).
                             // If b2≥0: neg(b1)*b2 ≥ 0. If neg(b2)≥0 = neg_b2≥0: contradiction with else branch? No, this is the inner else for b1*neg_b2.
                             lemma_dts_nonneg_mul_closed_fuel(dts_neg(b1), b2, f);
+                            lemma_dts_neg_mul_neg(b1, neg_b2);
+                            lemma_dts_mul_closed(dts_neg(b1), b2);
+                            lemma_dts_mul_closed(b1, neg_b2);
+                            lemma_dts_same_radicand_symmetric(dts_neg(b1), dts_mul(dts_neg(b1), b2));
+                            lemma_dts_same_radicand_transitive(dts_mul(dts_neg(b1), b2), dts_neg(b1), b1);
+                            lemma_dts_same_radicand_symmetric(b1, dts_mul(b1, neg_b2));
+                            lemma_dts_same_radicand_transitive(dts_mul(dts_neg(b1), b2), b1, dts_mul(b1, neg_b2));
+                            assert(dts_neg(neg_b2) == b2);
+                            lemma_dts_nonneg_fuel_congruence(dts_mul(dts_neg(b1), b2), dts_mul(b1, neg_b2), f);
                         } else {
                             // b1≥0 and !neg_b2_nn → b2≥0 (from le_total on neg_b2).
                             // b1≥0 and b2≥0: b1*b2≥0 and b1*neg_b2≤0. Use neg_mul_right: b1*neg(b2)=neg(b1*b2). nonneg(b1*b2).
@@ -8497,17 +8506,8 @@ proof fn lemma_dts_nonneg_mul_remaining(
                             // le_antisymmetric → is_zero(ny) → is_zero(a2)&&is_zero(b2) via norm_definite.
                             // Then re_val and im_val are zero → handled by is_zero shortcuts above.
                             // Z3 should close this as unreachable.
+                            return;
                         }
-                        lemma_dts_neg_mul_neg(b1, neg_b2);
-                        // nonneg(neg(b1)*b2) ≡ nonneg(b1*neg_b2) via neg_mul_neg congruence
-                        lemma_dts_mul_closed(dts_neg(b1), b2);
-                        lemma_dts_mul_closed(b1, neg_b2);
-                        lemma_dts_same_radicand_symmetric(dts_neg(b1), dts_mul(dts_neg(b1), b2));
-                        lemma_dts_same_radicand_transitive(dts_mul(dts_neg(b1), b2), dts_neg(b1), b1);
-                        lemma_dts_same_radicand_symmetric(b1, dts_mul(b1, neg_b2));
-                        lemma_dts_same_radicand_transitive(dts_mul(dts_neg(b1), b2), b1, dts_mul(b1, neg_b2));
-                        lemma_dts_nonneg_fuel_congruence(dts_mul(dts_neg(b1), b2), dts_mul(b1, neg_b2), f);
-                    }
                     lemma_dts_nonneg_fuel_stabilize(dd, f);
                     lemma_dts_nonneg_mul_closed_fuel(dd, dts_mul(b1, neg_b2), f);
                     // S = a1*a2 + dd*b1*|b2| ≥ 0
@@ -8647,6 +8647,7 @@ proof fn lemma_dts_nonneg_mul_remaining(
             // unfolding that is_zero(re) or is_zero(im) must hold.
             // If either is zero: handled by the is_zero shortcuts above.
             // Z3 should close this path as unreachable.
+    }
 }
 
 /// Square is nonneg: mul(x, x) ≥ 0 for any well-formed DTS value.
