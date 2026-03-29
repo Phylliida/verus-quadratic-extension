@@ -8551,6 +8551,10 @@ proof fn lemma_dts_nonneg_mul_remaining(
                             lemma_dts_depth_neg(a2);
                             lemma_norm_definite_neg(a2);
                             lemma_dts_same_radicand_transitive(a1, a2, neg_a2);
+                            //  nonneg(neg(a2)): from !a2_nn + le_total(a2).
+                            //  If a2_nn were true: a1_nn&&b1_nn&&a2_nn&&b2_nn → C1×C1 handled.
+                            //  So !a2_nn, hence nonneg(neg(a2)) from le_total.
+                            assert(dts_nonneg_fuel(neg_a2, f));
                             let x_cs = dts_mul(dd, dts_mul(b1, b2));
                             let y_cs = dts_mul(a1, neg_a2);
                             lemma_dts_mul_closed(a1, neg_a2);
