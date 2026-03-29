@@ -1,13 +1,13 @@
-/// Generic runtime quadratic extension field element.
+///  Generic runtime quadratic extension field element.
 ///
-/// RuntimeQExt<FV, R, F> represents an element of SpecQuadExt<FV, R>
-/// where F is the runtime base field type implementing RuntimeOrderedFieldOps<FV>.
+///  RuntimeQExt<FV, R, F> represents an element of SpecQuadExt<FV, R>
+///  where F is the runtime base field type implementing RuntimeOrderedFieldOps<FV>.
 ///
-/// This generalizes RuntimeQExtRat<R> (which is hardcoded to RuntimeRational/Rational)
-/// to support arbitrary base fields, enabling nested extensions:
-///   Level 0: RuntimeRational                              (Rational)
-///   Level 1: RuntimeQExt<Rational, R1, RuntimeRational>   (SpecQuadExt<Rational, R1>)
-///   Level 2: RuntimeQExt<QExt1, R2, RtQExt1>             (SpecQuadExt<QExt1, R2>)
+///  This generalizes RuntimeQExtRat<R> (which is hardcoded to RuntimeRational/Rational)
+///  to support arbitrary base fields, enabling nested extensions:
+///    Level 0: RuntimeRational                              (Rational)
+///    Level 1: RuntimeQExt<Rational, R1, RuntimeRational>   (SpecQuadExt<Rational, R1>)
+///    Level 2: RuntimeQExt<QExt1, R2, RtQExt1>             (SpecQuadExt<QExt1, R2>)
 use verus_rational::RuntimeRational;
 
 #[cfg(verus_keep_ghost)]
@@ -45,20 +45,20 @@ use crate::runtime_field::{RuntimeRingOps, RuntimeFieldOps, RuntimeOrderedFieldO
 #[cfg(verus_keep_ghost)]
 verus! {
 
-// ═══════════════════════════════════════════════════════════════════
-//  RuntimeQExt — generic runtime quadratic extension
-// ═══════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════
+//   RuntimeQExt — generic runtime quadratic extension
+//  ═══════════════════════════════════════════════════════════════════
 
-/// Runtime element of a quadratic extension F(√d).
+///  Runtime element of a quadratic extension F(√d).
 ///
-/// Stores re + im·√d where:
-///   - F is the runtime base field type (e.g., RuntimeRational or another RuntimeQExt)
-///   - FV is the spec-level base field (e.g., Rational or SpecQuadExt<...>)
-///   - R is the radicand witness type
-///   - radicand_rt is the runtime value of the radicand d
+///  Stores re + im·√d where:
+///    - F is the runtime base field type (e.g., RuntimeRational or another RuntimeQExt)
+///    - FV is the spec-level base field (e.g., Rational or SpecQuadExt<...>)
+///    - R is the radicand witness type
+///    - radicand_rt is the runtime value of the radicand d
 ///
-/// Unlike RuntimeQExtRat, this doesn't use RuntimeRadicand<R> for the radicand.
-/// Instead, the radicand is stored in the struct and validated by wf_spec.
+///  Unlike RuntimeQExtRat, this doesn't use RuntimeRadicand<R> for the radicand.
+///  Instead, the radicand is stored in the struct and validated by wf_spec.
 pub struct RuntimeQExt<FV: OrderedField, R: Radicand<FV>, F: RuntimeOrderedFieldOps<FV>> {
     pub re: F,
     pub im: F,
@@ -67,8 +67,8 @@ pub struct RuntimeQExt<FV: OrderedField, R: Radicand<FV>, F: RuntimeOrderedField
 }
 
 impl<FV: OrderedField, R: Radicand<FV>, F: RuntimeOrderedFieldOps<FV>> RuntimeQExt<FV, R, F> {
-    /// Well-formedness: runtime components match the ghost model,
-    /// and the stored radicand matches the spec-level radicand value.
+    ///  Well-formedness: runtime components match the ghost model,
+    ///  and the stored radicand matches the spec-level radicand value.
     pub open spec fn wf_spec(&self) -> bool {
         &&& self.re.wf_spec()
         &&& self.im.wf_spec()
@@ -78,7 +78,7 @@ impl<FV: OrderedField, R: Radicand<FV>, F: RuntimeOrderedFieldOps<FV>> RuntimeQE
         &&& self.radicand_rt.rf_view() == R::value()
     }
 
-    /// Construct from components and radicand.
+    ///  Construct from components and radicand.
     pub fn new(re: F, im: F, radicand_rt: F) -> (out: Self)
         requires
             re.wf_spec(),
@@ -94,10 +94,10 @@ impl<FV: OrderedField, R: Radicand<FV>, F: RuntimeOrderedFieldOps<FV>> RuntimeQE
         RuntimeQExt { re, im, radicand_rt, model: Ghost(model) }
     }
 
-    /// Embed a base field element into the extension: v ↦ v + 0·√d.
+    ///  Embed a base field element into the extension: v ↦ v + 0·√d.
     ///
-    /// Requires a radicand runtime value to populate the struct.
-    /// Spec: out@ == qext_from_rational(v.rf_view())
+    ///  Requires a radicand runtime value to populate the struct.
+    ///  Spec: out@ == qext_from_rational(v.rf_view())
     pub fn embed_base(v: F, radicand_rt: F) -> (out: Self)
         requires
             v.wf_spec(),
@@ -113,9 +113,9 @@ impl<FV: OrderedField, R: Radicand<FV>, F: RuntimeOrderedFieldOps<FV>> RuntimeQE
         RuntimeQExt { re: v, im, radicand_rt, model: Ghost(model) }
     }
 
-    // ─── Ring operations ─────────────────────────────────────────
+    //  ─── Ring operations ─────────────────────────────────────────
 
-    /// Addition: (a + b√d) + (c + e√d) = (a+c) + (b+e)√d
+    ///  Addition: (a + b√d) + (c + e√d) = (a+c) + (b+e)√d
     pub fn add_exec(&self, rhs: &Self) -> (out: Self)
         requires self.wf_spec(), rhs.wf_spec()
         ensures
@@ -129,7 +129,7 @@ impl<FV: OrderedField, R: Radicand<FV>, F: RuntimeOrderedFieldOps<FV>> RuntimeQE
         RuntimeQExt { re, im, radicand_rt: radicand, model: Ghost(model) }
     }
 
-    /// Subtraction: (a + b√d) - (c + e√d) = (a-c) + (b-e)√d
+    ///  Subtraction: (a + b√d) - (c + e√d) = (a-c) + (b-e)√d
     pub fn sub_exec(&self, rhs: &Self) -> (out: Self)
         requires self.wf_spec(), rhs.wf_spec()
         ensures
@@ -143,7 +143,7 @@ impl<FV: OrderedField, R: Radicand<FV>, F: RuntimeOrderedFieldOps<FV>> RuntimeQE
         RuntimeQExt { re, im, radicand_rt: radicand, model: Ghost(model) }
     }
 
-    /// Negation: -(a + b√d) = (-a) + (-b)√d
+    ///  Negation: -(a + b√d) = (-a) + (-b)√d
     pub fn neg_exec(&self) -> (out: Self)
         requires self.wf_spec()
         ensures
@@ -157,20 +157,20 @@ impl<FV: OrderedField, R: Radicand<FV>, F: RuntimeOrderedFieldOps<FV>> RuntimeQE
         RuntimeQExt { re, im, radicand_rt: radicand, model: Ghost(model) }
     }
 
-    /// Multiplication: (a + b√d)(c + e√d) = (ac + bed) + (ae + bc)√d
+    ///  Multiplication: (a + b√d)(c + e√d) = (ac + bed) + (ae + bc)√d
     pub fn mul_exec(&self, rhs: &Self) -> (out: Self)
         requires self.wf_spec(), rhs.wf_spec()
         ensures
             out.wf_spec(),
             out.model@ == qe_mul::<FV, R>(self.model@, rhs.model@),
     {
-        // Real part: a*c + b*e*d
+        //  Real part: a*c + b*e*d
         let ac = self.re.rf_mul(&rhs.re);
         let be = self.im.rf_mul(&rhs.im);
         let bed = be.rf_mul(&self.radicand_rt);
         let re = ac.rf_add(&bed);
 
-        // Imaginary part: a*e + b*c
+        //  Imaginary part: a*e + b*c
         let ae = self.re.rf_mul(&rhs.im);
         let bc = self.im.rf_mul(&rhs.re);
         let im = ae.rf_add(&bc);
@@ -180,7 +180,7 @@ impl<FV: OrderedField, R: Radicand<FV>, F: RuntimeOrderedFieldOps<FV>> RuntimeQE
         RuntimeQExt { re, im, radicand_rt: radicand, model: Ghost(model) }
     }
 
-    /// Conjugate: (a + b√d) → (a - b√d)
+    ///  Conjugate: (a + b√d) → (a - b√d)
     pub fn conj_exec(&self) -> (out: Self)
         requires self.wf_spec()
         ensures
@@ -194,7 +194,7 @@ impl<FV: OrderedField, R: Radicand<FV>, F: RuntimeOrderedFieldOps<FV>> RuntimeQE
         RuntimeQExt { re, im, radicand_rt: radicand, model: Ghost(model) }
     }
 
-    /// Component-wise equivalence: a.re ≡ b.re && a.im ≡ b.im
+    ///  Component-wise equivalence: a.re ≡ b.re && a.im ≡ b.im
     pub fn eq_exec(&self, rhs: &Self) -> (out: bool)
         requires self.wf_spec(), rhs.wf_spec()
         ensures out == qe_eqv::<FV, R>(self.model@, rhs.model@)
@@ -204,7 +204,7 @@ impl<FV: OrderedField, R: Radicand<FV>, F: RuntimeOrderedFieldOps<FV>> RuntimeQE
         re_eq && im_eq
     }
 
-    /// Copy by copying internal fields.
+    ///  Copy by copying internal fields.
     pub fn copy_exec(&self) -> (out: Self)
         requires self.wf_spec()
         ensures out.wf_spec(), out.model@ == self.model@
@@ -215,24 +215,24 @@ impl<FV: OrderedField, R: Radicand<FV>, F: RuntimeOrderedFieldOps<FV>> RuntimeQE
         RuntimeQExt { re, im, radicand_rt: radicand, model: Ghost(self.model@) }
     }
 
-    /// Norm: a² - b²d (returns a base field element, not an extension element).
+    ///  Norm: a² - b²d (returns a base field element, not an extension element).
     pub fn norm_exec(&self) -> (out: F)
         requires self.wf_spec()
         ensures
             out.wf_spec(),
             out.rf_view() == qe_norm::<FV, R>(self.model@),
     {
-        // a²
+        //  a²
         let a_sq = self.re.rf_mul(&self.re);
-        // b²
+        //  b²
         let b_sq = self.im.rf_mul(&self.im);
-        // b² * d
+        //  b² * d
         let b_sq_d = b_sq.rf_mul(&self.radicand_rt);
-        // a² - b²d
+        //  a² - b²d
         a_sq.rf_sub(&b_sq_d)
     }
 
-    /// Reciprocal: (a + b√d)⁻¹ = (a - b√d) / (a² - b²d)
+    ///  Reciprocal: (a + b√d)⁻¹ = (a - b√d) / (a² - b²d)
     pub fn recip_exec(&self) -> (out: Self)
         requires
             self.wf_spec(),
@@ -258,7 +258,7 @@ impl<FV: OrderedField, R: Radicand<FV>, F: RuntimeOrderedFieldOps<FV>> RuntimeQE
         RuntimeQExt { re, im, radicand_rt: radicand, model: Ghost(model) }
     }
 
-    /// Division: x / y = x * y⁻¹
+    ///  Division: x / y = x * y⁻¹
     pub fn div_exec(&self, rhs: &Self) -> (out: Self)
         requires
             self.wf_spec(),
@@ -273,36 +273,36 @@ impl<FV: OrderedField, R: Radicand<FV>, F: RuntimeOrderedFieldOps<FV>> RuntimeQE
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-//  Ordering operations (require PositiveRadicand)
-// ═══════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════
+//   Ordering operations (require PositiveRadicand)
+//  ═══════════════════════════════════════════════════════════════════
 
 impl<FV: OrderedField, R: PositiveRadicand<FV>, F: RuntimeOrderedFieldOps<FV>> RuntimeQExt<FV, R, F> {
-    /// Non-negativity check: a + b√d ≥ 0.
+    ///  Non-negativity check: a + b√d ≥ 0.
     pub fn nonneg_exec(&self) -> (out: bool)
         requires self.wf_spec()
         ensures out == qe_nonneg::<FV, R>(self.model@)
     {
         let zero = self.re.rf_zero_like();
 
-        let a_nonneg = zero.rf_le(&self.re);   // 0 ≤ a
-        let b_nonneg = zero.rf_le(&self.im);   // 0 ≤ b
+        let a_nonneg = zero.rf_le(&self.re);   //  0 ≤ a
+        let b_nonneg = zero.rf_le(&self.im);   //  0 ≤ b
 
         if a_nonneg && b_nonneg {
             return true;
         }
 
-        // Compute a² and b²d for cases 2 and 3
+        //  Compute a² and b²d for cases 2 and 3
         let a_sq = self.re.rf_mul(&self.re);
         let b_sq = self.im.rf_mul(&self.im);
         let b2d = b_sq.rf_mul(&self.radicand_rt);
 
         let zero2 = self.re.rf_zero_like();
-        let b_neg = self.im.rf_lt(&zero2);     // b < 0
+        let b_neg = self.im.rf_lt(&zero2);     //  b < 0
         let zero3 = self.re.rf_zero_like();
-        let a_neg = self.re.rf_lt(&zero3);      // a < 0
+        let a_neg = self.re.rf_lt(&zero3);      //  a < 0
         let zero4 = self.re.rf_zero_like();
-        let b_pos = zero4.rf_lt(&self.im);      // 0 < b
+        let b_pos = zero4.rf_lt(&self.im);      //  0 < b
 
         if a_nonneg && b_neg && b2d.rf_le(&a_sq) {
             return true;
@@ -315,7 +315,7 @@ impl<FV: OrderedField, R: PositiveRadicand<FV>, F: RuntimeOrderedFieldOps<FV>> R
         false
     }
 
-    /// Less-than-or-equal: x ≤ y iff y - x ≥ 0.
+    ///  Less-than-or-equal: x ≤ y iff y - x ≥ 0.
     pub fn le_exec(&self, rhs: &Self) -> (out: bool)
         requires self.wf_spec(), rhs.wf_spec()
         ensures out == qe_le::<FV, R>(self.model@, rhs.model@)
@@ -324,7 +324,7 @@ impl<FV: OrderedField, R: PositiveRadicand<FV>, F: RuntimeOrderedFieldOps<FV>> R
         diff.nonneg_exec()
     }
 
-    /// Strict less-than: x < y iff x ≤ y and x ≢ y.
+    ///  Strict less-than: x < y iff x ≤ y and x ≢ y.
     pub fn lt_exec(&self, rhs: &Self) -> (out: bool)
         requires self.wf_spec(), rhs.wf_spec()
         ensures out == qe_lt::<FV, R>(self.model@, rhs.model@)
@@ -335,10 +335,10 @@ impl<FV: OrderedField, R: PositiveRadicand<FV>, F: RuntimeOrderedFieldOps<FV>> R
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-//  RuntimeRingOps / RuntimeFieldOps / RuntimeOrderedFieldOps
-//  implementation for RuntimeQExt
-// ═══════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════
+//   RuntimeRingOps / RuntimeFieldOps / RuntimeOrderedFieldOps
+//   implementation for RuntimeQExt
+//  ═══════════════════════════════════════════════════════════════════
 
 impl<FV: OrderedField, R: PositiveRadicand<FV>, F: RuntimeOrderedFieldOps<FV>>
     RuntimeRingOps<SpecQuadExt<FV, R>> for RuntimeQExt<FV, R, F>
@@ -398,30 +398,30 @@ impl<FV: OrderedField, R: PositiveRadicand<FV>, F: RuntimeOrderedFieldOps<FV>>
     fn rf_lt(&self, rhs: &Self) -> (out: bool) { self.lt_exec(rhs) }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-//  Type aliases for common tower levels
-// ═══════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════
+//   Type aliases for common tower levels
+//  ═══════════════════════════════════════════════════════════════════
 
-/// Level 1 runtime extension: RuntimeRational components over Rational.
+///  Level 1 runtime extension: RuntimeRational components over Rational.
 pub type RuntimeQExtL1<R> = RuntimeQExt<Rational, R, RuntimeRational>;
 
-// ─── Dynamic tower runtime type aliases ──────────────────────────
+//  ─── Dynamic tower runtime type aliases ──────────────────────────
 
-/// Runtime level-1 dynamic extension: elements of ℚ(√d₁)
+///  Runtime level-1 dynamic extension: elements of ℚ(√d₁)
 pub type RuntimeDynL1 = RuntimeQExt<Rational, crate::instances::DynRadicand1, RuntimeRational>;
 
-/// Runtime level-2 dynamic extension: elements of ℚ(√d₁)(√d₂)
+///  Runtime level-2 dynamic extension: elements of ℚ(√d₁)(√d₂)
 pub type RuntimeDynL2 = RuntimeQExt<
     crate::instances::DynLevel1,
     crate::instances::DynRadicand2,
     RuntimeDynL1,
 >;
 
-/// Runtime level-3 dynamic extension: elements of ℚ(√d₁)(√d₂)(√d₃)
+///  Runtime level-3 dynamic extension: elements of ℚ(√d₁)(√d₂)(√d₃)
 pub type RuntimeDynL3 = RuntimeQExt<
     crate::instances::DynLevel2,
     crate::instances::DynRadicand3,
     RuntimeDynL2,
 >;
 
-} // verus!
+} //  verus!

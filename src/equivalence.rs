@@ -7,7 +7,7 @@ use vstd::prelude::*;
 verus! {
 
 impl<F: Field, R: Radicand<F>> Equivalence for SpecQuadExt<F, R> {
-    /// Component-wise equivalence using the base field's eqv.
+    ///  Component-wise equivalence using the base field's eqv.
     open spec fn eqv(self, other: Self) -> bool {
         qe_eqv::<F, R>(self, other)
     }
@@ -35,4 +35,4 @@ impl<F: Field, R: Radicand<F>> Equivalence for SpecQuadExt<F, R> {
     }
 }
 
-} // verus!
+} //  verus!
