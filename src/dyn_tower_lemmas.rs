@@ -8434,6 +8434,9 @@ proof fn lemma_dts_nonneg_mul_remaining(
                 lemma_dts_nonneg_radicands_neg(dts_mul(re_val, re_val));
                 lemma_norm_definite_neg(dts_mul(re_val, re_val));
                 lemma_dts_depth_neg(dts_mul(re_val, re_val));
+                lemma_dts_same_radicand_symmetric(re_val, dts_mul(re_val, re_val));
+                lemma_dts_same_radicand_transitive(re_val, dts_mul(re_val, re_val),
+                    dts_neg(dts_mul(re_val, re_val)));
                 lemma_dts_same_radicand_transitive(dts_mul(re_val, re_val), re_val,
                     dts_neg(dts_mul(re_val, re_val)));
                 //  Assert the structural connection: with is_zero(im_val),
