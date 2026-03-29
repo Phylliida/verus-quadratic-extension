@@ -8555,6 +8555,8 @@ proof fn lemma_dts_nonneg_mul_remaining(
                             //  If a2_nn were true: a1_nn&&b1_nn&&a2_nn&&b2_nn → C1×C1 handled.
                             //  So !a2_nn, hence nonneg(neg(a2)) from le_total.
                             assert(dts_nonneg_fuel(neg_a2, f));
+                            //  a1_nn must be true: if !a1_nn, then !a1_nn && !a2_nn → B×B handled by parent.
+                            assert(a1_nn);
                             let x_cs = dts_mul(dd, dts_mul(b1, b2));
                             let y_cs = dts_mul(a1, neg_a2);
                             lemma_dts_mul_closed(a1, neg_a2);
