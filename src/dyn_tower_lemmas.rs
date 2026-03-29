@@ -8439,10 +8439,55 @@ proof fn lemma_dts_nonneg_mul_remaining(
                     dts_neg(dts_mul(re_val, re_val)));
                 lemma_dts_same_radicand_transitive(dts_mul(re_val, re_val), re_val,
                     dts_neg(dts_mul(re_val, re_val)));
-                //  Assert the structural connection: with is_zero(im_val),
-                //  sub(re², dd*im²) = re² structurally → product_norm = re_val².
-                //  Then neg(nx*ny) ≡ neg(product_norm) ≡ neg(re_val²).
-                //  Z3 should connect via norm_mul identity already established.
+                //  Transfer nonneg(neg(nx*ny)) → nonneg(neg(re_val²)):
+                //  norm_mul: product_norm ≡ nx*ny where product_norm = sub(re², dd*im²).
+                //  With is_zero(im_val): im²=0 → dd*im²=0 → sub(re², dd*im²) ≡ re² via sub_zero.
+                //  Use: is_zero(im) → is_zero(mul(im,im)) → is_zero(mul(dd,mul(im,im)))
+                //  → eqv(mul(dd,mul(im,im)), zero) → sub(re², zero) ≡ re² via additive identity.
+                lemma_dts_mul_closed(im_val, im_val);
+                lemma_dts_mul_closed(dd, dts_mul(im_val, im_val));
+                //  im² is zero → dd*im² is zero
+                assert(dts_is_zero(dts_mul(im_val, im_val)));
+                assert(dts_is_zero(dts_mul(dd, dts_mul(im_val, im_val))));
+                lemma_dts_is_zero_implies_eqv_zero(dts_mul(dd, dts_mul(im_val, im_val)));
+                //  sub(re², zero) ≡ re² via: sub(re², dd*im²) = add(re², neg(dd*im²)).
+                //  neg(zero) = zero. add(re², zero) ≡ re² by add_zero.
+                //  Use: neg(dd*im²) is_zero → eqv(neg(dd*im²), zero).
+                lemma_dts_neg_well_formed(dts_mul(dd, dts_mul(im_val, im_val)));
+                assert(dts_is_zero(dts_neg(dts_mul(dd, dts_mul(im_val, im_val)))));
+                lemma_dts_is_zero_implies_eqv_zero(dts_neg(dts_mul(dd, dts_mul(im_val, im_val))));
+                //  add(re², neg(dd*im²)) ≡ add(re², zero) ≡ re²
+                lemma_dts_add_congruence_right(
+                    dts_mul(re_val, re_val),
+                    dts_neg(dts_mul(dd, dts_mul(im_val, im_val))),
+                    dts_zero());
+                DynTowerSpec::axiom_add_zero(dts_mul(re_val, re_val));
+                lemma_dts_eqv_transitive(
+                    dts_sub(dts_mul(re_val, re_val), dts_mul(dd, dts_mul(im_val, im_val))),
+                    dts_add(dts_mul(re_val, re_val), dts_zero()),
+                    dts_mul(re_val, re_val));
+                //  product_norm ≡ re_val². And norm_mul: product_norm ≡ nx*ny.
+                //  So nx*ny ≡ re_val². neg(nx*ny) ≡ neg(re_val²) by neg_congruence.
+                //  Transfer nonneg(neg(nx*ny)) → nonneg(neg(re_val²)).
+                //  neg(nx*ny) same_radicand chain for congruence transfer
+                lemma_dts_mul_closed(nx, ny);
+                lemma_dts_neg_well_formed(dts_mul(nx, ny));
+                lemma_dts_same_radicand_neg(dts_mul(nx, ny));
+                lemma_dts_same_radicand_symmetric(nx, dts_mul(nx, ny));
+                lemma_dts_same_radicand_transitive(dts_mul(nx, ny), nx, a1);
+                lemma_dts_same_radicand_transitive(dts_mul(nx, ny), a1, re_val);
+                lemma_dts_same_radicand_transitive(dts_neg(dts_mul(nx, ny)),
+                    dts_mul(nx, ny), re_val);
+                lemma_dts_same_radicand_transitive(dts_neg(dts_mul(nx, ny)),
+                    re_val, dts_mul(re_val, re_val));
+                lemma_dts_same_radicand_transitive(dts_neg(dts_mul(nx, ny)),
+                    dts_mul(re_val, re_val), dts_neg(dts_mul(re_val, re_val)));
+                //  norm_mul eqv: sub(re², dd*im²) ≡ nx*ny → re² ≡ nx*ny (structural =)
+                //  neg congruence: neg(re²) ≡ neg(nx*ny)
+                //  Transfer nonneg(neg(nx*ny)) → nonneg(neg(re²))
+                lemma_dts_nonneg_fuel_congruence(
+                    dts_neg(dts_mul(nx, ny)), dts_neg(dts_mul(re_val, re_val)), f);
+                //  both_nonneg(re²) → le_antisymmetric → is_zero(re²)
                 lemma_dts_le_antisymmetric_fuel(dts_mul(re_val, re_val), f);
                 //  is_zero(re_val²). Trigger norm_definite → is_zero(re_val).
                 let zv = dts_zero();
