@@ -8294,7 +8294,7 @@ proof fn lemma_dts_cauchy_schwarz_re_nonneg(
     lemma_dts_mul_closed(a1_sq, dd_b2_sq);
     lemma_dts_mul_closed(dd_b2_sq, a1_sq);
     lemma_dts_mul_closed(na2_sq, a1_sq);
-    DynTowerSpec::axiom_mul_commutative(a1_sq, dd_b2_sq);
+    lemma_dts_mul_commutative(a1_sq, dd_b2_sq);
     //  Congruence: sub(term_hi, term_mid1) nonneg → sub(term_hi, term_mid2) nonneg
     lemma_dts_sub_congruence_both(term_hi, term_mid1, term_hi, term_mid2);
     lemma_dts_nonneg_fuel_congruence(
@@ -8583,7 +8583,7 @@ proof fn lemma_dts_cauchy_schwarz_re_nonneg(
     lemma_dts_mul_associative(dd, b1_sq, dts_mul(dd, b2_sq));
     //  eqv(mul(dd, mul(b1_sq, mul(dd, b2_sq))), mul(mul(dd, b1_sq), mul(dd, b2_sq)))
     //  = eqv(mul(dd, mul(b1_sq, dd_b2_sq)), term_hi)
-    DynTowerSpec::axiom_mul_commutative(b1_sq, dd_b2_sq);
+    lemma_dts_mul_commutative(b1_sq, dd_b2_sq);
     //  eqv(mul(b1_sq, dd_b2_sq), mul(dd_b2_sq, b1_sq))
     //  = eqv(mul(b1_sq, mul(dd, b2_sq)), mul(mul(dd, b2_sq), b1_sq))
     lemma_dts_mul_congruence_right(
@@ -8600,13 +8600,13 @@ proof fn lemma_dts_cauchy_schwarz_re_nonneg(
     lemma_dts_mul_congruence_left(
         dts_mul(dd, dd_b2_sq), dts_mul(dd_sq, b2_sq), b1_sq);
     //  eqv(mul(mul(dd, dd_b2_sq), b1_sq), mul(mul(dd_sq, b2_sq), b1_sq))
-    DynTowerSpec::axiom_mul_commutative(dts_mul(dd_sq, b2_sq), b1_sq);
+    lemma_dts_mul_commutative(dts_mul(dd_sq, b2_sq), b1_sq);
     //  eqv(mul(mul(dd_sq, b2_sq), b1_sq), mul(b1_sq, mul(dd_sq, b2_sq)))
     lemma_dts_mul_associative(dd_sq, b2_sq, b1_sq);
     lemma_dts_eqv_symmetric(
         dts_mul(dd_sq, dts_mul(b2_sq, b1_sq)),
         dts_mul(dts_mul(dd_sq, b2_sq), b1_sq));
-    DynTowerSpec::axiom_mul_commutative(b2_sq, b1_sq);
+    lemma_dts_mul_commutative(b2_sq, b1_sq);
     lemma_dts_mul_congruence_right(
         dts_mul(b2_sq, b1_sq), dts_mul(b1_sq, b2_sq), dd_sq);
     //  Chain everything to get: term_hi ≡ mul(dd_sq, b_sq_prod)
@@ -8624,15 +8624,15 @@ proof fn lemma_dts_cauchy_schwarz_re_nonneg(
     //  LET ME JUST USE assert by to let Z3 handle the associativity/commutativity.
     assert(dts_eqv(term_hi, dts_mul(dd_sq, b_sq_prod))) by {
         lemma_dts_mul_associative(dd, b1_sq, dd_b2_sq);
-        DynTowerSpec::axiom_mul_commutative(b1_sq, dd_b2_sq);
+        lemma_dts_mul_commutative(b1_sq, dd_b2_sq);
         lemma_dts_mul_congruence_right(
             dts_mul(b1_sq, dd_b2_sq), dts_mul(dd_b2_sq, b1_sq), dd);
         lemma_dts_mul_associative(dd, dd_b2_sq, b1_sq);
         lemma_dts_mul_associative(dd, dd, b2_sq);
         lemma_dts_mul_congruence_left(
             dts_mul(dd, dd_b2_sq), dts_mul(dd_sq, b2_sq), b1_sq);
-        DynTowerSpec::axiom_mul_commutative(dts_mul(dd_sq, b2_sq), b1_sq);
-        DynTowerSpec::axiom_mul_commutative(b2_sq, b1_sq);
+        lemma_dts_mul_commutative(dts_mul(dd_sq, b2_sq), b1_sq);
+        lemma_dts_mul_commutative(b2_sq, b1_sq);
         lemma_dts_mul_congruence_right(
             dts_mul(b2_sq, b1_sq), b_sq_prod, dd_sq);
     };
@@ -8830,7 +8830,7 @@ proof fn lemma_dts_cauchy_schwarz_re_nonneg(
     lemma_dts_le_mul_nonneg_monotone_fuel(a_val, b_val, a_val, f);
     //  nonneg(sub(b_val*a_val, a_val*a_val)) = nonneg(sub(ab', a_val²))
     //  where ab' = mul(b_val, a_val). ab' ≡ ab = mul(a_val, b_val) by commutativity.
-    DynTowerSpec::axiom_mul_commutative(b_val, a_val);
+    lemma_dts_mul_commutative(b_val, a_val);
     let ab_flip = dts_mul(b_val, a_val);
     let a_val_sq = dts_mul(a_val, a_val);
     lemma_dts_mul_closed(b_val, a_val);
@@ -8840,8 +8840,9 @@ proof fn lemma_dts_cauchy_schwarz_re_nonneg(
         dts_sub(ab_flip, a_val_sq), dts_sub(ab, a_val_sq), f);
     //  nonneg(sub(ab, a_val²)). And ab ≡ 0. So sub(ab, a_val²) ≡ sub(0, a_val²) = neg(a_val²).
     lemma_dts_eqv_symmetric(ab, dts_zero());
-    verus_algebra::lemmas::additive_group_lemmas::lemma_sub_congruence_left::<DynTowerSpec>(
-        ab, dts_zero(), a_val_sq);
+    DynTowerSpec::axiom_eqv_reflexive(a_val_sq);
+    verus_algebra::lemmas::additive_group_lemmas::lemma_sub_congruence::<DynTowerSpec>(
+        ab, dts_zero(), a_val_sq, a_val_sq);
     //  eqv(sub(ab, a_val_sq), sub(zero, a_val_sq)) = eqv(sub(ab, a_val_sq), neg(a_val_sq))
     lemma_dts_same_radicand_symmetric(ab, dts_sub(ab, a_val_sq));
     lemma_dts_same_radicand_transitive(dts_sub(ab, a_val_sq), ab, x);
@@ -9273,7 +9274,44 @@ proof fn lemma_dts_nonneg_mul_remaining(
                             //  A×B: neg(ny)≥0 from C3. Combined with ny≥0: both_nonneg(ny).
                             //  le_antisymmetric → is_zero(ny) → is_zero(a2)&&is_zero(b2) via norm_definite.
                             //  Then re_val and im_val are zero → handled by is_zero shortcuts above.
-                            //  Z3 should close this as unreachable.
+                            //  Use Cauchy-Schwarz helper to derive nonneg(re_val).
+                            //  Establish neg(a2) nonneg: !neg_b2_nn → b2 nonneg (le_total on neg_b2).
+                            //  neg(neg(b2)) = b2 structurally. nonneg(b2) from le_total.
+                            //  Factor y nonneg at f+1 is C3: neg(a2)≥0, b2≥0.
+                            //  Norm bounds: neg(nx) = dd*b1²-a1² ≥ 0 and neg(ny) = dd*b2²-a2² ≥ 0
+                            //  are available from le_total on nx/ny (lines above).
+                            //  Need to establish: nonneg(neg(a2), f).
+                            //  From B×B not handled by parent: a1_nn || a2_nn.
+                            //  b1 nonneg (this branch). If a1_nn: factor x is C1.
+                            //  If !a1_nn: factor x is C3, but then !a1_nn && !a2_nn → B×B
+                            //  handled by parent. So a1_nn must hold OR a2_nn.
+                            //  With b2 nonneg: if a2_nn too → a1_nn&&b1_nn&&a2_nn&&b2_nn → C1×C1 handled.
+                            //  So !a2_nn → neg(a2) nonneg from le_total.
+                            lemma_dts_nonneg_or_neg_nonneg_fuel(a2, f);
+                            lemma_dts_nonneg_or_neg_nonneg_fuel(b2, f);
+                            //  nonneg(b2) from: !neg_b2_nn → nonneg(neg(neg(b2))) → nonneg(b2)
+                            assert(dts_neg(neg_b2) == b2);
+                            //  Establish norm bounds at fuel f
+                            //  neg(nx) and neg(ny) are already established from le_total on nx, ny.
+                            lemma_dts_cauchy_schwarz_re_nonneg(a1, b1, a2, b2, dd, f);
+                            //  nonneg(re_val) established. Now need norm ≥ 0 for conclude_re.
+                            //  product_norm ≡ nx*ny. Both norms ≤ 0 → neg_mul_neg → nonneg(nx*ny).
+                            lemma_dts_nonneg_mul_closed_fuel(dts_neg(nx), dts_neg(ny), f);
+                            lemma_dts_neg_mul_neg(nx, ny);
+                            lemma_dts_mul_closed(dts_neg(nx), dts_neg(ny));
+                            lemma_dts_mul_closed(nx, ny);
+                            lemma_dts_same_radicand_symmetric(dts_neg(nx),
+                                dts_mul(dts_neg(nx), dts_neg(ny)));
+                            lemma_dts_same_radicand_transitive(
+                                dts_mul(dts_neg(nx), dts_neg(ny)), dts_neg(nx), nx);
+                            lemma_dts_same_radicand_symmetric(nx, dts_mul(nx, ny));
+                            lemma_dts_same_radicand_transitive(
+                                dts_mul(dts_neg(nx), dts_neg(ny)), nx, dts_mul(nx, ny));
+                            lemma_dts_nonneg_fuel_congruence(
+                                dts_mul(dts_neg(nx), dts_neg(ny)), dts_mul(nx, ny), f);
+                            //  nonneg(product_norm) via norm_mul congruence
+                            //  norm_mul already called at line above. Z3 should connect.
+                            lemma_dts_nonneg_conclude_re_fuel(re_val, im_val, dd, f);
                             return;
                         }
                     lemma_dts_nonneg_fuel_stabilize(dd, f);
