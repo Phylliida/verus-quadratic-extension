@@ -8545,8 +8545,11 @@ proof fn lemma_dts_nonneg_mul_remaining(
                 //  From the eqv chain: product_norm ≡ re² ≡ nx*ny.
                 //  nonneg(re²) from inline square_nonneg. Transfer to nonneg(product_norm).
                 lemma_dts_eqv_symmetric(product_norm, dts_mul(re_val, re_val));
-                lemma_dts_same_radicand_symmetric(re_val, product_norm);
-                lemma_dts_same_radicand_transitive(product_norm, re_val, dts_mul(re_val, re_val));
+                //  same_radicand(product_norm, re²): product_norm = sub(re², dd*im²).
+                //  From add_closed(re², neg(dd*im²)): same_radicand(re², product_norm).
+                lemma_dts_same_radicand_symmetric(dts_mul(re_val, re_val), product_norm);
+                lemma_dts_same_radicand_transitive(product_norm, dts_mul(re_val, re_val), re_val);
+                lemma_dts_same_radicand_symmetric(product_norm, re_val);
                 lemma_dts_nonneg_fuel_congruence(dts_mul(re_val, re_val), product_norm, f);
                 //  nonneg(neg(product_norm)): from neg(product_norm) ≡ neg(re²), which is nonneg.
                 lemma_dts_neg_well_formed(product_norm);
