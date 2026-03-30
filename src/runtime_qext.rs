@@ -73,9 +73,9 @@ impl<FV: OrderedField, R: Radicand<FV>, F: RuntimeOrderedFieldOps<FV>> RuntimeQE
         &&& self.re.wf_spec()
         &&& self.im.wf_spec()
         &&& self.radicand_rt.wf_spec()
-        &&& self.re.rf_view() == self.model@.re
-        &&& self.im.rf_view() == self.model@.im
-        &&& self.radicand_rt.rf_view() == R::value()
+        &&& self.re.model() == self.model@.re
+        &&& self.im.model() == self.model@.im
+        &&& self.radicand_rt.model() == R::value()
     }
 
     ///  Construct from components and radicand.
@@ -84,32 +84,32 @@ impl<FV: OrderedField, R: Radicand<FV>, F: RuntimeOrderedFieldOps<FV>> RuntimeQE
             re.wf_spec(),
             im.wf_spec(),
             radicand_rt.wf_spec(),
-            radicand_rt.rf_view() == R::value(),
+            radicand_rt.model() == R::value(),
         ensures
             out.wf_spec(),
-            out.model@.re == re.rf_view(),
-            out.model@.im == im.rf_view(),
+            out.model@.re == re.model(),
+            out.model@.im == im.model(),
     {
-        let ghost model = qext::<FV, R>(re.rf_view(), im.rf_view());
+        let ghost model = qext::<FV, R>(re.model(), im.model());
         RuntimeQExt { re, im, radicand_rt, model: Ghost(model) }
     }
 
     ///  Embed a base field element into the extension: v ↦ v + 0·√d.
     ///
     ///  Requires a radicand runtime value to populate the struct.
-    ///  Spec: out@ == qext_from_rational(v.rf_view())
+    ///  Spec: out@ == qext_from_rational(v.model())
     pub fn embed_base(v: F, radicand_rt: F) -> (out: Self)
         requires
             v.wf_spec(),
             radicand_rt.wf_spec(),
-            radicand_rt.rf_view() == R::value(),
+            radicand_rt.model() == R::value(),
         ensures
             out.wf_spec(),
-            out.model@.re == v.rf_view(),
+            out.model@.re == v.model(),
             out.model@.im == FV::zero(),
     {
-        let im = v.rf_zero_like();
-        let ghost model = qext::<FV, R>(v.rf_view(), FV::zero());
+        let im = v.zero_like();
+        let ghost model = qext::<FV, R>(v.model(), FV::zero());
         RuntimeQExt { re: v, im, radicand_rt, model: Ghost(model) }
     }
 
@@ -122,9 +122,9 @@ impl<FV: OrderedField, R: Radicand<FV>, F: RuntimeOrderedFieldOps<FV>> RuntimeQE
             out.wf_spec(),
             out.model@ == qe_add::<FV, R>(self.model@, rhs.model@),
     {
-        let re = self.re.rf_add(&rhs.re);
-        let im = self.im.rf_add(&rhs.im);
-        let radicand = self.radicand_rt.rf_copy();
+        let re = self.re.add(&rhs.re);
+        let im = self.im.add(&rhs.im);
+        let radicand = self.radicand_rt.copy();
         let ghost model = qe_add::<FV, R>(self.model@, rhs.model@);
         RuntimeQExt { re, im, radicand_rt: radicand, model: Ghost(model) }
     }
@@ -136,9 +136,9 @@ impl<FV: OrderedField, R: Radicand<FV>, F: RuntimeOrderedFieldOps<FV>> RuntimeQE
             out.wf_spec(),
             out.model@ == qe_sub::<FV, R>(self.model@, rhs.model@),
     {
-        let re = self.re.rf_sub(&rhs.re);
-        let im = self.im.rf_sub(&rhs.im);
-        let radicand = self.radicand_rt.rf_copy();
+        let re = self.re.sub(&rhs.re);
+        let im = self.im.sub(&rhs.im);
+        let radicand = self.radicand_rt.copy();
         let ghost model = qe_sub::<FV, R>(self.model@, rhs.model@);
         RuntimeQExt { re, im, radicand_rt: radicand, model: Ghost(model) }
     }
@@ -150,9 +150,9 @@ impl<FV: OrderedField, R: Radicand<FV>, F: RuntimeOrderedFieldOps<FV>> RuntimeQE
             out.wf_spec(),
             out.model@ == qe_neg::<FV, R>(self.model@),
     {
-        let re = self.re.rf_neg();
-        let im = self.im.rf_neg();
-        let radicand = self.radicand_rt.rf_copy();
+        let re = self.re.neg();
+        let im = self.im.neg();
+        let radicand = self.radicand_rt.copy();
         let ghost model = qe_neg::<FV, R>(self.model@);
         RuntimeQExt { re, im, radicand_rt: radicand, model: Ghost(model) }
     }
@@ -165,17 +165,17 @@ impl<FV: OrderedField, R: Radicand<FV>, F: RuntimeOrderedFieldOps<FV>> RuntimeQE
             out.model@ == qe_mul::<FV, R>(self.model@, rhs.model@),
     {
         //  Real part: a*c + b*e*d
-        let ac = self.re.rf_mul(&rhs.re);
-        let be = self.im.rf_mul(&rhs.im);
-        let bed = be.rf_mul(&self.radicand_rt);
-        let re = ac.rf_add(&bed);
+        let ac = self.re.mul(&rhs.re);
+        let be = self.im.mul(&rhs.im);
+        let bed = be.mul(&self.radicand_rt);
+        let re = ac.add(&bed);
 
         //  Imaginary part: a*e + b*c
-        let ae = self.re.rf_mul(&rhs.im);
-        let bc = self.im.rf_mul(&rhs.re);
-        let im = ae.rf_add(&bc);
+        let ae = self.re.mul(&rhs.im);
+        let bc = self.im.mul(&rhs.re);
+        let im = ae.add(&bc);
 
-        let radicand = self.radicand_rt.rf_copy();
+        let radicand = self.radicand_rt.copy();
         let ghost model = qe_mul::<FV, R>(self.model@, rhs.model@);
         RuntimeQExt { re, im, radicand_rt: radicand, model: Ghost(model) }
     }
@@ -187,9 +187,9 @@ impl<FV: OrderedField, R: Radicand<FV>, F: RuntimeOrderedFieldOps<FV>> RuntimeQE
             out.wf_spec(),
             out.model@ == qe_conj::<FV, R>(self.model@),
     {
-        let re = self.re.rf_copy();
-        let im = self.im.rf_neg();
-        let radicand = self.radicand_rt.rf_copy();
+        let re = self.re.copy();
+        let im = self.im.neg();
+        let radicand = self.radicand_rt.copy();
         let ghost model = qe_conj::<FV, R>(self.model@);
         RuntimeQExt { re, im, radicand_rt: radicand, model: Ghost(model) }
     }
@@ -199,8 +199,8 @@ impl<FV: OrderedField, R: Radicand<FV>, F: RuntimeOrderedFieldOps<FV>> RuntimeQE
         requires self.wf_spec(), rhs.wf_spec()
         ensures out == qe_eqv::<FV, R>(self.model@, rhs.model@)
     {
-        let re_eq = self.re.rf_eq(&rhs.re);
-        let im_eq = self.im.rf_eq(&rhs.im);
+        let re_eq = self.re.eq(&rhs.re);
+        let im_eq = self.im.eq(&rhs.im);
         re_eq && im_eq
     }
 
@@ -209,9 +209,9 @@ impl<FV: OrderedField, R: Radicand<FV>, F: RuntimeOrderedFieldOps<FV>> RuntimeQE
         requires self.wf_spec()
         ensures out.wf_spec(), out.model@ == self.model@
     {
-        let re = self.re.rf_copy();
-        let im = self.im.rf_copy();
-        let radicand = self.radicand_rt.rf_copy();
+        let re = self.re.copy();
+        let im = self.im.copy();
+        let radicand = self.radicand_rt.copy();
         RuntimeQExt { re, im, radicand_rt: radicand, model: Ghost(self.model@) }
     }
 
@@ -220,16 +220,16 @@ impl<FV: OrderedField, R: Radicand<FV>, F: RuntimeOrderedFieldOps<FV>> RuntimeQE
         requires self.wf_spec()
         ensures
             out.wf_spec(),
-            out.rf_view() == qe_norm::<FV, R>(self.model@),
+            out.model() == qe_norm::<FV, R>(self.model@),
     {
         //  a²
-        let a_sq = self.re.rf_mul(&self.re);
+        let a_sq = self.re.mul(&self.re);
         //  b²
-        let b_sq = self.im.rf_mul(&self.im);
+        let b_sq = self.im.mul(&self.im);
         //  b² * d
-        let b_sq_d = b_sq.rf_mul(&self.radicand_rt);
+        let b_sq_d = b_sq.mul(&self.radicand_rt);
         //  a² - b²d
-        a_sq.rf_sub(&b_sq_d)
+        a_sq.sub(&b_sq_d)
     }
 
     ///  Reciprocal: (a + b√d)⁻¹ = (a - b√d) / (a² - b²d)
@@ -247,13 +247,13 @@ impl<FV: OrderedField, R: Radicand<FV>, F: RuntimeOrderedFieldOps<FV>> RuntimeQE
             crate::lemmas::lemma_norm_nonzero::<FV, R>(self.model@);
         }
 
-        let norm_inv = norm.rf_recip();
+        let norm_inv = norm.recip();
 
-        let re = self.re.rf_mul(&norm_inv);
-        let neg_im = self.im.rf_neg();
-        let im = neg_im.rf_mul(&norm_inv);
+        let re = self.re.mul(&norm_inv);
+        let neg_im = self.im.neg();
+        let im = neg_im.mul(&norm_inv);
 
-        let radicand = self.radicand_rt.rf_copy();
+        let radicand = self.radicand_rt.copy();
         let ghost model = qe_recip::<FV, R>(self.model@);
         RuntimeQExt { re, im, radicand_rt: radicand, model: Ghost(model) }
     }
@@ -283,32 +283,32 @@ impl<FV: OrderedField, R: PositiveRadicand<FV>, F: RuntimeOrderedFieldOps<FV>> R
         requires self.wf_spec()
         ensures out == qe_nonneg::<FV, R>(self.model@)
     {
-        let zero = self.re.rf_zero_like();
+        let zero = self.re.zero_like();
 
-        let a_nonneg = zero.rf_le(&self.re);   //  0 ≤ a
-        let b_nonneg = zero.rf_le(&self.im);   //  0 ≤ b
+        let a_nonneg = zero.le(&self.re);   //  0 ≤ a
+        let b_nonneg = zero.le(&self.im);   //  0 ≤ b
 
         if a_nonneg && b_nonneg {
             return true;
         }
 
         //  Compute a² and b²d for cases 2 and 3
-        let a_sq = self.re.rf_mul(&self.re);
-        let b_sq = self.im.rf_mul(&self.im);
-        let b2d = b_sq.rf_mul(&self.radicand_rt);
+        let a_sq = self.re.mul(&self.re);
+        let b_sq = self.im.mul(&self.im);
+        let b2d = b_sq.mul(&self.radicand_rt);
 
-        let zero2 = self.re.rf_zero_like();
-        let b_neg = self.im.rf_lt(&zero2);     //  b < 0
-        let zero3 = self.re.rf_zero_like();
-        let a_neg = self.re.rf_lt(&zero3);      //  a < 0
-        let zero4 = self.re.rf_zero_like();
-        let b_pos = zero4.rf_lt(&self.im);      //  0 < b
+        let zero2 = self.re.zero_like();
+        let b_neg = self.im.lt(&zero2);     //  b < 0
+        let zero3 = self.re.zero_like();
+        let a_neg = self.re.lt(&zero3);      //  a < 0
+        let zero4 = self.re.zero_like();
+        let b_pos = zero4.lt(&self.im);      //  0 < b
 
-        if a_nonneg && b_neg && b2d.rf_le(&a_sq) {
+        if a_nonneg && b_neg && b2d.le(&a_sq) {
             return true;
         }
 
-        if a_neg && b_pos && a_sq.rf_le(&b2d) {
+        if a_neg && b_pos && a_sq.le(&b2d) {
             return true;
         }
 
@@ -343,30 +343,30 @@ impl<FV: OrderedField, R: PositiveRadicand<FV>, F: RuntimeOrderedFieldOps<FV>> R
 impl<FV: OrderedField, R: PositiveRadicand<FV>, F: RuntimeOrderedFieldOps<FV>>
     RuntimeRingOps<SpecQuadExt<FV, R>> for RuntimeQExt<FV, R, F>
 {
-    open spec fn rf_view(&self) -> SpecQuadExt<FV, R> { self.model@ }
+    open spec fn model(&self) -> SpecQuadExt<FV, R> { self.model@ }
 
     #[verifier::inline]
     open spec fn wf_spec(&self) -> bool { self.wf_spec() }
 
-    fn rf_add(&self, rhs: &Self) -> (out: Self) { self.add_exec(rhs) }
-    fn rf_sub(&self, rhs: &Self) -> (out: Self) { self.sub_exec(rhs) }
-    fn rf_neg(&self) -> (out: Self) { self.neg_exec() }
-    fn rf_mul(&self, rhs: &Self) -> (out: Self) { self.mul_exec(rhs) }
-    fn rf_eq(&self, rhs: &Self) -> (out: bool) { self.eq_exec(rhs) }
-    fn rf_copy(&self) -> (out: Self) { self.copy_exec() }
+    fn add(&self, rhs: &Self) -> (out: Self) { self.add_exec(rhs) }
+    fn sub(&self, rhs: &Self) -> (out: Self) { self.sub_exec(rhs) }
+    fn neg(&self) -> (out: Self) { self.neg_exec() }
+    fn mul(&self, rhs: &Self) -> (out: Self) { self.mul_exec(rhs) }
+    fn eq(&self, rhs: &Self) -> (out: bool) { self.eq_exec(rhs) }
+    fn copy(&self) -> (out: Self) { self.copy_exec() }
 
-    fn rf_zero_like(&self) -> (out: Self) {
-        let re = self.re.rf_zero_like();
-        let im = self.re.rf_zero_like();
-        let radicand = self.radicand_rt.rf_copy();
+    fn zero_like(&self) -> (out: Self) {
+        let re = self.re.zero_like();
+        let im = self.re.zero_like();
+        let radicand = self.radicand_rt.copy();
         let ghost model = qe_zero::<FV, R>();
         RuntimeQExt { re, im, radicand_rt: radicand, model: Ghost(model) }
     }
 
-    fn rf_one_like(&self) -> (out: Self) {
-        let re = self.re.rf_one_like();
-        let im = self.re.rf_zero_like();
-        let radicand = self.radicand_rt.rf_copy();
+    fn one_like(&self) -> (out: Self) {
+        let re = self.re.one_like();
+        let im = self.re.zero_like();
+        let radicand = self.radicand_rt.copy();
         let ghost model = qe_one::<FV, R>();
         RuntimeQExt { re, im, radicand_rt: radicand, model: Ghost(model) }
     }
@@ -375,15 +375,15 @@ impl<FV: OrderedField, R: PositiveRadicand<FV>, F: RuntimeOrderedFieldOps<FV>>
 impl<FV: OrderedField, R: PositiveRadicand<FV>, F: RuntimeOrderedFieldOps<FV>>
     RuntimeFieldOps<SpecQuadExt<FV, R>> for RuntimeQExt<FV, R, F>
 {
-    fn rf_recip(&self) -> (out: Self) { self.recip_exec() }
-    fn rf_div(&self, rhs: &Self) -> (out: Self) { self.div_exec(rhs) }
+    fn recip(&self) -> (out: Self) { self.recip_exec() }
+    fn div(&self, rhs: &Self) -> (out: Self) { self.div_exec(rhs) }
 }
 
 impl<FV: OrderedField, R: PositiveRadicand<FV>, F: RuntimeOrderedFieldOps<FV>>
     RuntimeOrderedFieldOps<SpecQuadExt<FV, R>> for RuntimeQExt<FV, R, F>
 {
-    fn rf_le(&self, rhs: &Self) -> (out: bool) { self.le_exec(rhs) }
-    fn rf_lt(&self, rhs: &Self) -> (out: bool) { self.lt_exec(rhs) }
+    fn le(&self, rhs: &Self) -> (out: bool) { self.le_exec(rhs) }
+    fn lt(&self, rhs: &Self) -> (out: bool) { self.lt_exec(rhs) }
 }
 
 impl<FV: OrderedField, R: PositiveRadicand<FV>, F: RuntimeOrderedFieldOps<FV> + RuntimeRationalEmbedding<FV>>
@@ -393,10 +393,10 @@ impl<FV: OrderedField, R: PositiveRadicand<FV>, F: RuntimeOrderedFieldOps<FV> + 
         qext::<FV, R>(F::spec_embed_rational(v), FV::zero())
     }
 
-    fn rf_embed_rational(&self, v: &RuntimeRational) -> (out: Self) {
-        let re = self.re.rf_embed_rational(v);
-        let im = self.re.rf_zero_like();
-        let radicand = self.radicand_rt.rf_copy();
+    fn embed_rational(&self, v: &RuntimeRational) -> (out: Self) {
+        let re = self.re.embed_rational(v);
+        let im = self.re.zero_like();
+        let radicand = self.radicand_rt.copy();
         let ghost model = qext::<FV, R>(F::spec_embed_rational(v@), FV::zero());
         RuntimeQExt { re, im, radicand_rt: radicand, model: Ghost(model) }
     }
