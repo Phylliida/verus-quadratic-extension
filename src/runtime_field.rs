@@ -38,9 +38,9 @@ pub type RationalModel = Rational;
 pub trait RuntimeRationalEmbedding<V: Ring>: RuntimeRingOps<V> {
     spec fn spec_embed_rational(v: Rational) -> V;
 
-    fn rf_embed_rational(&self, v: &RuntimeRational) -> (out: Self)
+    fn embed_rational(&self, v: &RuntimeRational) -> (out: Self)
         requires self.wf_spec(), v.wf_spec()
-        ensures out.wf_spec(), out.rf_view() == Self::spec_embed_rational(v@);
+        ensures out.wf_spec(), out.model() == Self::spec_embed_rational(v@);
 }
 
 //  ═══════════════════════════════════════════════════════════════════
@@ -51,7 +51,7 @@ impl RuntimeRationalEmbedding<Rational> for RuntimeRational {
     #[verifier::inline]
     open spec fn spec_embed_rational(v: Rational) -> Rational { v }
 
-    fn rf_embed_rational(&self, v: &RuntimeRational) -> (out: Self) {
+    fn embed_rational(&self, v: &RuntimeRational) -> (out: Self) {
         verus_rational::runtime_rational::copy_rational(v)
     }
 }
