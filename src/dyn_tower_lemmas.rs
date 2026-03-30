@@ -8223,12 +8223,7 @@ proof fn lemma_dts_nonneg_mul_remaining(
                     return;  //  C1: both re and im nonneg.
                 }
                 //  !nonneg(re_val) with is_zero(im_val).
-                //  nonneg_fuel(Ext(re, 0, dd), f+1) requires nonneg(re, f) (only C1 works with im=0).
-                //  Derive is_zero(re_val) via norm chain for mixed-sign norms.
-                //  product_norm ≡ nx*ny (norm_mul). With im=0: product_norm ≡ re_val².
-                //  square_nonneg(re_val) → nonneg(re_val²).
-                //  If we can show nonneg(neg(re_val²)): both_nonneg → le_antisymmetric → is_zero.
-                //  Compute nx, ny and use le_total to determine norm signs.
+                //  Derive nonneg(re_val) via norm chain.
                 lemma_dts_norm_mul(a1, b1, a2, b2, dd);
                 let nx = dts_sub(dts_mul(a1, a1), dts_mul(dd, dts_mul(b1, b1)));
                 let ny = dts_sub(dts_mul(a2, a2), dts_mul(dd, dts_mul(b2, b2)));
