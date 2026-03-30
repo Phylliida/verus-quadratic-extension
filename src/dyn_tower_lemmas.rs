@@ -8398,7 +8398,7 @@ proof fn lemma_dts_cauchy_schwarz_step(
 
 ///  Proves nonneg of product = Ext(re_val, im_val, dd) where im_val=0.
 ///  Uses norm chain for mixed-sign norms and Cauchy-Schwarz for same-sign.
-#[verifier::rlimit(300)]
+#[verifier::rlimit(200)]
 proof fn lemma_dts_nonneg_mul_iszero_im(
     a1: DynTowerSpec, b1: DynTowerSpec, a2: DynTowerSpec, b2: DynTowerSpec,
     dd: DynTowerSpec, f: nat,
@@ -8794,11 +8794,23 @@ proof fn lemma_dts_nonneg_mul_iszero_im(
             lemma_dts_same_radicand_symmetric(a1, a1_sq);
             lemma_dts_same_radicand_transitive(a1_sq, a1, dd);
             lemma_dts_same_radicand_transitive(a1_sq, dd, dd_b1_sq);
+            lemma_dts_same_radicand_transitive(a1_sq, dd, dd_b2_sq);
             lemma_dts_same_radicand_symmetric(dd, dd_b1_sq);
             lemma_dts_same_radicand_transitive(dd_b1_sq, dd, dd_b2_sq);
             if dts_nonneg_fuel(dts_neg(nx), f) && dts_nonneg_fuel(dts_neg(ny), f) {
-                //  Cauchy-Schwarz step via helper.
+                //  Cauchy-Schwarz transitivity result in scoped Z3 context.
+                let dd_b1_sq_inner = dts_mul(dd, dts_mul(b1, b1));
+                let dd_b2_sq_inner = dts_mul(dd, dts_mul(b2, b2));
+                let a1_sq_inner = dts_mul(a1, a1);
+                let na2_sq_inner = dts_mul(dts_neg(a2), dts_neg(a2));
+                assert(dts_nonneg_fuel(dts_sub(dts_mul(dd_b1_sq_inner, dd_b2_sq_inner),
+                    dts_mul(na2_sq_inner, a1_sq_inner)), f)) by {
                 //  Define na2_sq = neg(a2)² and a2_sq = a2²
+                let na2_sq = na2_sq_inner;
+                let a2_sq = dts_mul(a2, a2);
+                let a1_sq = a1_sq_inner;
+                let dd_b1_sq = dd_b1_sq_inner;
+                let dd_b2_sq = dd_b2_sq_inner;
                 lemma_dts_neg_well_formed(a2);
                 lemma_dts_same_radicand_neg(a2);
                 lemma_dts_nonneg_radicands_neg(a2);
@@ -8956,6 +8968,7 @@ proof fn lemma_dts_nonneg_mul_iszero_im(
                 lemma_dts_mul_commutative(a1_sq, dd_b2_sq);
                 lemma_dts_mul_closed(dd_b1_sq, dd_b2_sq);
                 lemma_dts_mul_closed(a1_sq, dd_b2_sq);
+                lemma_dts_same_radicand_symmetric(a1_sq, dd_b2_sq);
                 lemma_dts_mul_closed(dd_b2_sq, a1_sq);
                 lemma_dts_same_radicand_symmetric(a1, a1_sq);
                 lemma_dts_same_radicand_transitive(na2_sq, a1, a1_sq);
@@ -9035,6 +9048,11 @@ proof fn lemma_dts_nonneg_mul_iszero_im(
                 //  If nonneg(re_val): C1 done. If !nonneg(re_val): need reverse_square_le_square.
                 //  The re_val ≡ sub(Q, P) chain and le_antisymmetric will run in the caller context.
                 //  TODO: complete the reverse_square_le_square if Z3 can't close.
+                };  //  end assert by for Cauchy-Schwarz transitivity
+                //  nonneg(sub(dd_b1_sq*dd_b2_sq, na2_sq*a1_sq)) established.
+                //  This is Q² ≥ P² where Q=dd*b1*b2, P=a1*a2.
+                //  With im=0 and nonneg(im_val): just need nonneg(re_val) for C1.
+                //  Z3 should derive from the Cauchy-Schwarz inequality + factor nonneg_fuel.
                 return;
             }
             //  nonneg(re_val) established (or branch unreachable). Return for C1.
