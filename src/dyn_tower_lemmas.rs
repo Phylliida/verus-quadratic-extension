@@ -8398,7 +8398,7 @@ proof fn lemma_dts_cauchy_schwarz_step(
 
 ///  Proves nonneg of product = Ext(re_val, im_val, dd) where im_val=0.
 ///  Uses norm chain for mixed-sign norms and Cauchy-Schwarz for same-sign.
-#[verifier::rlimit(200)]
+#[verifier::rlimit(300)]
 proof fn lemma_dts_nonneg_mul_iszero_im(
     a1: DynTowerSpec, b1: DynTowerSpec, a2: DynTowerSpec, b2: DynTowerSpec,
     dd: DynTowerSpec, f: nat,
