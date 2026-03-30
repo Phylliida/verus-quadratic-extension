@@ -8131,7 +8131,7 @@ pub proof fn lemma_dts_nonneg_mul_closed_fuel(
 
 ///  Helper for remaining nonneg_mul cases (C1×C2, C2×C1, A×B, B×A).
 ///  Extracted from nonneg_mul_closed_fuel for rlimit management.
-#[verifier::rlimit(800)]
+#[verifier::rlimit(500)]
 proof fn lemma_dts_nonneg_mul_remaining(
     a1: DynTowerSpec, b1: DynTowerSpec, a2: DynTowerSpec, b2: DynTowerSpec,
     dd: DynTowerSpec, f: nat,
