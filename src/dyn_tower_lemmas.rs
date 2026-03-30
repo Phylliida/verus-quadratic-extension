@@ -8992,6 +8992,9 @@ proof fn lemma_dts_nonneg_mul_iszero_im(
                 lemma_dts_same_radicand_transitive(dts_mul(dd_b2_sq, a1_sq), dd_b2_sq, dd);
                 lemma_dts_same_radicand_symmetric(na2_sq, dts_mul(na2_sq, a1_sq));
                 lemma_dts_same_radicand_transitive(dts_mul(na2_sq, a1_sq), na2_sq, dd);
+                lemma_dts_same_radicand_symmetric(dd_b2_sq, dts_mul(dd_b2_sq, a1_sq));
+                lemma_dts_same_radicand_symmetric(dd, dd_b2_sq);
+                lemma_dts_same_radicand_transitive(dd, dd_b2_sq, dts_mul(dd_b2_sq, a1_sq));
                 lemma_dts_same_radicand_transitive(dts_mul(dd_b1_sq, dd_b2_sq), dd, dts_mul(dd_b2_sq, a1_sq));
                 lemma_dts_same_radicand_transitive(dts_mul(dd_b1_sq, dd_b2_sq), dd, dts_mul(na2_sq, a1_sq));
                 lemma_dts_nonneg_radicands_mul(dd_b1_sq, dd_b2_sq);
