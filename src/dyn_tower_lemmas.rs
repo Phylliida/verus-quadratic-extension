@@ -8577,7 +8577,12 @@ proof fn lemma_dts_nonneg_mul_remaining(
                 lemma_dts_nonneg_radicands_add(dts_mul(re_val, re_val),
                     dts_neg(dts_mul(dd, dts_mul(im_val, im_val))));
                 lemma_norm_definite_mul(re_val, re_val);
-                //  im_val ~ im_val already from reflexive call above
+                //  norm_definite for im_val components
+                lemma_dts_same_radicand_transitive(a1, b1, b2);
+                lemma_norm_definite_mul(a1, b2);
+                lemma_dts_same_radicand_symmetric(a1, b1);
+                lemma_dts_same_radicand_transitive(b1, a1, a2);
+                lemma_norm_definite_mul(b1, a2);
                 lemma_norm_definite_add(dts_mul(a1, b2), dts_mul(b1, a2));
                 lemma_norm_definite_mul(im_val, im_val);
                 lemma_dts_same_radicand_symmetric(im_val, dts_mul(im_val, im_val));
@@ -8594,9 +8599,19 @@ proof fn lemma_dts_nonneg_mul_remaining(
                 lemma_norm_definite_neg(product_norm);
                 lemma_dts_depth_neg(product_norm);
                 DynTowerSpec::axiom_neg_congruence(product_norm, dts_mul(re_val, re_val));
+                lemma_dts_same_radicand_symmetric(product_norm, re_val);
+                lemma_dts_same_radicand_transitive(re_val, product_norm, dts_neg(product_norm));
                 lemma_dts_same_radicand_transitive(product_norm, re_val, dts_neg(product_norm));
-                lemma_dts_same_radicand_symmetric(dts_neg(dts_mul(re_val, re_val)),
-                    dts_neg(product_norm));
+                //  same_radicand(neg(re²), neg(product_norm)) chain
+                lemma_dts_same_radicand_neg(dts_mul(re_val, re_val));
+                lemma_dts_same_radicand_symmetric(dts_mul(re_val, re_val),
+                    dts_neg(dts_mul(re_val, re_val)));
+                lemma_dts_same_radicand_transitive(dts_neg(dts_mul(re_val, re_val)),
+                    dts_mul(re_val, re_val), product_norm);
+                lemma_dts_same_radicand_transitive(dts_neg(dts_mul(re_val, re_val)),
+                    product_norm, dts_neg(product_norm));
+                lemma_dts_eqv_symmetric(
+                    dts_neg(product_norm), dts_neg(dts_mul(re_val, re_val)));
                 lemma_dts_nonneg_fuel_congruence(
                     dts_neg(dts_mul(re_val, re_val)), dts_neg(product_norm), f);
                 //  both_nonneg(product_norm) → le_antisymmetric → is_zero(product_norm)
