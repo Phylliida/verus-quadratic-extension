@@ -8398,7 +8398,7 @@ proof fn lemma_dts_cauchy_schwarz_step(
 
 ///  Proves nonneg of product = Ext(re_val, im_val, dd) where im_val=0.
 ///  Uses norm chain for mixed-sign norms and Cauchy-Schwarz for same-sign.
-#[verifier::rlimit(500)]
+#[verifier::rlimit(200)]
 proof fn lemma_dts_nonneg_mul_iszero_im(
     a1: DynTowerSpec, b1: DynTowerSpec, a2: DynTowerSpec, b2: DynTowerSpec,
     dd: DynTowerSpec, f: nat,
@@ -9061,6 +9061,8 @@ proof fn lemma_dts_nonneg_mul_iszero_im(
             //  nonneg(re_val) established (or branch unreachable). Return for C1.
             return;
         }
+        //  Transfer chain: nonneg(neg(nx*ny)) → is_zero(re_val) in scoped Z3 context.
+        assert(dts_is_zero(re_val)) by {
         //  nonneg(neg(nx*ny)) established. Transfer to nonneg(neg(re_val²)).
         //  norm_mul identity: product_norm ≡ nx*ny. With im=0: product_norm = re_val²
         //  (structurally, since is_zero(im_val) → mul(im,im)=0 → dd*mul(im,im)=0 → sub(re²,0)=re²).
@@ -9288,7 +9290,9 @@ proof fn lemma_dts_nonneg_mul_iszero_im(
         //  This matches the trigger with u=re_val, v=im_val.
         assert(dts_norm_definite(DynTowerSpec::Ext(
             Box::new(a1), Box::new(b1), Box::new(dd))));
-        assert(dts_is_zero(re_val));
+        assert(dts_norm_definite(DynTowerSpec::Ext(
+            Box::new(a1), Box::new(b1), Box::new(dd))));
+        };  //  end assert by — is_zero(re_val) established in scoped context.
         //  nonneg_fuel_zero(re_val) → nonneg(re_val) → C1
         lemma_dts_is_zero_implies_eqv_zero(re_val);
         lemma_dts_nonneg_fuel_zero(re_val, f);
