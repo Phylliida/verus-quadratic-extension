@@ -8398,7 +8398,7 @@ proof fn lemma_dts_cauchy_schwarz_step(
 
 ///  Proves nonneg of product = Ext(re_val, im_val, dd) where im_val=0.
 ///  Uses norm chain for mixed-sign norms and Cauchy-Schwarz for same-sign.
-#[verifier::rlimit(100)]
+#[verifier::rlimit(300)]
 proof fn lemma_dts_nonneg_mul_iszero_im(
     a1: DynTowerSpec, b1: DynTowerSpec, a2: DynTowerSpec, b2: DynTowerSpec,
     dd: DynTowerSpec, f: nat,
@@ -8867,6 +8867,85 @@ proof fn lemma_dts_nonneg_mul_iszero_im(
                     dts_sub(dd_b2_sq, na2_sq));
                 lemma_dts_nonneg_fuel_congruence(
                     dts_sub(dd_b2_sq, a2_sq), dts_sub(dd_b2_sq, na2_sq), f);
+                //  Establish preconditions for Cauchy-Schwarz step helper.
+                //  nonneg(dd_b2_sq, f) and nonneg(a1_sq, f)
+                lemma_dts_nonneg_or_neg_nonneg_fuel(b2, f);
+                if dts_nonneg_fuel(b2, f) {
+                    lemma_dts_nonneg_mul_closed_fuel(b2, b2, f);
+                } else {
+                    lemma_dts_neg_well_formed(b2);
+                    lemma_dts_same_radicand_neg(b2);
+                    lemma_dts_nonneg_radicands_neg(b2);
+                    lemma_norm_definite_neg(b2);
+                    lemma_dts_depth_neg(b2);
+                    lemma_dts_same_radicand_symmetric(b2, dts_neg(b2));
+                    lemma_dts_same_radicand_reflexive(dts_neg(b2));
+                    lemma_dts_nonneg_mul_closed_fuel(dts_neg(b2), dts_neg(b2), f);
+                    lemma_dts_neg_mul_neg(b2, b2);
+                    lemma_dts_mul_closed(dts_neg(b2), dts_neg(b2));
+                    lemma_dts_same_radicand_symmetric(dts_neg(b2), dts_mul(dts_neg(b2), dts_neg(b2)));
+                    lemma_dts_same_radicand_transitive(dts_mul(dts_neg(b2), dts_neg(b2)), dts_neg(b2), b2);
+                    lemma_dts_same_radicand_symmetric(b2, dts_mul(b2, b2));
+                    lemma_dts_same_radicand_transitive(dts_mul(dts_neg(b2), dts_neg(b2)), b2, dts_mul(b2, b2));
+                    lemma_dts_nonneg_fuel_congruence(dts_mul(dts_neg(b2), dts_neg(b2)), dts_mul(b2, b2), f);
+                }
+                lemma_dts_nonneg_fuel_stabilize(dd, f);
+                lemma_dts_nonneg_mul_closed_fuel(dd, dts_mul(b2, b2), f);
+                //  nonneg(a1_sq)
+                lemma_dts_nonneg_or_neg_nonneg_fuel(a1, f);
+                if dts_nonneg_fuel(a1, f) {
+                    lemma_dts_nonneg_mul_closed_fuel(a1, a1, f);
+                } else {
+                    lemma_dts_neg_well_formed(a1);
+                    lemma_dts_same_radicand_neg(a1);
+                    lemma_dts_nonneg_radicands_neg(a1);
+                    lemma_norm_definite_neg(a1);
+                    lemma_dts_depth_neg(a1);
+                    lemma_dts_same_radicand_symmetric(a1, dts_neg(a1));
+                    lemma_dts_same_radicand_reflexive(dts_neg(a1));
+                    lemma_dts_nonneg_mul_closed_fuel(dts_neg(a1), dts_neg(a1), f);
+                    lemma_dts_neg_mul_neg(a1, a1);
+                    lemma_dts_mul_closed(dts_neg(a1), dts_neg(a1));
+                    lemma_dts_same_radicand_symmetric(dts_neg(a1), dts_mul(dts_neg(a1), dts_neg(a1)));
+                    lemma_dts_same_radicand_transitive(dts_mul(dts_neg(a1), dts_neg(a1)), dts_neg(a1), a1);
+                    lemma_dts_same_radicand_symmetric(a1, dts_mul(a1, a1));
+                    lemma_dts_same_radicand_transitive(dts_mul(dts_neg(a1), dts_neg(a1)), a1, dts_mul(a1, a1));
+                    lemma_dts_nonneg_fuel_congruence(dts_mul(dts_neg(a1), dts_neg(a1)), dts_mul(a1, a1), f);
+                }
+                //  depth, well_formed, same_radicand, nonneg_radicands, norm_definite for squares
+                lemma_dts_depth_mul_le(a1, a1);
+                lemma_dts_depth_mul_le(b2, b2);
+                lemma_dts_depth_mul_le(dd, dts_mul(b2, b2));
+                lemma_dts_nonneg_radicands_mul(b2, b2);
+                lemma_dts_nonneg_radicands_mul(dd, dts_mul(b2, b2));
+                lemma_norm_definite_mul(b2, b2);
+                lemma_dts_same_radicand_symmetric(b2, dts_mul(b2, b2));
+                lemma_dts_same_radicand_symmetric(a1, dd);
+                lemma_dts_same_radicand_transitive(dd, a1, b2);
+                lemma_dts_same_radicand_transitive(dd, b2, dts_mul(b2, b2));
+                lemma_norm_definite_mul(dd, dts_mul(b2, b2));
+                //  Establish nonneg(sub(dd_b1_sq, a1_sq)) from nonneg(neg(nx)) via neg_sub_swap.
+                lemma_dts_neg_sub_swap(dts_mul(a1, a1), dd_b1_sq);
+                lemma_dts_same_radicand_symmetric(ny, dts_neg(ny));
+                //  Reuse: same_radicand(neg(nx), sub(dd_b1_sq, a1_sq)) chain
+                lemma_dts_same_radicand_symmetric(nx, dts_neg(nx));
+                lemma_dts_same_radicand_transitive(dts_neg(nx), nx, a1_sq);
+                lemma_dts_same_radicand_transitive(dts_neg(nx), a1_sq, dd_b1_sq);
+                lemma_dts_same_radicand_symmetric(dd, dd_b1_sq);
+                lemma_dts_same_radicand_symmetric(a1_sq, a1);
+                lemma_dts_same_radicand_transitive(a1_sq, a1, dd);
+                lemma_dts_same_radicand_symmetric(a1_sq, dd);
+                lemma_dts_same_radicand_transitive(dd_b1_sq, dd, a1_sq);
+                lemma_dts_neg_well_formed(a1_sq);
+                lemma_dts_same_radicand_neg(a1_sq);
+                lemma_dts_same_radicand_transitive(dd_b1_sq, a1_sq, dts_neg(a1_sq));
+                lemma_dts_nonneg_radicands_neg(a1_sq);
+                lemma_dts_add_closed(dd_b1_sq, dts_neg(a1_sq));
+                lemma_dts_same_radicand_symmetric(dd_b1_sq, dts_sub(dd_b1_sq, dts_mul(a1, a1)));
+                lemma_dts_same_radicand_transitive(dts_neg(nx), dd_b1_sq, dts_sub(dd_b1_sq, dts_mul(a1, a1)));
+                lemma_dts_same_radicand_symmetric(dts_neg(nx), dts_sub(dd_b1_sq, dts_mul(a1, a1)));
+                lemma_dts_nonneg_fuel_congruence(
+                    dts_neg(nx), dts_sub(dd_b1_sq, dts_mul(a1, a1)), f);
                 //  Call Cauchy-Schwarz step helper.
                 lemma_dts_cauchy_schwarz_step(
                     a1_sq, na2_sq, dd_b1_sq, dd_b2_sq, dd, nx, ny, a2_sq, f);
