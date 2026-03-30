@@ -8576,6 +8576,18 @@ proof fn lemma_dts_nonneg_mul_remaining(
                 lemma_dts_nonneg_radicands_mul(re_val, re_val);
                 lemma_dts_nonneg_radicands_add(dts_mul(re_val, re_val),
                     dts_neg(dts_mul(dd, dts_mul(im_val, im_val))));
+                lemma_norm_definite_mul(re_val, re_val);
+                //  im_val ~ im_val already from reflexive call above
+                lemma_norm_definite_add(dts_mul(a1, b2), dts_mul(b1, a2));
+                lemma_norm_definite_mul(im_val, im_val);
+                lemma_dts_same_radicand_symmetric(im_val, dts_mul(im_val, im_val));
+                lemma_dts_same_radicand_symmetric(a1, dd);
+                lemma_dts_same_radicand_transitive(dd, a1, im_val);
+                lemma_dts_same_radicand_transitive(dd, im_val, dts_mul(im_val, im_val));
+                lemma_norm_definite_mul(dd, dts_mul(im_val, im_val));
+                lemma_norm_definite_neg(dts_mul(dd, dts_mul(im_val, im_val)));
+                lemma_norm_definite_add(dts_mul(re_val, re_val),
+                    dts_neg(dts_mul(dd, dts_mul(im_val, im_val))));
                 lemma_dts_neg_well_formed(product_norm);
                 lemma_dts_same_radicand_neg(product_norm);
                 lemma_dts_nonneg_radicands_neg(product_norm);
