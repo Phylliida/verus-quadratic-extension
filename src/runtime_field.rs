@@ -22,7 +22,7 @@ use verus_algebra::traits::field::Field;
 #[cfg(verus_keep_ghost)]
 use verus_algebra::traits::field::OrderedField;
 #[cfg(verus_keep_ghost)]
-use verus_algebra::traits::runtime::*;
+pub use verus_algebra::traits::runtime::*;
 #[cfg(verus_keep_ghost)]
 use verus_rational::rational::Rational;
 

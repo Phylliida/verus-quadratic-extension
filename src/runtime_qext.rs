@@ -40,7 +40,7 @@ use crate::spec::*;
 #[cfg(verus_keep_ghost)]
 use crate::ordered::*;
 #[cfg(verus_keep_ghost)]
-use crate::runtime_field::{RuntimeRingOps, RuntimeFieldOps, RuntimeOrderedFieldOps};
+use crate::runtime_field::{RuntimeRingOps, RuntimeFieldOps, RuntimeOrderedFieldOps, RuntimeRationalEmbedding};
 
 #[cfg(verus_keep_ghost)]
 verus! {
@@ -370,18 +370,6 @@ impl<FV: OrderedField, R: PositiveRadicand<FV>, F: RuntimeOrderedFieldOps<FV>>
         let ghost model = qe_one::<FV, R>();
         RuntimeQExt { re, im, radicand_rt: radicand, model: Ghost(model) }
     }
-
-    open spec fn spec_embed_rational(v: Rational) -> SpecQuadExt<FV, R> {
-        qext::<FV, R>(F::spec_embed_rational(v), FV::zero())
-    }
-
-    fn rf_embed_rational(&self, v: &RuntimeRational) -> (out: Self) {
-        let re = self.re.rf_embed_rational(v);
-        let im = self.re.rf_zero_like();
-        let radicand = self.radicand_rt.rf_copy();
-        let ghost model = qext::<FV, R>(F::spec_embed_rational(v@), FV::zero());
-        RuntimeQExt { re, im, radicand_rt: radicand, model: Ghost(model) }
-    }
 }
 
 impl<FV: OrderedField, R: PositiveRadicand<FV>, F: RuntimeOrderedFieldOps<FV>>
@@ -396,6 +384,22 @@ impl<FV: OrderedField, R: PositiveRadicand<FV>, F: RuntimeOrderedFieldOps<FV>>
 {
     fn rf_le(&self, rhs: &Self) -> (out: bool) { self.le_exec(rhs) }
     fn rf_lt(&self, rhs: &Self) -> (out: bool) { self.lt_exec(rhs) }
+}
+
+impl<FV: OrderedField, R: PositiveRadicand<FV>, F: RuntimeOrderedFieldOps<FV> + RuntimeRationalEmbedding<FV>>
+    RuntimeRationalEmbedding<SpecQuadExt<FV, R>> for RuntimeQExt<FV, R, F>
+{
+    open spec fn spec_embed_rational(v: Rational) -> SpecQuadExt<FV, R> {
+        qext::<FV, R>(F::spec_embed_rational(v), FV::zero())
+    }
+
+    fn rf_embed_rational(&self, v: &RuntimeRational) -> (out: Self) {
+        let re = self.re.rf_embed_rational(v);
+        let im = self.re.rf_zero_like();
+        let radicand = self.radicand_rt.rf_copy();
+        let ghost model = qext::<FV, R>(F::spec_embed_rational(v@), FV::zero());
+        RuntimeQExt { re, im, radicand_rt: radicand, model: Ghost(model) }
+    }
 }
 
 //  ═══════════════════════════════════════════════════════════════════
