@@ -40,7 +40,7 @@ pub trait RuntimeRationalEmbedding<V: Ring>: RuntimeRingOps<V> {
 
     fn embed_rational(&self, v: &RuntimeRational) -> (out: Self)
         requires self.wf_spec(), v.wf_spec()
-        ensures out.wf_spec(), out.model() == Self::spec_embed_rational(v@);
+        ensures out.wf_spec(), out@ == Self::spec_embed_rational(v@);
 }
 
 //  ═══════════════════════════════════════════════════════════════════
