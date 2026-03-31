@@ -73,9 +73,9 @@ impl<FV: OrderedField, R: Radicand<FV>, F: RuntimeOrderedFieldOps<FV>> RuntimeQE
         &&& self.re.wf_spec()
         &&& self.im.wf_spec()
         &&& self.radicand_rt.wf_spec()
-        &&& self.re.model() == self.model@.re
-        &&& self.im.model() == self.model@.im
-        &&& self.radicand_rt.model() == R::value()
+        &&& self.re@ == self.model@.re
+        &&& self.im@ == self.model@.im
+        &&& self.radicand_rt@ == R::value()
     }
 
     ///  Construct from components and radicand.
@@ -84,32 +84,32 @@ impl<FV: OrderedField, R: Radicand<FV>, F: RuntimeOrderedFieldOps<FV>> RuntimeQE
             re.wf_spec(),
             im.wf_spec(),
             radicand_rt.wf_spec(),
-            radicand_rt.model() == R::value(),
+            radicand_rt@ == R::value(),
         ensures
             out.wf_spec(),
-            out.model@.re == re.model(),
-            out.model@.im == im.model(),
+            out.model@.re == re@,
+            out.model@.im == im@,
     {
-        let ghost model = qext::<FV, R>(re.model(), im.model());
+        let ghost model = qext::<FV, R>(re@, im@);
         RuntimeQExt { re, im, radicand_rt, model: Ghost(model) }
     }
 
     ///  Embed a base field element into the extension: v ↦ v + 0·√d.
     ///
     ///  Requires a radicand runtime value to populate the struct.
-    ///  Spec: out@ == qext_from_rational(v.model())
+    ///  Spec: out@ == qext_from_rational(v@)
     pub fn embed_base(v: F, radicand_rt: F) -> (out: Self)
         requires
             v.wf_spec(),
             radicand_rt.wf_spec(),
-            radicand_rt.model() == R::value(),
+            radicand_rt@ == R::value(),
         ensures
             out.wf_spec(),
-            out.model@.re == v.model(),
+            out.model@.re == v@,
             out.model@.im == FV::zero(),
     {
         let im = v.zero_like();
-        let ghost model = qext::<FV, R>(v.model(), FV::zero());
+        let ghost model = qext::<FV, R>(v@, FV::zero());
         RuntimeQExt { re: v, im, radicand_rt, model: Ghost(model) }
     }
 
@@ -220,7 +220,7 @@ impl<FV: OrderedField, R: Radicand<FV>, F: RuntimeOrderedFieldOps<FV>> RuntimeQE
         requires self.wf_spec()
         ensures
             out.wf_spec(),
-            out.model() == qe_norm::<FV, R>(self.model@),
+            out@ == qe_norm::<FV, R>(self.model@),
     {
         //  a²
         let a_sq = self.re.mul(&self.re);
@@ -343,7 +343,6 @@ impl<FV: OrderedField, R: PositiveRadicand<FV>, F: RuntimeOrderedFieldOps<FV>> R
 impl<FV: OrderedField, R: PositiveRadicand<FV>, F: RuntimeOrderedFieldOps<FV>>
     RuntimeRingOps<SpecQuadExt<FV, R>> for RuntimeQExt<FV, R, F>
 {
-    open spec fn model(&self) -> SpecQuadExt<FV, R> { self.model@ }
 
     #[verifier::inline]
     open spec fn wf_spec(&self) -> bool { self.wf_spec() }
