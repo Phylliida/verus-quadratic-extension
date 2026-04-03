@@ -9713,20 +9713,95 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                                 lemma_dts_nonneg_conclude_re_fuel(re_val, im_val, dd, f);
                                 return;
                             }
-                            //  !nonneg(re_val). This branch is unreachable by Cauchy-Schwarz,
-                            //  but proving it requires an extensive chain.
-                            //  For now: the product has neg(re)≥0, im≥0, norm>0, neg_norm<0.
-                            //  No C1/C2/C3 case applies. Z3 should see this is impossible
-                            //  given both factors are nonneg.
-                            //  Help Z3: product_norm ≡ nx*ny (from norm_mul).
-                            //  Provide explicit nonneg(product_norm) = nonneg(sub(re², dd*im²)):
-                            //  Z3 already has the norm_mul identity and nonneg(nx*ny).
-                            //  The postcondition should follow from the nonneg_fuel unfolding
-                            //  of both factors at fuel f+1, which constrains re_val to be ≥ 0
-                            //  when b1≥0 and b2≥0 and both norms ≤ 0.
-                            //  TODO: if Z3 can't close this, add explicit Cauchy-Schwarz chain.
-                            //  PLACEHOLDER — nonneg_mul_remaining will fail here until full
-                            //  Cauchy-Schwarz proof is added.
+                            //  ═══ Prove nonneg(re_val) for Point C with both norms ≤ 0 ═══
+                            //  Both factors in C3: a_neg, b_pos, a² ≤ dd*b².
+                            //  So neg(a1)≥0, neg(a2)≥0, b1≥0, b2≥0, dd≥0.
+                            //  a1*a2 ≥ 0: neg(a1)*neg(a2) ≥ 0 by nonneg_mul, then neg_mul_neg congruence.
+                            //  dd*(b1*b2) ≥ 0: b1*b2 ≥ 0 by nonneg_mul, then dd*(b1*b2) ≥ 0.
+                            //  re_val = a1*a2 + dd*(b1*b2) ≥ 0 by nonneg_add.
+                            //
+                            //  Step 1: nonneg(a1*a2) via neg_mul_neg
+                            //  From C3: neg(a1) nonneg (from nonneg_fuel Ext expansion)
+                            //  and neg(a2) nonneg. Both available from the nonneg_fuel unfolding.
+                            //  Explicit: the Ext nonneg_fuel for C3 gives nonneg_fuel(neg(a), f).
+                            //  We have nonneg_fuel(neg(nx), f) which is nonneg(dd*b1²-a1²).
+                            //  BUT we need nonneg(neg(a1)) directly.
+                            //  From C3 of factor 1: a1_neg = nonneg(neg(a1)) && !is_zero(a1).
+                            //  But a1_neg was computed for the PRODUCT, not the factors.
+                            //  The factors have their own C1/C2/C3 decomposition at fuel f+1.
+                            //  For the first factor Ext(a1,b1,dd) nonneg at f+1:
+                            //  case C3: nonneg_fuel(neg(a1), f) && !is_zero(a1) && nonneg_fuel(b1, f)
+                            //           && !is_zero(b1) && nonneg_fuel(sub(dd*b1², a1²), f).
+                            //  Z3 should be able to extract these from the nonneg_fuel hypothesis.
+                            //
+                            //  For now: assume Z3 can derive nonneg(neg(a1)) and nonneg(neg(a2))
+                            //  from the fuel-level nonneg of the factors + the neg(nx)≥0 path.
+                            //  If not, we'll need explicit fuel unfolding.
+                            //
+                            //  Actually: we KNOW this is the neg(nx)≥0 && neg(ny)≥0 branch (line 9687).
+                            //  b1≥0 and b2≥0 and !a1_nn and !a2_nn (otherwise C1×C1 handled).
+                            //  From le_total: !a1_nn → nonneg(neg(a1)). Same for a2.
+                            //  Step 1: nonneg(neg(a1)*neg(a2))
+                            lemma_dts_neg_well_formed(a1);
+                            lemma_dts_neg_well_formed(a2);
+                            lemma_dts_same_radicand_neg(a1);
+                            lemma_dts_same_radicand_neg(a2);
+                            lemma_dts_same_radicand_symmetric(a1, dts_neg(a1));
+                            lemma_dts_same_radicand_symmetric(a2, dts_neg(a2));
+                            lemma_dts_same_radicand_symmetric(a1, a2);
+                            lemma_dts_same_radicand_transitive(dts_neg(a1), a1, a2);
+                            lemma_dts_same_radicand_transitive(dts_neg(a1), a2, dts_neg(a2));
+                            lemma_dts_nonneg_radicands_neg(a1);
+                            lemma_dts_nonneg_radicands_neg(a2);
+                            lemma_norm_definite_neg(a1);
+                            lemma_norm_definite_neg(a2);
+                            lemma_dts_depth_neg(a1);
+                            lemma_dts_depth_neg(a2);
+                            lemma_dts_nonneg_or_neg_nonneg_fuel(a1, f);
+                            lemma_dts_nonneg_or_neg_nonneg_fuel(a2, f);
+                            //  !a1_nn → nonneg(neg(a1)), !a2_nn → nonneg(neg(a2))
+                            //  (a1_nn would mean C1×C1 handled earlier)
+                            lemma_dts_nonneg_mul_closed_fuel(dts_neg(a1), dts_neg(a2), f);
+                            //  neg(a1)*neg(a2) ≡ a1*a2 by neg_mul_neg
+                            lemma_dts_neg_mul_neg(a1, a2);
+                            //  Transfer nonneg from neg(a1)*neg(a2) to a1*a2
+                            lemma_dts_mul_closed(dts_neg(a1), dts_neg(a2));
+                            lemma_dts_mul_closed(a1, a2);
+                            lemma_dts_same_radicand_symmetric(dts_neg(a1),
+                                dts_mul(dts_neg(a1), dts_neg(a2)));
+                            lemma_dts_same_radicand_transitive(
+                                dts_mul(dts_neg(a1), dts_neg(a2)), dts_neg(a1), a1);
+                            lemma_dts_same_radicand_symmetric(a1, dts_mul(a1, a2));
+                            lemma_dts_same_radicand_transitive(
+                                dts_mul(dts_neg(a1), dts_neg(a2)), a1, dts_mul(a1, a2));
+                            lemma_dts_nonneg_fuel_congruence(
+                                dts_mul(dts_neg(a1), dts_neg(a2)), dts_mul(a1, a2), f);
+                            //  Step 2: nonneg(dd*(b1*b2))
+                            lemma_dts_nonneg_mul_closed_fuel(b1, b2, f);
+                            lemma_dts_mul_closed(b1, b2);
+                            lemma_dts_same_radicand_symmetric(b1, dts_mul(b1, b2));
+                            lemma_dts_same_radicand_transitive(dd, b1, dts_mul(b1, b2));
+                            lemma_dts_nonneg_radicands_mul(b1, b2);
+                            lemma_norm_definite_mul(b1, b2);
+                            lemma_dts_depth_mul_le(b1, b2);
+                            lemma_dts_nonneg_fuel_stabilize(dd, f);
+                            lemma_dts_nonneg_mul_closed_fuel(dd, dts_mul(b1, b2), f);
+                            //  Step 3: re_val = a1*a2 + dd*(b1*b2), both nonneg → nonneg_add
+                            lemma_dts_same_radicand_symmetric(a1, dts_mul(a1, a2));
+                            lemma_dts_same_radicand_transitive(dts_mul(a1, a2), a1, dd);
+                            lemma_dts_same_radicand_symmetric(dd, dts_mul(dd, dts_mul(b1, b2)));
+                            lemma_dts_same_radicand_transitive(dts_mul(a1, a2), dd,
+                                dts_mul(dd, dts_mul(b1, b2)));
+                            lemma_dts_nonneg_radicands_mul(a1, a2);
+                            lemma_dts_nonneg_radicands_mul(dd, dts_mul(b1, b2));
+                            lemma_norm_definite_mul(a1, a2);
+                            lemma_norm_definite_mul(dd, dts_mul(b1, b2));
+                            lemma_dts_depth_mul_le(a1, a2);
+                            lemma_dts_depth_mul_le(dd, dts_mul(b1, b2));
+                            lemma_dts_nonneg_add_closed_fuel(
+                                dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2)), f);
+                            //  re_val = a1*a2 + dd*(b1*b2) by definition
+                            lemma_dts_nonneg_conclude_re_fuel(re_val, im_val, dd, f);
                             return;
                         }
                     lemma_dts_nonneg_fuel_stabilize(dd, f);
