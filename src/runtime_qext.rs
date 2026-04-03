@@ -66,6 +66,14 @@ pub struct RuntimeQExt<FV: OrderedField, R: Radicand<FV>, F: RuntimeOrderedField
     pub model: Ghost<SpecQuadExt<FV, R>>,
 }
 
+impl<FV: OrderedField, R: Radicand<FV>, F: RuntimeOrderedFieldOps<FV>> View for RuntimeQExt<FV, R, F> {
+    type V = SpecQuadExt<FV, R>;
+
+    open spec fn view(&self) -> SpecQuadExt<FV, R> {
+        self.model@
+    }
+}
+
 impl<FV: OrderedField, R: Radicand<FV>, F: RuntimeOrderedFieldOps<FV>> RuntimeQExt<FV, R, F> {
     ///  Well-formedness: runtime components match the ghost model,
     ///  and the stored radicand matches the spec-level radicand value.
