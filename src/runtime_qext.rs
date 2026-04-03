@@ -121,6 +121,36 @@ impl<FV: OrderedField, R: Radicand<FV>, F: RuntimeOrderedFieldOps<FV>> RuntimeQE
         RuntimeQExt { re: v, im, radicand_rt, model: Ghost(model) }
     }
 
+    ///  Construct zero: 0 + 0·√d.
+    pub fn zero_with_radicand(radicand_rt: F) -> (out: Self)
+        requires
+            radicand_rt.wf_spec(),
+            radicand_rt@ == R::value(),
+        ensures
+            out.wf_spec(),
+            out@ == qe_zero::<FV, R>(),
+    {
+        let re = radicand_rt.zero_like();
+        let im = radicand_rt.zero_like();
+        let ghost model = qe_zero::<FV, R>();
+        RuntimeQExt { re, im, radicand_rt, model: Ghost(model) }
+    }
+
+    ///  Construct one: 1 + 0·√d.
+    pub fn one_with_radicand(radicand_rt: F) -> (out: Self)
+        requires
+            radicand_rt.wf_spec(),
+            radicand_rt@ == R::value(),
+        ensures
+            out.wf_spec(),
+            out@ == qe_one::<FV, R>(),
+    {
+        let re = radicand_rt.one_like();
+        let im = radicand_rt.zero_like();
+        let ghost model = qe_one::<FV, R>();
+        RuntimeQExt { re, im, radicand_rt, model: Ghost(model) }
+    }
+
     //  ─── Ring operations ─────────────────────────────────────────
 
     ///  Addition: (a + b√d) + (c + e√d) = (a+c) + (b+e)√d
