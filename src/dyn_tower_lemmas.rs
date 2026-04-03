@@ -3052,7 +3052,9 @@ pub proof fn lemma_dts_mul_associative<T: OrderedField>(
     lemma_dts_same_radicand_transitive(a, b, c);
     match (a, b, c) {
         (DynTowerSpec::Rat(r1), DynTowerSpec::Rat(r2), DynTowerSpec::Rat(r3)) => {
+            //  axiom gives (r1*r2)*r3 ≡ r1*(r2*r3), need the reverse
             T::axiom_mul_associative(r1, r2, r3);
+            T::axiom_eqv_symmetric(r1.mul(r2).mul(r3), r1.mul(r2.mul(r3)));
         }
         (DynTowerSpec::Rat(r), DynTowerSpec::Rat(_), DynTowerSpec::Ext(re, im, d)) => {
             lemma_dts_mul_associative(DynTowerSpec::Rat(r), b, *re);
