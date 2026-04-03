@@ -13,6 +13,40 @@ use verus_rational::rational::Rational;
 verus! {
 
 //  ═══════════════════════════════════════════════════════════════════
+//   Spec-level Rational trait operation wrappers
+//  ═══════════════════════════════════════════════════════════════════
+//
+//  Rational has inherent `proof fn add/mul/neg/sub` that shadow the
+//  `spec fn` trait methods (Ring::add, Ring::mul, etc.). These wrappers
+//  call the trait methods via fully-qualified syntax so DTS spec functions
+//  can use canonical (trait-level) operations.
+
+///  Ring::add for Rational (= add_spec().canonical()).
+pub open spec fn rat_add(a: Rational, b: Rational) -> Rational {
+    a.add(b)
+}
+
+///  Ring::mul for Rational (= mul_spec().canonical()).
+pub open spec fn rat_mul(a: Rational, b: Rational) -> Rational {
+    a.mul(b)
+}
+
+///  AdditiveGroup::neg for Rational (= neg_spec().canonical()).
+pub open spec fn rat_neg(a: Rational) -> Rational {
+    a.neg()
+}
+
+///  Field::recip for Rational (= reciprocal_spec().canonical()).
+pub open spec fn rat_recip(a: Rational) -> Rational {
+    a.recip()
+}
+
+///  PartialOrder::le for Rational.
+pub open spec fn rat_le(a: Rational, b: Rational) -> bool {
+    a.le(b)
+}
+
+//  ═══════════════════════════════════════════════════════════════════
 //   DynTowerSpec — concrete recursive spec type for any tower depth
 //  ═══════════════════════════════════════════════════════════════════
 
@@ -123,7 +157,7 @@ pub open spec fn dts_neg(a: DynTowerSpec) -> DynTowerSpec
     decreases a,
 {
     match a {
-        DynTowerSpec::Rat(r) => DynTowerSpec::Rat(r.neg_spec()),
+        DynTowerSpec::Rat(r) => DynTowerSpec::Rat(rat_neg(r)),
         DynTowerSpec::Ext(re, im, d) => DynTowerSpec::Ext(
             Box::new(dts_neg(*re)),
             Box::new(dts_neg(*im)),
@@ -138,7 +172,7 @@ pub open spec fn dts_add(a: DynTowerSpec, b: DynTowerSpec) -> DynTowerSpec
 {
     match (a, b) {
         (DynTowerSpec::Rat(r1), DynTowerSpec::Rat(r2)) =>
-            DynTowerSpec::Rat(r1.add_spec(r2)),
+            DynTowerSpec::Rat(rat_add(r1, r2)),
         (DynTowerSpec::Ext(re1, im1, d), DynTowerSpec::Ext(re2, im2, _)) =>
             DynTowerSpec::Ext(
                 Box::new(dts_add(*re1, *re2)),
@@ -181,7 +215,7 @@ pub open spec fn dts_mul(a: DynTowerSpec, b: DynTowerSpec) -> DynTowerSpec
 {
     match (a, b) {
         (DynTowerSpec::Rat(r1), DynTowerSpec::Rat(r2)) =>
-            DynTowerSpec::Rat(r1.mul_spec(r2)),
+            DynTowerSpec::Rat(r1.mul(r2)),
         (DynTowerSpec::Ext(re1, im1, d), DynTowerSpec::Ext(re2, im2, _)) => {
             //  (re1 + im1·√d)(re2 + im2·√d) = (re1·re2 + d·im1·im2) + (re1·im2 + im1·re2)·√d
             let re1_re2 = dts_mul(*re1, *re2);
@@ -230,7 +264,7 @@ pub open spec fn dts_norm(a: DynTowerSpec) -> DynTowerSpec
     decreases a,
 {
     match a {
-        DynTowerSpec::Rat(r) => DynTowerSpec::Rat(r.mul_spec(r)),
+        DynTowerSpec::Rat(r) => DynTowerSpec::Rat(r.mul(r)),
         DynTowerSpec::Ext(re, im, d) => {
             let re2 = dts_mul(*re, *re);
             let im2 = dts_mul(*im, *im);
@@ -246,7 +280,7 @@ pub open spec fn dts_recip_fuel(a: DynTowerSpec, fuel: nat) -> DynTowerSpec
     decreases fuel,
 {
     match a {
-        DynTowerSpec::Rat(r) => DynTowerSpec::Rat(r.reciprocal_spec()),
+        DynTowerSpec::Rat(r) => DynTowerSpec::Rat(r.recip()),
         DynTowerSpec::Ext(re, im, d) => {
             if fuel == 0 {
                 a //  sentinel: insufficient fuel
@@ -288,7 +322,7 @@ pub open spec fn dts_nonneg_fuel(x: DynTowerSpec, fuel: nat) -> bool
     decreases fuel,
 {
     match x {
-        DynTowerSpec::Rat(r) => Rational::from_int_spec(0).le_spec(r),
+        DynTowerSpec::Rat(r) => Rational::zero().le(r),
         DynTowerSpec::Ext(re, im, d) => {
             if fuel == 0 {
                 false //  sentinel: insufficient fuel
@@ -472,7 +506,7 @@ pub open spec fn dts_nonsquare_radicands(x: DynTowerSpec) -> bool
 ///  A DTS value is a rational perfect square if it's Rat(r) where r = s² for some rational s.
 pub open spec fn dts_is_rational_square(d: DynTowerSpec) -> bool {
     match d {
-        DynTowerSpec::Rat(r) => exists|s: Rational| s.mul_spec(s).eqv_spec(r),
+        DynTowerSpec::Rat(r) => exists|s: Rational| s.mul(s).eqv(r),
         DynTowerSpec::Ext(..) => false,
     }
 }
