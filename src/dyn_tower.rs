@@ -384,4 +384,78 @@ pub open spec fn dts_norm_definite<T: OrderedField>(x: DynTowerSpec<T>) -> bool
     }
 }
 
+//  ═══════════════════════════════════════════════════════════════════
+//   Trait implementations for DynTowerSpec<T>
+//  ═══════════════════════════════════════════════════════════════════
+
+impl<T: OrderedField> Equivalence for DynTowerSpec<T> {
+    open spec fn eqv(self, other: Self) -> bool {
+        dts_eqv(self, other)
+    }
+
+    proof fn axiom_eqv_reflexive(a: Self) {
+        crate::dyn_tower_lemmas::lemma_dts_eqv_reflexive(a);
+    }
+
+    proof fn axiom_eqv_symmetric(a: Self, b: Self) {
+        crate::dyn_tower_lemmas::lemma_dts_eqv_symmetric(a, b);
+    }
+
+    proof fn axiom_eqv_transitive(a: Self, b: Self, c: Self) {
+        crate::dyn_tower_lemmas::lemma_dts_eqv_transitive(a, b, c);
+    }
+
+    proof fn axiom_eq_implies_eqv(a: Self, b: Self) {
+        crate::dyn_tower_lemmas::lemma_dts_eq_implies_eqv(a, b);
+    }
+}
+
+impl<T: OrderedField> AdditiveCommutativeMonoid for DynTowerSpec<T> {
+    open spec fn zero() -> Self {
+        dts_zero()
+    }
+
+    open spec fn add(self, other: Self) -> Self {
+        dts_add(self, other)
+    }
+
+    proof fn axiom_add_commutative(a: Self, b: Self) {
+        crate::dyn_tower_lemmas::lemma_dts_add_commutative(a, b);
+    }
+
+    proof fn axiom_add_associative(a: Self, b: Self, c: Self) {
+        crate::dyn_tower_lemmas::lemma_dts_add_associative(a, b, c);
+    }
+
+    proof fn axiom_add_zero_right(a: Self) {
+        crate::dyn_tower_lemmas::lemma_dts_add_zero_right(a);
+    }
+
+    proof fn axiom_add_congruence_left(a: Self, b: Self, c: Self) {
+        crate::dyn_tower_lemmas::lemma_dts_add_congruence_left(a, b, c);
+    }
+}
+
+impl<T: OrderedField> AdditiveGroup for DynTowerSpec<T> {
+    open spec fn neg(self) -> Self {
+        dts_neg(self)
+    }
+
+    open spec fn sub(self, other: Self) -> Self {
+        dts_sub(self, other)
+    }
+
+    proof fn axiom_add_inverse_right(a: Self) {
+        crate::dyn_tower_lemmas::lemma_dts_add_inverse_right(a);
+    }
+
+    proof fn axiom_sub_is_add_neg(a: Self, b: Self) {
+        crate::dyn_tower_lemmas::lemma_dts_sub_is_add_neg(a, b);
+    }
+
+    proof fn axiom_neg_congruence(a: Self, b: Self) {
+        crate::dyn_tower_lemmas::lemma_dts_neg_congruence(a, b);
+    }
+}
+
 } //  verus!

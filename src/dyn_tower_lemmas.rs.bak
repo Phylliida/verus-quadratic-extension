@@ -1,51 +1,22 @@
-///  Axiom proof lemmas for DynTowerSpec<T>.
+///  Axiom proof lemmas for DynTowerSpec.
 ///
 ///  Each lemma follows the pattern:
-///  - Base case (Rat): delegate to T: OrderedField axiom
+///  - Base case (Rat): delegate to Rational axiom
 ///  - Inductive case (Ext): recurse on components
 ///  - Cross-depth (Rat↔Ext): recurse into the Ext's re component
 use vstd::prelude::*;
 use verus_algebra::traits::*;
-// (generic T: OrderedField - no Rational import needed)
+use verus_rational::rational::Rational;
 use crate::dyn_tower::*;
 
 verus! {
-
-//  ═══════════════════════════════════════════════════════════════════
-//   Generic ordered field helper: nonneg(r) ∧ nonneg(neg(r)) → r.eqv(zero)
-//  ═══════════════════════════════════════════════════════════════════
-
-///  If both r and neg(r) are non-negative in T, then r ≡ zero.
-///  This replaces the old Rational-specific `.num`/`.den` reasoning.
-pub proof fn lemma_nonneg_both_implies_eqv_zero<T: OrderedField>(r: T)
-    requires T::zero().le(r), T::zero().le(r.neg()),
-    ensures r.eqv(T::zero()),
-{
-    let zero = T::zero();
-    let neg_r = r.neg();
-    //  From zero.le(neg_r), add r to both sides: zero.add(r).le(neg_r.add(r))
-    T::axiom_le_add_monotone(zero, neg_r, r);
-    //  zero.add(r) ≡ r
-    T::axiom_add_commutative(zero, r);
-    T::axiom_add_zero_right(r);
-    T::axiom_eqv_transitive(zero.add(r), r.add(zero), r);
-    //  neg_r.add(r) ≡ zero
-    T::axiom_add_commutative(neg_r, r);
-    T::axiom_add_inverse_right(r);
-    T::axiom_eqv_transitive(neg_r.add(r), r.add(neg_r), zero);
-    //  le_congruence: zero.add(r) ≡ r, neg_r.add(r) ≡ zero → r.le(zero)
-    T::axiom_le_congruence(zero.add(r), r, neg_r.add(r), zero);
-    //  antisymmetric: zero.le(r) && r.le(zero) → zero.eqv(r) → r.eqv(zero)
-    T::axiom_le_antisymmetric(zero, r);
-    T::axiom_eqv_symmetric(zero, r);
-}
 
 //  ═══════════════════════════════════════════════════════════════════
 //   Helper lemmas for is_zero / eqv interaction
 //  ═══════════════════════════════════════════════════════════════════
 
 ///  dts_eqv(x, Rat(0)) implies dts_is_zero(x).
-pub proof fn lemma_dts_eqv_zero_implies_is_zero<T: OrderedField>(x: DynTowerSpec<T>)
+pub proof fn lemma_dts_eqv_zero_implies_is_zero(x: DynTowerSpec)
     requires dts_eqv(x, dts_zero()),
     ensures dts_is_zero(x),
     decreases x,
@@ -60,7 +31,7 @@ pub proof fn lemma_dts_eqv_zero_implies_is_zero<T: OrderedField>(x: DynTowerSpec
 }
 
 ///  dts_is_zero(x) implies dts_eqv(x, Rat(0)).
-pub proof fn lemma_dts_is_zero_implies_eqv_zero<T: OrderedField>(x: DynTowerSpec<T>)
+pub proof fn lemma_dts_is_zero_implies_eqv_zero(x: DynTowerSpec)
     requires dts_is_zero(x),
     ensures dts_eqv(x, dts_zero()),
     decreases x,
@@ -74,15 +45,15 @@ pub proof fn lemma_dts_is_zero_implies_eqv_zero<T: OrderedField>(x: DynTowerSpec
 }
 
 ///  If is_zero(a) and eqv(a, b), then is_zero(b).
-pub proof fn lemma_dts_is_zero_congruence<T: OrderedField>(a: DynTowerSpec<T>, b: DynTowerSpec<T>)
+pub proof fn lemma_dts_is_zero_congruence(a: DynTowerSpec, b: DynTowerSpec)
     requires dts_is_zero(a), dts_eqv(a, b),
     ensures dts_is_zero(b),
     decreases a, b,
 {
     match (a, b) {
         (DynTowerSpec::Rat(r1), DynTowerSpec::Rat(r2)) => {
-            T::axiom_eqv_symmetric(r1, r2);
-            T::axiom_eqv_transitive(r2, r1, T::zero());
+            Rational::axiom_eqv_symmetric(r1, r2);
+            Rational::axiom_eqv_transitive(r2, r1, Rational::from_int_spec(0));
         },
         (DynTowerSpec::Ext(re1, im1, _), DynTowerSpec::Ext(re2, im2, _)) => {
             lemma_dts_is_zero_congruence(*re1, *re2);
@@ -104,15 +75,15 @@ pub proof fn lemma_dts_is_zero_congruence<T: OrderedField>(a: DynTowerSpec<T>, b
 }
 
 ///  If both are zero, they're equivalent.
-pub proof fn lemma_dts_is_zero_eqv<T: OrderedField>(a: DynTowerSpec<T>, b: DynTowerSpec<T>)
+pub proof fn lemma_dts_is_zero_eqv(a: DynTowerSpec, b: DynTowerSpec)
     requires dts_is_zero(a), dts_is_zero(b),
     ensures dts_eqv(a, b),
     decreases a, b,
 {
     match (a, b) {
         (DynTowerSpec::Rat(r1), DynTowerSpec::Rat(r2)) => {
-            T::axiom_eqv_symmetric(r2, T::zero());
-            T::axiom_eqv_transitive(r1, T::zero(), r2);
+            Rational::axiom_eqv_symmetric(r2, Rational::from_int_spec(0));
+            Rational::axiom_eqv_transitive(r1, Rational::from_int_spec(0), r2);
         },
         (DynTowerSpec::Ext(re1, im1, _), DynTowerSpec::Ext(re2, im2, _)) => {
             lemma_dts_is_zero_eqv(*re1, *re2);
@@ -129,7 +100,7 @@ pub proof fn lemma_dts_is_zero_eqv<T: OrderedField>(a: DynTowerSpec<T>, b: DynTo
 }
 
 ///  If is_zero(x), then add(x, y) ≡ y. ("adding zero on the left")
-pub proof fn lemma_dts_add_is_zero_left<T: OrderedField>(x: DynTowerSpec<T>, y: DynTowerSpec<T>)
+pub proof fn lemma_dts_add_is_zero_left(x: DynTowerSpec, y: DynTowerSpec)
     requires dts_is_zero(x),
     ensures dts_eqv(dts_add(x, y), y),
     decreases x, y,
@@ -138,20 +109,20 @@ pub proof fn lemma_dts_add_is_zero_left<T: OrderedField>(x: DynTowerSpec<T>, y: 
         (DynTowerSpec::Rat(r), DynTowerSpec::Rat(s)) => {
             //  add(Rat(r), Rat(s)) = Rat(r+s). Need (r+s).eqv(s).
             //  r.eqv(0) from is_zero. Use congruence + zero.
-            T::axiom_add_congruence_left(r, T::zero(), s);
+            Rational::axiom_add_congruence_left(r, Rational::from_int_spec(0), s);
             //  Now: (r+s).eqv(0+s)
-            T::axiom_add_commutative(T::zero(), s);
+            Rational::axiom_add_commutative(Rational::from_int_spec(0), s);
             //  (0+s).eqv(s+0)
-            T::axiom_add_zero_right(s);
+            Rational::axiom_add_zero_right(s);
             //  (s+0).eqv(s)
-            T::axiom_eqv_transitive(
-                r.add(s),
-                T::zero().add(s),
-                s.add(T::zero()),
+            Rational::axiom_eqv_transitive(
+                r.add_spec(s),
+                Rational::from_int_spec(0).add_spec(s),
+                s.add_spec(Rational::from_int_spec(0)),
             );
-            T::axiom_eqv_transitive(
-                r.add(s),
-                s.add(T::zero()),
+            Rational::axiom_eqv_transitive(
+                r.add_spec(s),
+                s.add_spec(Rational::from_int_spec(0)),
                 s,
             );
         },
@@ -183,13 +154,13 @@ pub proof fn lemma_dts_add_is_zero_left<T: OrderedField>(x: DynTowerSpec<T>, y: 
 //   Equivalence lemmas
 //  ═══════════════════════════════════════════════════════════════════
 
-pub proof fn lemma_dts_eqv_reflexive<T: OrderedField>(a: DynTowerSpec<T>)
+pub proof fn lemma_dts_eqv_reflexive(a: DynTowerSpec)
     ensures dts_eqv(a, a),
     decreases a,
 {
     match a {
         DynTowerSpec::Rat(r) => {
-            T::axiom_eqv_reflexive(r);
+            Rational::axiom_eqv_reflexive(r);
         },
         DynTowerSpec::Ext(re, im, _) => {
             lemma_dts_eqv_reflexive(*re);
@@ -198,13 +169,13 @@ pub proof fn lemma_dts_eqv_reflexive<T: OrderedField>(a: DynTowerSpec<T>)
     }
 }
 
-pub proof fn lemma_dts_eqv_symmetric<T: OrderedField>(a: DynTowerSpec<T>, b: DynTowerSpec<T>)
+pub proof fn lemma_dts_eqv_symmetric(a: DynTowerSpec, b: DynTowerSpec)
     ensures dts_eqv(a, b) == dts_eqv(b, a),
     decreases a, b,
 {
     match (a, b) {
         (DynTowerSpec::Rat(r1), DynTowerSpec::Rat(r2)) => {
-            T::axiom_eqv_symmetric(r1, r2);
+            Rational::axiom_eqv_symmetric(r1, r2);
         },
         (DynTowerSpec::Ext(re1, im1, _), DynTowerSpec::Ext(re2, im2, _)) => {
             lemma_dts_eqv_symmetric(*re1, *re2);
@@ -221,7 +192,7 @@ pub proof fn lemma_dts_eqv_symmetric<T: OrderedField>(a: DynTowerSpec<T>, b: Dyn
     }
 }
 
-pub proof fn lemma_dts_eqv_transitive<T: OrderedField>(a: DynTowerSpec<T>, b: DynTowerSpec<T>, c: DynTowerSpec<T>)
+pub proof fn lemma_dts_eqv_transitive(a: DynTowerSpec, b: DynTowerSpec, c: DynTowerSpec)
     requires dts_eqv(a, b), dts_eqv(b, c),
     ensures dts_eqv(a, c),
     decreases a, b, c,
@@ -230,7 +201,7 @@ pub proof fn lemma_dts_eqv_transitive<T: OrderedField>(a: DynTowerSpec<T>, b: Dy
         (DynTowerSpec::Rat(r1), DynTowerSpec::Rat(r2)) => {
             match c {
                 DynTowerSpec::Rat(r3) => {
-                    T::axiom_eqv_transitive(r1, r2, r3);
+                    Rational::axiom_eqv_transitive(r1, r2, r3);
                 },
                 DynTowerSpec::Ext(re3, im3, _) => {
                     //  eqv(Rat(r2), Ext) = eqv(Rat(r2), *re3) && is_zero(*im3)
@@ -290,7 +261,7 @@ pub proof fn lemma_dts_eqv_transitive<T: OrderedField>(a: DynTowerSpec<T>, b: Dy
     }
 }
 
-pub proof fn lemma_dts_eq_implies_eqv<T: OrderedField>(a: DynTowerSpec<T>, b: DynTowerSpec<T>)
+pub proof fn lemma_dts_eq_implies_eqv(a: DynTowerSpec, b: DynTowerSpec)
     requires a == b,
     ensures dts_eqv(a, b),
 {
@@ -301,13 +272,13 @@ pub proof fn lemma_dts_eq_implies_eqv<T: OrderedField>(a: DynTowerSpec<T>, b: Dy
 //   Additive lemmas
 //  ═══════════════════════════════════════════════════════════════════
 
-pub proof fn lemma_dts_add_commutative<T: OrderedField>(a: DynTowerSpec<T>, b: DynTowerSpec<T>)
+pub proof fn lemma_dts_add_commutative(a: DynTowerSpec, b: DynTowerSpec)
     ensures dts_eqv(dts_add(a, b), dts_add(b, a)),
     decreases a, b,
 {
     match (a, b) {
         (DynTowerSpec::Rat(r1), DynTowerSpec::Rat(r2)) => {
-            T::axiom_add_commutative(r1, r2);
+            Rational::axiom_add_commutative(r1, r2);
         },
         (DynTowerSpec::Ext(re1, im1, _), DynTowerSpec::Ext(re2, im2, _)) => {
             lemma_dts_add_commutative(*re1, *re2);
@@ -326,7 +297,7 @@ pub proof fn lemma_dts_add_commutative<T: OrderedField>(a: DynTowerSpec<T>, b: D
     }
 }
 
-pub proof fn lemma_dts_add_associative<T: OrderedField>(a: DynTowerSpec<T>, b: DynTowerSpec<T>, c: DynTowerSpec<T>)
+pub proof fn lemma_dts_add_associative(a: DynTowerSpec, b: DynTowerSpec, c: DynTowerSpec)
     ensures dts_eqv(dts_add(dts_add(a, b), c), dts_add(a, dts_add(b, c))),
     decreases a, b, c,
 {
@@ -334,7 +305,7 @@ pub proof fn lemma_dts_add_associative<T: OrderedField>(a: DynTowerSpec<T>, b: D
         (DynTowerSpec::Rat(r1), DynTowerSpec::Rat(r2)) => {
             match c {
                 DynTowerSpec::Rat(r3) => {
-                    T::axiom_add_associative(r1, r2, r3);
+                    Rational::axiom_add_associative(r1, r2, r3);
                 },
                 DynTowerSpec::Ext(re3, im3, _) => {
                     //  LHS: add(Rat(r1+r2), Ext) = Ext(add(Rat(r1+r2), *re3), im3, d)
@@ -405,13 +376,13 @@ pub proof fn lemma_dts_add_associative<T: OrderedField>(a: DynTowerSpec<T>, b: D
     }
 }
 
-pub proof fn lemma_dts_add_zero_right<T: OrderedField>(a: DynTowerSpec<T>)
+pub proof fn lemma_dts_add_zero_right(a: DynTowerSpec)
     ensures dts_eqv(dts_add(a, dts_zero()), a),
     decreases a,
 {
     match a {
         DynTowerSpec::Rat(r) => {
-            T::axiom_add_zero_right(r);
+            Rational::axiom_add_zero_right(r);
         },
         DynTowerSpec::Ext(re, im, _) => {
             //  add(Ext, Rat(0)) = Ext(add(*re, Rat(0)), im, d)
@@ -422,7 +393,7 @@ pub proof fn lemma_dts_add_zero_right<T: OrderedField>(a: DynTowerSpec<T>)
     }
 }
 
-pub proof fn lemma_dts_add_congruence_left<T: OrderedField>(a: DynTowerSpec<T>, b: DynTowerSpec<T>, c: DynTowerSpec<T>)
+pub proof fn lemma_dts_add_congruence_left(a: DynTowerSpec, b: DynTowerSpec, c: DynTowerSpec)
     requires dts_eqv(a, b),
     ensures dts_eqv(dts_add(a, c), dts_add(b, c)),
     decreases a, b, c,
@@ -431,7 +402,7 @@ pub proof fn lemma_dts_add_congruence_left<T: OrderedField>(a: DynTowerSpec<T>, 
         (DynTowerSpec::Rat(r1), DynTowerSpec::Rat(r2)) => {
             match c {
                 DynTowerSpec::Rat(r3) => {
-                    T::axiom_add_congruence_left(r1, r2, r3);
+                    Rational::axiom_add_congruence_left(r1, r2, r3);
                 },
                 DynTowerSpec::Ext(re3, im3, _) => {
                     //  add(Rat(r1), Ext) = Ext(add(Rat(r1),*re3), im3, d)
@@ -508,14 +479,14 @@ pub proof fn lemma_dts_add_congruence_left<T: OrderedField>(a: DynTowerSpec<T>, 
     }
 }
 
-pub proof fn lemma_dts_neg_congruence<T: OrderedField>(a: DynTowerSpec<T>, b: DynTowerSpec<T>)
+pub proof fn lemma_dts_neg_congruence(a: DynTowerSpec, b: DynTowerSpec)
     requires dts_eqv(a, b),
     ensures dts_eqv(dts_neg(a), dts_neg(b)),
     decreases a, b,
 {
     match (a, b) {
         (DynTowerSpec::Rat(r1), DynTowerSpec::Rat(r2)) => {
-            T::axiom_neg_congruence(r1, r2);
+            Rational::axiom_neg_congruence(r1, r2);
         },
         (DynTowerSpec::Ext(re1, im1, _), DynTowerSpec::Ext(re2, im2, _)) => {
             lemma_dts_neg_congruence(*re1, *re2);
@@ -540,17 +511,29 @@ pub proof fn lemma_dts_neg_congruence<T: OrderedField>(a: DynTowerSpec<T>, b: Dy
 }
 
 ///  Negation preserves is_zero.
-pub proof fn lemma_dts_neg_preserves_is_zero<T: OrderedField>(x: DynTowerSpec<T>)
+pub proof fn lemma_dts_neg_preserves_is_zero(x: DynTowerSpec)
     requires dts_is_zero(x),
     ensures dts_is_zero(dts_neg(x)),
     decreases x,
 {
     match x {
         DynTowerSpec::Rat(r) => {
-            //  r.eqv(zero) → neg(r).eqv(neg(zero)) → neg(r).eqv(zero)
-            T::axiom_neg_congruence(r, T::zero());
-            verus_algebra::lemmas::additive_group_lemmas::lemma_neg_zero::<T>();
-            T::axiom_eqv_transitive(r.neg(), T::zero().neg(), T::zero());
+            //  is_zero: r.eqv(0). neg: -r. Need (-r).eqv(0).
+            //  r.eqv(0) ==> -r.eqv(-0) ==> -r.eqv(0) (since -0 = 0)
+            Rational::axiom_neg_congruence(r, Rational::from_int_spec(0));
+            //  Now: neg(r).eqv(neg(0))
+            //  neg(0) = from_int_spec(0).neg_spec() = ... need to show this is 0
+            //  Actually: Rational { num: 0, den: 0 }.neg_spec() = Rational { num: 0, den: 0 }
+            //  So neg(0) == 0. And neg(r).eqv(neg(0)) && neg(0)==0 ==> neg(r).eqv(0).
+            Rational::axiom_eq_implies_eqv(
+                Rational::from_int_spec(0).neg_spec(),
+                Rational::from_int_spec(0),
+            );
+            Rational::axiom_eqv_transitive(
+                r.neg_spec(),
+                Rational::from_int_spec(0).neg_spec(),
+                Rational::from_int_spec(0),
+            );
         },
         DynTowerSpec::Ext(re, im, _) => {
             lemma_dts_neg_preserves_is_zero(*re);
@@ -568,7 +551,7 @@ pub proof fn lemma_dts_neg_preserves_is_zero<T: OrderedField>(x: DynTowerSpec<T>
 
 ///  neg(a)*neg(b) ≡ a*b (product of negations).
 ///  Requires same_radicand and well-formed for the cross-component products.
-pub proof fn lemma_dts_neg_mul_neg<T: OrderedField>(a: DynTowerSpec<T>, b: DynTowerSpec<T>)
+pub proof fn lemma_dts_neg_mul_neg(a: DynTowerSpec, b: DynTowerSpec)
     requires dts_same_radicand(a, b), dts_well_formed(a), dts_well_formed(b),
     ensures dts_eqv(dts_mul(dts_neg(a), dts_neg(b)), dts_mul(a, b)),
     decreases a, b,
@@ -576,7 +559,7 @@ pub proof fn lemma_dts_neg_mul_neg<T: OrderedField>(a: DynTowerSpec<T>, b: DynTo
     match (a, b) {
         (DynTowerSpec::Rat(r1), DynTowerSpec::Rat(r2)) => {
             verus_algebra::lemmas::ring_lemmas::lemma_neg_mul_neg::<
-                T>(r1, r2);
+                verus_rational::rational::Rational>(r1, r2);
         }
         (DynTowerSpec::Ext(re1, im1, d), DynTowerSpec::Ext(re2, im2, _)) => {
             let na_re = dts_neg(*re1); let na_im = dts_neg(*im1);
@@ -640,7 +623,7 @@ pub proof fn lemma_dts_neg_mul_neg<T: OrderedField>(a: DynTowerSpec<T>, b: DynTo
 
 ///  neg(a)² ≡ a² (squaring absorbs negation).
 ///  Requires well-formed: sub-components share radicand structure.
-pub proof fn lemma_dts_neg_square<T: OrderedField>(a: DynTowerSpec<T>)
+pub proof fn lemma_dts_neg_square(a: DynTowerSpec)
     requires dts_well_formed(a),
     ensures dts_eqv(dts_mul(dts_neg(a), dts_neg(a)), dts_mul(a, a)),
     decreases a,
@@ -648,7 +631,7 @@ pub proof fn lemma_dts_neg_square<T: OrderedField>(a: DynTowerSpec<T>)
     match a {
         DynTowerSpec::Rat(r) => {
             verus_algebra::lemmas::ring_lemmas::lemma_neg_mul_neg::<
-                T>(r, r);
+                verus_rational::rational::Rational>(r, r);
         }
         DynTowerSpec::Ext(re, im, d) => {
             let na = dts_neg(*re); let nb = dts_neg(*im);
@@ -703,8 +686,8 @@ pub proof fn lemma_dts_neg_square<T: OrderedField>(a: DynTowerSpec<T>)
 
 ///  Tower closure for add: produces same_radicand AND well_formed result.
 #[verifier::rlimit(40)]
-pub proof fn lemma_dts_add_closed<T: OrderedField>(
-    a: DynTowerSpec<T>, b: DynTowerSpec<T>,
+pub proof fn lemma_dts_add_closed(
+    a: DynTowerSpec, b: DynTowerSpec,
 )
     requires dts_well_formed(a), dts_well_formed(b), dts_same_radicand(a, b),
     ensures
@@ -740,8 +723,8 @@ pub proof fn lemma_dts_add_closed<T: OrderedField>(
 
 ///  Tower closure for mul: produces same_radicand AND well_formed result.
 #[verifier::rlimit(40)]
-pub proof fn lemma_dts_mul_closed<T: OrderedField>(
-    a: DynTowerSpec<T>, b: DynTowerSpec<T>,
+pub proof fn lemma_dts_mul_closed(
+    a: DynTowerSpec, b: DynTowerSpec,
 )
     requires dts_well_formed(a), dts_well_formed(b), dts_same_radicand(a, b),
     ensures
@@ -824,7 +807,7 @@ pub proof fn lemma_dts_mul_closed<T: OrderedField>(
 }
 
 ///  neg preserves well-formedness.
-pub proof fn lemma_dts_neg_well_formed<T: OrderedField>(a: DynTowerSpec<T>)
+pub proof fn lemma_dts_neg_well_formed(a: DynTowerSpec)
     requires dts_well_formed(a),
     ensures dts_well_formed(dts_neg(a)),
     decreases a,
@@ -847,7 +830,7 @@ pub proof fn lemma_dts_neg_well_formed<T: OrderedField>(a: DynTowerSpec<T>)
 
 
 ///  neg(sub(a, b)) ≡ sub(b, a) (negation swaps subtraction order).
-pub proof fn lemma_dts_neg_sub_swap<T: OrderedField>(a: DynTowerSpec<T>, b: DynTowerSpec<T>)
+pub proof fn lemma_dts_neg_sub_swap(a: DynTowerSpec, b: DynTowerSpec)
     ensures dts_eqv(dts_neg(dts_sub(a, b)), dts_sub(b, a)),
     decreases a, b,
 {
@@ -865,7 +848,7 @@ pub proof fn lemma_dts_neg_sub_swap<T: OrderedField>(a: DynTowerSpec<T>, b: DynT
     match (a, b) {
         (DynTowerSpec::Rat(r1), DynTowerSpec::Rat(r2)) => {
             verus_algebra::lemmas::additive_group_lemmas::lemma_neg_sub::<
-                T>(r1, r2);
+                verus_rational::rational::Rational>(r1, r2);
         }
         (DynTowerSpec::Ext(re1, im1, _), DynTowerSpec::Ext(re2, im2, _)) => {
             lemma_dts_neg_sub_swap(*re1, *re2);
@@ -883,14 +866,14 @@ pub proof fn lemma_dts_neg_sub_swap<T: OrderedField>(a: DynTowerSpec<T>, b: DynT
 }
 
 ///  neg(neg(x)) ≡ x (double negation / involution).
-pub proof fn lemma_dts_neg_involution<T: OrderedField>(x: DynTowerSpec<T>)
+pub proof fn lemma_dts_neg_involution(x: DynTowerSpec)
     ensures dts_eqv(dts_neg(dts_neg(x)), x),
     decreases x,
 {
     match x {
         DynTowerSpec::Rat(r) => {
             verus_algebra::lemmas::additive_group_lemmas::lemma_neg_involution::<
-                T>(r);
+                verus_rational::rational::Rational>(r);
         }
         DynTowerSpec::Ext(re, im, _) => {
             lemma_dts_neg_involution(*re);
@@ -899,7 +882,7 @@ pub proof fn lemma_dts_neg_involution<T: OrderedField>(x: DynTowerSpec<T>)
     }
 }
 
-pub proof fn lemma_dts_mul_is_zero_right<T: OrderedField>(x: DynTowerSpec<T>, c: DynTowerSpec<T>)
+pub proof fn lemma_dts_mul_is_zero_right(x: DynTowerSpec, c: DynTowerSpec)
     requires dts_is_zero(x),
     ensures dts_is_zero(dts_mul(c, x)),
     decreases c, x,
@@ -909,18 +892,18 @@ pub proof fn lemma_dts_mul_is_zero_right<T: OrderedField>(x: DynTowerSpec<T>, c:
             //  mul(Rat(rc), Rat(rx)) = Rat(rc * rx)
             //  is_zero(Rat(rx)): rx.eqv(0)
             //  Need: (rc * rx).eqv(0)
-            // (generic T: OrderedField - no Rational import needed)
-            let zero = T::zero();
+            use verus_rational::rational::Rational;
+            let zero = Rational::from_int_spec(0);
             //  rx.eqv(0) → mul(rx, rc).eqv(mul(0, rc)) by mul_congruence_left
-            T::axiom_mul_congruence_left(rx, zero, rc);
+            Rational::axiom_mul_congruence_left(rx, zero, rc);
             //  mul(0, rc).eqv(0) by mul_zero_left
-            verus_algebra::lemmas::ring_lemmas::lemma_mul_zero_left::<T>(rc);
+            verus_algebra::lemmas::ring_lemmas::lemma_mul_zero_left::<Rational>(rc);
             //  Chain: mul(rx, rc).eqv(0)
-            T::axiom_eqv_transitive(rx.mul(rc), zero.mul(rc), zero);
+            Rational::axiom_eqv_transitive(rx.mul_spec(rc), zero.mul_spec(rc), zero);
             //  mul(rc, rx) ≡ mul(rx, rc) by commutativity
-            T::axiom_mul_commutative(rc, rx);
+            Rational::axiom_mul_commutative(rc, rx);
             //  Chain: mul(rc, rx).eqv(0)
-            T::axiom_eqv_transitive(rc.mul(rx), rx.mul(rc), zero);
+            Rational::axiom_eqv_transitive(rc.mul_spec(rx), rx.mul_spec(rc), zero);
         },
         (DynTowerSpec::Rat(rc), DynTowerSpec::Ext(re_x, im_x, _)) => {
             //  mul(Rat(rc), Ext_x) = Ext(mul(Rat(rc), re_x), mul(Rat(rc), im_x), d_x)
@@ -958,18 +941,18 @@ pub proof fn lemma_dts_mul_is_zero_right<T: OrderedField>(x: DynTowerSpec<T>, c:
 }
 
 ///  If x is zero, then mul(x, c) is zero (left version).
-pub proof fn lemma_dts_mul_is_zero_left<T: OrderedField>(x: DynTowerSpec<T>, c: DynTowerSpec<T>)
+pub proof fn lemma_dts_mul_is_zero_left(x: DynTowerSpec, c: DynTowerSpec)
     requires dts_is_zero(x),
     ensures dts_is_zero(dts_mul(x, c)),
     decreases x, c,
 {
     match (x, c) {
         (DynTowerSpec::Rat(rx), DynTowerSpec::Rat(rc)) => {
-            // (generic T: OrderedField - no Rational import needed)
-            let zero = T::zero();
-            T::axiom_mul_congruence_left(rx, zero, rc);
-            verus_algebra::lemmas::ring_lemmas::lemma_mul_zero_left::<T>(rc);
-            T::axiom_eqv_transitive(rx.mul(rc), zero.mul(rc), zero);
+            use verus_rational::rational::Rational;
+            let zero = Rational::from_int_spec(0);
+            Rational::axiom_mul_congruence_left(rx, zero, rc);
+            verus_algebra::lemmas::ring_lemmas::lemma_mul_zero_left::<Rational>(rc);
+            Rational::axiom_eqv_transitive(rx.mul_spec(rc), zero.mul_spec(rc), zero);
         },
         (DynTowerSpec::Rat(rx), DynTowerSpec::Ext(re_c, im_c, _)) => {
             //  mul(Rat(rx), Ext_c) = Ext(mul(Rat(rx), re_c), mul(Rat(rx), im_c), d_c)
@@ -1003,8 +986,8 @@ pub proof fn lemma_dts_mul_is_zero_left<T: OrderedField>(x: DynTowerSpec<T>, c: 
 
 ///  add preserves same_radicand (both): if same_radicand(a1, a2) && same_radicand(b1, b2)
 ///  then same_radicand(add(a1, b1), add(a2, b2)).
-pub proof fn lemma_dts_add_preserves_same_radicand_both<T: OrderedField>(
-    a1: DynTowerSpec<T>, a2: DynTowerSpec<T>, b1: DynTowerSpec<T>, b2: DynTowerSpec<T>,
+pub proof fn lemma_dts_add_preserves_same_radicand_both(
+    a1: DynTowerSpec, a2: DynTowerSpec, b1: DynTowerSpec, b2: DynTowerSpec,
 )
     requires dts_same_radicand(a1, a2), dts_same_radicand(b1, b2),
     ensures dts_same_radicand(dts_add(a1, b1), dts_add(a2, b2)),
@@ -1049,8 +1032,8 @@ pub proof fn lemma_dts_add_preserves_same_radicand_both<T: OrderedField>(
 }
 
 ///  mul preserves same_radicand (right): if same_radicand(a, b) then same_radicand(mul(c, a), mul(c, b)).
-pub proof fn lemma_dts_mul_preserves_same_radicand_right<T: OrderedField>(
-    a: DynTowerSpec<T>, b: DynTowerSpec<T>, c: DynTowerSpec<T>,
+pub proof fn lemma_dts_mul_preserves_same_radicand_right(
+    a: DynTowerSpec, b: DynTowerSpec, c: DynTowerSpec,
 )
     requires dts_same_radicand(a, b),
     ensures dts_same_radicand(dts_mul(c, a), dts_mul(c, b)),
@@ -1116,8 +1099,8 @@ pub proof fn lemma_dts_mul_preserves_same_radicand_right<T: OrderedField>(
 
 ///  Multiplication congruence (right): if eqv(a, b) && same_radicand(a, b)
 ///  then eqv(mul(c, a), mul(c, b)).
-pub proof fn lemma_dts_mul_congruence_right<T: OrderedField>(
-    a: DynTowerSpec<T>, b: DynTowerSpec<T>, c: DynTowerSpec<T>,
+pub proof fn lemma_dts_mul_congruence_right(
+    a: DynTowerSpec, b: DynTowerSpec, c: DynTowerSpec,
 )
     requires dts_eqv(a, b), dts_same_radicand(a, b),
     ensures dts_eqv(dts_mul(c, a), dts_mul(c, b)),
@@ -1131,15 +1114,12 @@ pub proof fn lemma_dts_mul_congruence_right<T: OrderedField>(
                 DynTowerSpec::Rat(rc) => {
                     //  mul(Rat(rc), Rat(ra)) = Rat(rc*ra), mul(Rat(rc), Rat(rb)) = Rat(rc*rb)
                     //  Need: eqv(rc*ra, rc*rb)
-                    T::axiom_mul_commutative(rc, ra);
-                    //  rc*ra ≡ ra*rc
-                    T::axiom_mul_congruence_left(ra, rb, rc);
-                    //  ra*rc ≡ rb*rc
-                    T::axiom_eqv_transitive(rc.mul(ra), ra.mul(rc), rb.mul(rc));
-                    //  rc*ra ≡ rb*rc
-                    T::axiom_mul_commutative(rb, rc);
-                    //  rb*rc ≡ rc*rb
-                    T::axiom_eqv_transitive(rc.mul(ra), rb.mul(rc), rc.mul(rb));
+                    Rational::axiom_mul_commutative(rc, ra);
+                    Rational::axiom_mul_commutative(rc, rb);
+                    Rational::axiom_mul_congruence_left(ra, rb, rc);
+                    //  ra*rc ≡ rb*rc, rc*ra ≡ ra*rc, rc*rb ≡ rb*rc
+                    Rational::axiom_eqv_transitive(rc.mul_spec(ra), ra.mul_spec(rc), rb.mul_spec(rc));
+                    Rational::axiom_eqv_transitive(rc.mul_spec(ra), rb.mul_spec(rc), rc.mul_spec(rb));
                 },
                 DynTowerSpec::Ext(re_c, im_c, _) => {
                     //  mul(Ext_c, Rat_a) = Ext(mul(re_c,Rat_a), mul(im_c,Rat_a), d_c)
@@ -1223,8 +1203,8 @@ pub proof fn lemma_dts_mul_congruence_right<T: OrderedField>(
 
 ///  Multiplication congruence (left): if eqv(a, b) && same_radicand(a, b)
 ///  then eqv(mul(a, c), mul(b, c)).
-pub proof fn lemma_dts_mul_congruence_left<T: OrderedField>(
-    a: DynTowerSpec<T>, b: DynTowerSpec<T>, c: DynTowerSpec<T>,
+pub proof fn lemma_dts_mul_congruence_left(
+    a: DynTowerSpec, b: DynTowerSpec, c: DynTowerSpec,
 )
     requires dts_eqv(a, b), dts_same_radicand(a, b),
     ensures dts_eqv(dts_mul(a, c), dts_mul(b, c)),
@@ -1234,7 +1214,7 @@ pub proof fn lemma_dts_mul_congruence_left<T: OrderedField>(
         (DynTowerSpec::Rat(ra), DynTowerSpec::Rat(rb)) => {
             match c {
                 DynTowerSpec::Rat(rc) => {
-                    T::axiom_mul_congruence_left(ra, rb, rc);
+                    Rational::axiom_mul_congruence_left(ra, rb, rc);
                 },
                 DynTowerSpec::Ext(re_c, im_c, _) => {
                     //  mul(Rat_a, Ext_c) = Ext(mul(Rat_a,re_c), mul(Rat_a,im_c), d_c)
@@ -1313,8 +1293,8 @@ pub proof fn lemma_dts_mul_congruence_left<T: OrderedField>(
 }
 
 ///  mul preserves same_radicand (left): if same_radicand(a, b) then same_radicand(mul(a, c), mul(b, c)).
-pub proof fn lemma_dts_mul_preserves_same_radicand_left<T: OrderedField>(
-    a: DynTowerSpec<T>, b: DynTowerSpec<T>, c: DynTowerSpec<T>,
+pub proof fn lemma_dts_mul_preserves_same_radicand_left(
+    a: DynTowerSpec, b: DynTowerSpec, c: DynTowerSpec,
 )
     requires dts_same_radicand(a, b),
     ensures dts_same_radicand(dts_mul(a, c), dts_mul(b, c)),
@@ -1364,7 +1344,7 @@ pub proof fn lemma_dts_mul_preserves_same_radicand_left<T: OrderedField>(
 }
 
 ///  If both are zero, their add is zero.
-proof fn lemma_dts_add_both_zero<T: OrderedField>(a: DynTowerSpec<T>, b: DynTowerSpec<T>)
+proof fn lemma_dts_add_both_zero(a: DynTowerSpec, b: DynTowerSpec)
     requires dts_is_zero(a), dts_is_zero(b),
     ensures dts_is_zero(dts_add(a, b)),
 {
@@ -1375,7 +1355,7 @@ proof fn lemma_dts_add_both_zero<T: OrderedField>(a: DynTowerSpec<T>, b: DynTowe
 }
 
 ///  If x is zero, then add(y, x) ≡ y.
-proof fn lemma_dts_add_is_zero_right<T: OrderedField>(y: DynTowerSpec<T>, x: DynTowerSpec<T>)
+proof fn lemma_dts_add_is_zero_right(y: DynTowerSpec, x: DynTowerSpec)
     requires dts_is_zero(x),
     ensures dts_eqv(dts_add(y, x), y),
 {
@@ -1385,7 +1365,7 @@ proof fn lemma_dts_add_is_zero_right<T: OrderedField>(y: DynTowerSpec<T>, x: Dyn
 }
 
 ///  Add congruence (right): if eqv(a, b) then eqv(add(c, a), add(c, b)).
-pub proof fn lemma_dts_add_congruence_right<T: OrderedField>(c: DynTowerSpec<T>, a: DynTowerSpec<T>, b: DynTowerSpec<T>)
+pub proof fn lemma_dts_add_congruence_right(c: DynTowerSpec, a: DynTowerSpec, b: DynTowerSpec)
     requires dts_eqv(a, b),
     ensures dts_eqv(dts_add(c, a), dts_add(c, b)),
 {
@@ -1400,13 +1380,13 @@ pub proof fn lemma_dts_add_congruence_right<T: OrderedField>(c: DynTowerSpec<T>,
     lemma_dts_eqv_transitive(dts_add(c, a), dts_add(b, c), dts_add(c, b));
 }
 
-pub proof fn lemma_dts_add_inverse_right<T: OrderedField>(a: DynTowerSpec<T>)
+pub proof fn lemma_dts_add_inverse_right(a: DynTowerSpec)
     ensures dts_eqv(dts_add(a, dts_neg(a)), dts_zero()),
     decreases a,
 {
     match a {
         DynTowerSpec::Rat(r) => {
-            T::axiom_add_inverse_right(r);
+            Rational::axiom_add_inverse_right(r);
         },
         DynTowerSpec::Ext(re, im, _) => {
             //  add(Ext(re,im,d), Ext(neg(re),neg(im),d))
@@ -1420,7 +1400,7 @@ pub proof fn lemma_dts_add_inverse_right<T: OrderedField>(a: DynTowerSpec<T>)
     }
 }
 
-pub proof fn lemma_dts_sub_is_add_neg<T: OrderedField>(a: DynTowerSpec<T>, b: DynTowerSpec<T>)
+pub proof fn lemma_dts_sub_is_add_neg(a: DynTowerSpec, b: DynTowerSpec)
     ensures dts_eqv(dts_sub(a, b), dts_add(a, dts_neg(b))),
 {
     //  dts_sub(a, b) = dts_add(a, dts_neg(b)) by definition
@@ -1432,14 +1412,14 @@ pub proof fn lemma_dts_sub_is_add_neg<T: OrderedField>(a: DynTowerSpec<T>, b: Dy
 //  ═══════════════════════════════════════════════════════════════════
 
 ///  mul(a, one()) ≡ a.
-pub proof fn lemma_dts_mul_one_right<T: OrderedField>(a: DynTowerSpec<T>)
+pub proof fn lemma_dts_mul_one_right(a: DynTowerSpec)
     ensures dts_eqv(dts_mul(a, dts_one()), a),
     decreases a,
 {
     match a {
         DynTowerSpec::Rat(r) => {
             //  mul(Rat(r), Rat(1)) = Rat(r * 1)
-            T::axiom_mul_one_right(r);
+            Rational::axiom_mul_one_right(r);
         },
         DynTowerSpec::Ext(re, im, _) => {
             //  mul(Ext(re,im,d), Rat(1)) = Ext(mul(*re, Rat(1)), mul(*im, Rat(1)), d)
@@ -1451,14 +1431,14 @@ pub proof fn lemma_dts_mul_one_right<T: OrderedField>(a: DynTowerSpec<T>)
 }
 
 ///  mul(a, zero()) ≡ zero().
-pub proof fn lemma_dts_mul_zero_right<T: OrderedField>(a: DynTowerSpec<T>)
+pub proof fn lemma_dts_mul_zero_right(a: DynTowerSpec)
     ensures dts_eqv(dts_mul(a, dts_zero()), dts_zero()),
     decreases a,
 {
     match a {
         DynTowerSpec::Rat(r) => {
             //  mul(Rat(r), Rat(0)) = Rat(r * 0)
-            T::axiom_mul_zero_right(r);
+            Rational::axiom_mul_zero_right(r);
         },
         DynTowerSpec::Ext(re, im, _) => {
             //  mul(Ext(re,im,d), Rat(0)) = Ext(mul(*re, Rat(0)), mul(*im, Rat(0)), d)
@@ -1474,10 +1454,12 @@ pub proof fn lemma_dts_mul_zero_right<T: OrderedField>(a: DynTowerSpec<T>)
 }
 
 ///  one() ≢ zero().
-pub proof fn lemma_dts_one_ne_zero<T: OrderedField>()
-    ensures !dts_eqv(dts_one::<T>(), dts_zero::<T>()),
+pub proof fn lemma_dts_one_ne_zero()
+    ensures !dts_eqv(dts_one(), dts_zero()),
 {
-    T::axiom_one_ne_zero();
+    //  dts_one() = Rat(from_int_spec(1)), dts_zero() = Rat(from_int_spec(0))
+    //  dts_eqv(Rat(1), Rat(0)) = from_int_spec(1).eqv(from_int_spec(0))
+    Rational::axiom_one_ne_zero();
 }
 
 //  ═══════════════════════════════════════════════════════════════════
@@ -1485,7 +1467,7 @@ pub proof fn lemma_dts_one_ne_zero<T: OrderedField>()
 //  ═══════════════════════════════════════════════════════════════════
 
 ///  div(a, b) ≡ mul(a, recip(b)).
-pub proof fn lemma_dts_div_is_mul_recip<T: OrderedField>(a: DynTowerSpec<T>, b: DynTowerSpec<T>)
+pub proof fn lemma_dts_div_is_mul_recip(a: DynTowerSpec, b: DynTowerSpec)
     ensures dts_eqv(dts_div(a, b), dts_mul(a, dts_recip(b))),
 {
     //  dts_div(a, b) = dts_mul(a, dts_recip(b)) by definition
@@ -1500,7 +1482,7 @@ pub proof fn lemma_dts_div_is_mul_recip<T: OrderedField>(a: DynTowerSpec<T>, b: 
 ///
 ///  Base case: 0 ≤ r follows from r ≡ 0 via le_congruence.
 ///  Inductive case: both re and im are zero-equivalent, so (a_nn && b_nn) holds.
-pub proof fn lemma_dts_nonneg_fuel_zero<T: OrderedField>(x: DynTowerSpec<T>, fuel: nat)
+pub proof fn lemma_dts_nonneg_fuel_zero(x: DynTowerSpec, fuel: nat)
     requires
         dts_eqv(x, dts_zero()),
         fuel >= dts_depth(x) + 1,
@@ -1509,13 +1491,13 @@ pub proof fn lemma_dts_nonneg_fuel_zero<T: OrderedField>(x: DynTowerSpec<T>, fue
 {
     match x {
         DynTowerSpec::Rat(r) => {
-            //  nonneg_fuel(Rat(r), fuel) = 0.le(r)
+            //  nonneg_fuel(Rat(r), fuel) = 0.le_spec(r)
             //  r ≡ 0, so 0 ≡ r by symmetry, and 0 ≤ 0 by reflexivity, so 0 ≤ r by congruence
-            let zero = T::zero();
-            T::axiom_le_reflexive(zero);
-            T::axiom_eqv_reflexive(zero);
-            T::axiom_eqv_symmetric(r, zero);
-            T::axiom_le_congruence(zero, zero, zero, r);
+            let zero = Rational::from_int_spec(0);
+            Rational::axiom_le_reflexive(zero);
+            Rational::axiom_eqv_reflexive(zero);
+            Rational::axiom_eqv_symmetric(r, zero);
+            Rational::axiom_le_congruence(zero, zero, zero, r);
         },
         DynTowerSpec::Ext(re, im, d) => {
             //  eqv(Ext(re,im,d), Rat(0)) = eqv(*re, Rat(0)) && is_zero(*im)
@@ -1539,7 +1521,7 @@ pub proof fn lemma_dts_nonneg_fuel_zero<T: OrderedField>(x: DynTowerSpec<T>, fue
 }
 
 ///  If x is zero-equivalent, then x is nonneg.
-pub proof fn lemma_dts_nonneg_zero<T: OrderedField>(x: DynTowerSpec<T>)
+pub proof fn lemma_dts_nonneg_zero(x: DynTowerSpec)
     requires dts_eqv(x, dts_zero()),
     ensures dts_nonneg(x),
 {
@@ -1551,7 +1533,7 @@ pub proof fn lemma_dts_nonneg_zero<T: OrderedField>(x: DynTowerSpec<T>)
 ///
 ///  Proof: sub(a, a) = add(a, neg(a)) ≡ zero() (by add_inverse_right),
 ///  and zero-equivalent values are nonneg.
-pub proof fn lemma_dts_le_reflexive<T: OrderedField>(a: DynTowerSpec<T>)
+pub proof fn lemma_dts_le_reflexive(a: DynTowerSpec)
     ensures dts_le(a, a),
 {
     //  dts_le(a, a) = dts_nonneg(dts_sub(a, a))
@@ -1564,7 +1546,7 @@ pub proof fn lemma_dts_le_reflexive<T: OrderedField>(a: DynTowerSpec<T>)
 }
 
 ///  lt(a, b) ⟺ le(a, b) ∧ ¬eqv(a, b) — definitional.
-pub proof fn lemma_dts_lt_iff<T: OrderedField>(a: DynTowerSpec<T>, b: DynTowerSpec<T>)
+pub proof fn lemma_dts_lt_iff(a: DynTowerSpec, b: DynTowerSpec)
     ensures dts_lt(a, b) == (dts_le(a, b) && !dts_eqv(a, b)),
 {
     //  dts_lt(a, b) is defined as dts_le(a, b) && !dts_eqv(a, b)
@@ -1572,11 +1554,11 @@ pub proof fn lemma_dts_lt_iff<T: OrderedField>(a: DynTowerSpec<T>, b: DynTowerSp
 }
 
 //  ===========================================================================
-//   Ordered field infrastructure for DynTowerSpec<T>
+//   Ordered field infrastructure for DynTowerSpec
 //  ===========================================================================
 
 ///  same_radicand is symmetric.
-pub proof fn lemma_dts_same_radicand_symmetric<T: OrderedField>(a: DynTowerSpec<T>, b: DynTowerSpec<T>)
+pub proof fn lemma_dts_same_radicand_symmetric(a: DynTowerSpec, b: DynTowerSpec)
     requires dts_same_radicand(a, b),
     ensures dts_same_radicand(b, a),
     decreases a,
@@ -1592,8 +1574,8 @@ pub proof fn lemma_dts_same_radicand_symmetric<T: OrderedField>(a: DynTowerSpec<
 }
 
 ///  same_radicand is transitive.
-pub proof fn lemma_dts_same_radicand_transitive<T: OrderedField>(
-    a: DynTowerSpec<T>, b: DynTowerSpec<T>, c: DynTowerSpec<T>,
+pub proof fn lemma_dts_same_radicand_transitive(
+    a: DynTowerSpec, b: DynTowerSpec, c: DynTowerSpec,
 )
     requires dts_same_radicand(a, b), dts_same_radicand(b, c),
     ensures dts_same_radicand(a, c),
@@ -1611,7 +1593,7 @@ pub proof fn lemma_dts_same_radicand_transitive<T: OrderedField>(
 }
 
 ///  same_radicand is reflexive.
-pub proof fn lemma_dts_same_radicand_reflexive<T: OrderedField>(a: DynTowerSpec<T>)
+pub proof fn lemma_dts_same_radicand_reflexive(a: DynTowerSpec)
     ensures dts_same_radicand(a, a),
     decreases a,
 {
@@ -1625,7 +1607,7 @@ pub proof fn lemma_dts_same_radicand_reflexive<T: OrderedField>(a: DynTowerSpec<
 }
 
 ///  same_radicand(a, neg(a)) — negation preserves radicand structure.
-pub proof fn lemma_dts_same_radicand_neg<T: OrderedField>(a: DynTowerSpec<T>)
+pub proof fn lemma_dts_same_radicand_neg(a: DynTowerSpec)
     ensures dts_same_radicand(a, dts_neg(a)),
     decreases a,
 {
@@ -1639,7 +1621,7 @@ pub proof fn lemma_dts_same_radicand_neg<T: OrderedField>(a: DynTowerSpec<T>)
 }
 
 ///  neg preserves same_radicand structure.
-pub proof fn lemma_dts_neg_preserves_same_radicand<T: OrderedField>(a: DynTowerSpec<T>, b: DynTowerSpec<T>)
+pub proof fn lemma_dts_neg_preserves_same_radicand(a: DynTowerSpec, b: DynTowerSpec)
     requires dts_same_radicand(a, b),
     ensures dts_same_radicand(dts_neg(a), dts_neg(b)),
     decreases a,
@@ -1655,7 +1637,7 @@ pub proof fn lemma_dts_neg_preserves_same_radicand<T: OrderedField>(a: DynTowerS
 }
 
 ///  Depth of neg(x) equals depth of x.
-pub proof fn lemma_dts_depth_neg<T: OrderedField>(x: DynTowerSpec<T>)
+pub proof fn lemma_dts_depth_neg(x: DynTowerSpec)
     ensures dts_depth(dts_neg(x)) == dts_depth(x),
     decreases x,
 {
@@ -1669,7 +1651,7 @@ pub proof fn lemma_dts_depth_neg<T: OrderedField>(x: DynTowerSpec<T>)
 }
 
 ///  Depth of mul(a, b) ≤ max(depth(a), depth(b)).
-pub proof fn lemma_dts_depth_mul_le<T: OrderedField>(a: DynTowerSpec<T>, b: DynTowerSpec<T>)
+pub proof fn lemma_dts_depth_mul_le(a: DynTowerSpec, b: DynTowerSpec)
     ensures dts_depth(dts_mul(a, b)) <= if dts_depth(a) >= dts_depth(b)
         { dts_depth(a) } else { dts_depth(b) },
     decreases a, b,
@@ -1699,7 +1681,7 @@ pub proof fn lemma_dts_depth_mul_le<T: OrderedField>(a: DynTowerSpec<T>, b: DynT
 }
 
 ///  Depth of add(a, b) ≤ max(depth(a), depth(b)).
-pub proof fn lemma_dts_depth_add_le<T: OrderedField>(a: DynTowerSpec<T>, b: DynTowerSpec<T>)
+pub proof fn lemma_dts_depth_add_le(a: DynTowerSpec, b: DynTowerSpec)
     ensures dts_depth(dts_add(a, b)) <= if dts_depth(a) >= dts_depth(b)
         { dts_depth(a) } else { dts_depth(b) },
     decreases a, b,
@@ -1721,7 +1703,7 @@ pub proof fn lemma_dts_depth_add_le<T: OrderedField>(a: DynTowerSpec<T>, b: DynT
 
 ///  Fuel monotonicity: nonneg_fuel(x, f1) ∧ f1 ≤ f2 ⟹ nonneg_fuel(x, f2).
 ///  More fuel never breaks a nonneg result.
-pub proof fn lemma_dts_nonneg_fuel_monotone<T: OrderedField>(x: DynTowerSpec<T>, f1: nat, f2: nat)
+pub proof fn lemma_dts_nonneg_fuel_monotone(x: DynTowerSpec, f1: nat, f2: nat)
     requires dts_nonneg_fuel(x, f1), f1 <= f2,
     ensures dts_nonneg_fuel(x, f2),
     decreases f1,
@@ -1773,8 +1755,8 @@ pub proof fn lemma_dts_nonneg_fuel_monotone<T: OrderedField>(x: DynTowerSpec<T>,
 ///  nonneg_fuel transfers through component-wise eqv.
 ///  Induction on fuel: at fuel 0, Ext case is vacuously true.
 ///  At fuel f+1, use IH at fuel f for sub-field congruences.
-pub proof fn lemma_dts_nonneg_fuel_congruence<T: OrderedField>(
-    x: DynTowerSpec<T>, y: DynTowerSpec<T>, fuel: nat,
+pub proof fn lemma_dts_nonneg_fuel_congruence(
+    x: DynTowerSpec, y: DynTowerSpec, fuel: nat,
 )
     requires dts_eqv(x, y), dts_same_radicand(x, y), dts_nonneg_fuel(x, fuel),
     ensures dts_nonneg_fuel(y, fuel),
@@ -1782,10 +1764,10 @@ pub proof fn lemma_dts_nonneg_fuel_congruence<T: OrderedField>(
 {
     match (x, y) {
         (DynTowerSpec::Rat(r1), DynTowerSpec::Rat(r2)) => {
-            // (generic T: OrderedField - no Rational import needed)
-            T::axiom_eqv_reflexive(T::zero());
-            T::axiom_le_congruence(
-                T::zero(), T::zero(), r1, r2);
+            use verus_rational::rational::Rational;
+            Rational::axiom_eqv_reflexive(Rational::from_int_spec(0));
+            Rational::axiom_le_congruence(
+                Rational::from_int_spec(0), Rational::from_int_spec(0), r1, r2);
         }
         (DynTowerSpec::Ext(re1, im1, d1), DynTowerSpec::Ext(re2, im2, _)) => {
             if fuel == 0 {
@@ -1964,7 +1946,7 @@ pub proof fn lemma_dts_nonneg_fuel_congruence<T: OrderedField>(
 
 ///  Fuel stabilization: for sufficient fuel (≥ depth+1), nonneg_fuel agrees with nonneg.
 ///  Uses decreases f since compound sub-terms (neg, mul, sub) aren't structurally smaller.
-pub proof fn lemma_dts_nonneg_fuel_stabilize<T: OrderedField>(x: DynTowerSpec<T>, f: nat)
+pub proof fn lemma_dts_nonneg_fuel_stabilize(x: DynTowerSpec, f: nat)
     requires f >= dts_depth(x) + 1,
     ensures dts_nonneg_fuel(x, f) == dts_nonneg(x),
     decreases f,
@@ -2012,8 +1994,8 @@ pub proof fn lemma_dts_nonneg_fuel_stabilize<T: OrderedField>(x: DynTowerSpec<T>
 }
 
 ///  nonneg transfers through eqv (requires same radicand structure).
-pub proof fn lemma_dts_nonneg_congruence<T: OrderedField>(
-    x: DynTowerSpec<T>, y: DynTowerSpec<T>,
+pub proof fn lemma_dts_nonneg_congruence(
+    x: DynTowerSpec, y: DynTowerSpec,
 )
     requires dts_eqv(x, y), dts_same_radicand(x, y), dts_nonneg(x),
     ensures dts_nonneg(y),
@@ -2030,8 +2012,8 @@ pub proof fn lemma_dts_nonneg_congruence<T: OrderedField>(
 }
 
 ///  If eqv(a, c) and eqv(b, d) with same_radicand, then sub(a,b) ≡ sub(c,d) with same_radicand.
-pub proof fn lemma_dts_sub_congruence_both<T: OrderedField>(
-    a: DynTowerSpec<T>, b: DynTowerSpec<T>, c: DynTowerSpec<T>, d: DynTowerSpec<T>,
+pub proof fn lemma_dts_sub_congruence_both(
+    a: DynTowerSpec, b: DynTowerSpec, c: DynTowerSpec, d: DynTowerSpec,
 )
     requires
         dts_eqv(a, c), dts_eqv(b, d),
@@ -2049,20 +2031,20 @@ pub proof fn lemma_dts_sub_congruence_both<T: OrderedField>(
     lemma_dts_add_preserves_same_radicand_both(a, c, dts_neg(b), dts_neg(d));
 }
 
-///  Total ordering: every DynTowerSpec<T> value is nonneg or its negation is.
+///  Total ordering: every DynTowerSpec value is nonneg or its negation is.
 ///  Requires sufficient fuel (≥ depth+1) to fully evaluate nonneg.
 #[verifier::rlimit(200)]
-pub proof fn lemma_dts_nonneg_or_neg_nonneg_fuel<T: OrderedField>(x: DynTowerSpec<T>, fuel: nat)
+pub proof fn lemma_dts_nonneg_or_neg_nonneg_fuel(x: DynTowerSpec, fuel: nat)
     requires fuel >= dts_depth(x) + 1, dts_well_formed(x),
     ensures dts_nonneg_fuel(x, fuel) || dts_nonneg_fuel(dts_neg(x), fuel),
     decreases fuel,
 {
     match x {
         DynTowerSpec::Rat(r) => {
-            // (generic T: OrderedField - no Rational import needed)
-            T::axiom_le_total(T::zero(), r);
-            if !T::zero().le(r) {
-                verus_algebra::lemmas::ordered_ring_lemmas::lemma_neg_nonpos_iff::<T>(r);
+            use verus_rational::rational::Rational;
+            Rational::axiom_le_total(Rational::from_int_spec(0), r);
+            if !Rational::from_int_spec(0).le_spec(r) {
+                verus_algebra::lemmas::ordered_ring_lemmas::lemma_neg_nonpos_iff::<Rational>(r);
             }
         }
         DynTowerSpec::Ext(re, im, d) => {
@@ -2415,14 +2397,14 @@ pub proof fn lemma_dts_nonneg_or_neg_nonneg_fuel<T: OrderedField>(x: DynTowerSpe
 }
 
 ///  Multiplication is eqv-commutative for well-formed values with same radicand.
-pub proof fn lemma_dts_mul_commutative<T: OrderedField>(a: DynTowerSpec<T>, b: DynTowerSpec<T>)
+pub proof fn lemma_dts_mul_commutative(a: DynTowerSpec, b: DynTowerSpec)
     requires dts_well_formed(a), dts_well_formed(b), dts_same_radicand(a, b),
     ensures dts_eqv(dts_mul(a, b), dts_mul(b, a)),
     decreases a, b,
 {
     match (a, b) {
         (DynTowerSpec::Rat(r1), DynTowerSpec::Rat(r2)) => {
-            T::axiom_mul_commutative(r1, r2);
+            verus_rational::rational::Rational::axiom_mul_commutative(r1, r2);
         }
         (DynTowerSpec::Ext(re1, im1, d1), DynTowerSpec::Ext(re2, im2, _)) => {
             let a1 = *re1; let b1 = *im1; let dd = *d1;
@@ -2492,8 +2474,8 @@ pub proof fn lemma_dts_mul_commutative<T: OrderedField>(a: DynTowerSpec<T>, b: D
 }
 
 ///  Embedding preserves non-zeroness: if a rational is nonzero, its DTS embedding is nonzero.
-pub proof fn lemma_dts_rational_nonzero_preserved<T: OrderedField>(r: T)
-    requires !r.eqv(T::zero()),
+pub proof fn lemma_dts_rational_nonzero_preserved(r: Rational)
+    requires !r.eqv(Rational::from_int_spec(0)),
     ensures !dts_is_zero(DynTowerSpec::Rat(r)),
 {
     //  dts_is_zero(Rat(r)) = r.eqv(0). Direct from requires.
@@ -2501,8 +2483,8 @@ pub proof fn lemma_dts_rational_nonzero_preserved<T: OrderedField>(r: T)
 
 ///  nonneg_conclude_re: if re ≥ 0 and norm = re²-d·im² ≥ 0, then Ext(re,im,d) is nonneg.
 ///  Uses inner fuel f (nonneg_fuel at depth n-1). Result is nonneg at fuel f+1.
-pub proof fn lemma_dts_nonneg_conclude_re_fuel<T: OrderedField>(
-    re: DynTowerSpec<T>, im: DynTowerSpec<T>, d: DynTowerSpec<T>, f: nat,
+pub proof fn lemma_dts_nonneg_conclude_re_fuel(
+    re: DynTowerSpec, im: DynTowerSpec, d: DynTowerSpec, f: nat,
 )
     requires
         f >= dts_depth(re) + 1,
@@ -2530,8 +2512,8 @@ pub proof fn lemma_dts_nonneg_conclude_re_fuel<T: OrderedField>(
 
 ///  nonneg_conclude_im: if im > 0 and norm ≤ 0, then Ext(re,im,d) is nonneg.
 ///  Requires !is_zero(im) to handle C3's b_pos condition.
-pub proof fn lemma_dts_nonneg_conclude_im_fuel<T: OrderedField>(
-    re: DynTowerSpec<T>, im: DynTowerSpec<T>, d: DynTowerSpec<T>, f: nat,
+pub proof fn lemma_dts_nonneg_conclude_im_fuel(
+    re: DynTowerSpec, im: DynTowerSpec, d: DynTowerSpec, f: nat,
 )
     requires
         f >= dts_depth(re) + 1,
@@ -2561,27 +2543,27 @@ pub proof fn lemma_dts_nonneg_conclude_im_fuel<T: OrderedField>(
 }
 
 ///  Add exchange: (a+b)+(c+d) ≡ (a+c)+(b+d). Uses AdditiveCommutativeMonoid axioms.
-pub proof fn lemma_dts_add_exchange<T: OrderedField>(a: DynTowerSpec<T>, b: DynTowerSpec<T>,
-    c: DynTowerSpec<T>, d: DynTowerSpec<T>)
+pub proof fn lemma_dts_add_exchange(a: DynTowerSpec, b: DynTowerSpec,
+    c: DynTowerSpec, d: DynTowerSpec)
     ensures dts_eqv(dts_add(dts_add(a, b), dts_add(c, d)),
                      dts_add(dts_add(a, c), dts_add(b, d))),
 {
     //  (a+b)+(c+d) ≡ a+(b+(c+d)) [assoc]
-    lemma_dts_add_associative(a, b, dts_add(c, d));
+    DynTowerSpec::axiom_add_associative(a, b, dts_add(c, d));
     //  b+(c+d) ≡ (b+c)+d [assoc, symmetric]
-    lemma_dts_add_associative(b, c, d);
-    lemma_dts_eqv_symmetric(dts_add(dts_add(b, c), d), dts_add(b, dts_add(c, d)));
+    DynTowerSpec::axiom_add_associative(b, c, d);
+    DynTowerSpec::axiom_eqv_symmetric(dts_add(dts_add(b, c), d), dts_add(b, dts_add(c, d)));
     lemma_dts_add_congruence_right(a, dts_add(b, dts_add(c, d)), dts_add(dts_add(b, c), d));
     //  a+((b+c)+d): commute b+c → c+b
-    lemma_dts_add_commutative(b, c);
+    DynTowerSpec::axiom_add_commutative(b, c);
     lemma_dts_add_congruence_left(dts_add(b, c), dts_add(c, b), d);
     lemma_dts_add_congruence_right(a, dts_add(dts_add(b, c), d), dts_add(dts_add(c, b), d));
     //  a+((c+b)+d) ≡ a+(c+(b+d)) [assoc]
-    lemma_dts_add_associative(c, b, d);
+    DynTowerSpec::axiom_add_associative(c, b, d);
     lemma_dts_add_congruence_right(a, dts_add(dts_add(c, b), d), dts_add(c, dts_add(b, d)));
     //  a+(c+(b+d)) ≡ (a+c)+(b+d) [assoc, symmetric]
-    lemma_dts_add_associative(a, c, dts_add(b, d));
-    lemma_dts_eqv_symmetric(
+    DynTowerSpec::axiom_add_associative(a, c, dts_add(b, d));
+    DynTowerSpec::axiom_eqv_symmetric(
         dts_add(dts_add(a, c), dts_add(b, d)),
         dts_add(a, dts_add(c, dts_add(b, d))));
     //  Chain all steps
@@ -2605,22 +2587,27 @@ pub proof fn lemma_dts_add_exchange<T: OrderedField>(a: DynTowerSpec<T>, b: DynT
 
 ///  neg distributes over add: neg(a+b) ≡ neg(a) + neg(b).
 ///  Uses the generic AdditiveGroup lemma since DTS implements AdditiveGroup.
-pub proof fn lemma_dts_neg_add<T: OrderedField>(a: DynTowerSpec<T>, b: DynTowerSpec<T>)
+pub proof fn lemma_dts_neg_add(a: DynTowerSpec, b: DynTowerSpec)
     ensures dts_eqv(dts_neg(dts_add(a, b)), dts_add(dts_neg(a), dts_neg(b))),
 {
-    verus_algebra::lemmas::additive_group_lemmas::lemma_neg_add::<DynTowerSpec<T>>(a, b);
+    verus_algebra::lemmas::additive_group_lemmas::lemma_neg_add::<DynTowerSpec>(a, b);
 }
 
 ///  neg_mul_right: mul(a, neg(b)) ≡ neg(mul(a, b)).
 ///  Self-contained structural induction — d sub-field calls always decrease.
-pub proof fn lemma_dts_neg_mul_right<T: OrderedField>(a: DynTowerSpec<T>, b: DynTowerSpec<T>)
+pub proof fn lemma_dts_neg_mul_right(a: DynTowerSpec, b: DynTowerSpec)
     requires dts_well_formed(a), dts_well_formed(b), dts_same_radicand(a, b),
     ensures dts_eqv(dts_mul(a, dts_neg(b)), dts_neg(dts_mul(a, b))),
     decreases a, b,
 {
     match (a, b) {
         (DynTowerSpec::Rat(r1), DynTowerSpec::Rat(r2)) => {
-            verus_algebra::lemmas::ring_lemmas::lemma_mul_neg_right::<T>(r1, r2);
+            Rational::lemma_denom_positive(r1);
+            Rational::lemma_denom_positive(r2);
+            assert(r1.mul_spec(r2.neg_spec()).num
+                == r1.mul_spec(r2).neg_spec().num) by (nonlinear_arith);
+            assert(r1.mul_spec(r2.neg_spec()).den
+                == r1.mul_spec(r2).neg_spec().den) by (nonlinear_arith);
         }
         (DynTowerSpec::Ext(re, im, d), DynTowerSpec::Rat(r)) => {
             lemma_dts_neg_mul_right(*re, DynTowerSpec::Rat(r));
@@ -2735,7 +2722,7 @@ pub proof fn lemma_dts_neg_mul_right<T: OrderedField>(a: DynTowerSpec<T>, b: Dyn
 
 ///  neg_mul_left: mul(neg(a), b) ≡ neg(mul(a, b)).
 ///  Derived from neg_mul_right + mul_commutative + neg_congruence.
-pub proof fn lemma_dts_neg_mul_left<T: OrderedField>(a: DynTowerSpec<T>, b: DynTowerSpec<T>)
+pub proof fn lemma_dts_neg_mul_left(a: DynTowerSpec, b: DynTowerSpec)
     requires dts_well_formed(a), dts_well_formed(b), dts_same_radicand(a, b),
     ensures dts_eqv(dts_mul(dts_neg(a), b), dts_neg(dts_mul(a, b))),
 {
@@ -2765,8 +2752,8 @@ pub proof fn lemma_dts_neg_mul_left<T: OrderedField>(a: DynTowerSpec<T>, b: DynT
 
 ///  Left distributivity: mul(a, add(b, c)) ≡ add(mul(a, b), mul(a, c)).
 ///  Requires well_formed + same_radicand for mul_congruence in Ext×Ext×Ext case.
-pub proof fn lemma_dts_mul_distributes_left<T: OrderedField>(
-    a: DynTowerSpec<T>, b: DynTowerSpec<T>, c: DynTowerSpec<T>,
+pub proof fn lemma_dts_mul_distributes_left(
+    a: DynTowerSpec, b: DynTowerSpec, c: DynTowerSpec,
 )
     requires
         dts_well_formed(a), dts_well_formed(b), dts_well_formed(c),
@@ -2777,7 +2764,7 @@ pub proof fn lemma_dts_mul_distributes_left<T: OrderedField>(
     lemma_dts_same_radicand_transitive(a, b, c);
     match (a, b, c) {
         (DynTowerSpec::Rat(r), DynTowerSpec::Rat(s), DynTowerSpec::Rat(t)) => {
-            T::axiom_mul_distributes_left(r, s, t);
+            Rational::axiom_mul_distributes_left(r, s, t);
         }
         (DynTowerSpec::Rat(r), DynTowerSpec::Ext(re1, im1, d), DynTowerSpec::Ext(re2, im2, _)) => {
             lemma_dts_mul_distributes_left(DynTowerSpec::Rat(r), *re1, *re2);
@@ -2952,7 +2939,7 @@ pub proof fn lemma_dts_mul_distributes_left<T: OrderedField>(
 ///  Difference of squares: b²-a² ≡ (b-a)(b+a).
 ///  Key helper for square_le_square and nonneg_add norm bounds.
 #[verifier::rlimit(60)]
-pub proof fn lemma_dts_difference_of_squares<T: OrderedField>(a: DynTowerSpec<T>, b: DynTowerSpec<T>)
+pub proof fn lemma_dts_difference_of_squares(a: DynTowerSpec, b: DynTowerSpec)
     requires
         dts_well_formed(a), dts_well_formed(b), dts_same_radicand(a, b),
     ensures
@@ -3047,7 +3034,7 @@ pub proof fn lemma_dts_difference_of_squares<T: OrderedField>(a: DynTowerSpec<T>
         dts_add(dts_mul(ba, b), dts_mul(ba, a)),
         dts_add(dts_add(b2, dts_neg(ab)), dts_mul(ba, a)),
         dts_add(dts_add(b2, dts_neg(ab)), dts_add(ab, dts_neg(a2))));
-    verus_algebra::lemmas::additive_group_lemmas::lemma_sub_add_sub::<DynTowerSpec<T>>(
+    verus_algebra::lemmas::additive_group_lemmas::lemma_sub_add_sub::<DynTowerSpec>(
         b2, ab, a2);
     //  sub_add_sub: sub(b²,ab) + sub(ab,a²) ≡ sub(b²,a²)
     //  = add(add(b²,neg(ab)), add(ab,neg(a²))) ≡ add(b²,neg(a²)) = sub(b²,a²)
@@ -3067,8 +3054,8 @@ pub proof fn lemma_dts_difference_of_squares<T: OrderedField>(a: DynTowerSpec<T>
 
 ///  Multiplication associativity: mul(a, mul(b, c)) ≡ mul(mul(a, b), c).
 ///  Structural induction on DTS depth, 8 depth combinations.
-pub proof fn lemma_dts_mul_associative<T: OrderedField>(
-    a: DynTowerSpec<T>, b: DynTowerSpec<T>, c: DynTowerSpec<T>,
+pub proof fn lemma_dts_mul_associative(
+    a: DynTowerSpec, b: DynTowerSpec, c: DynTowerSpec,
 )
     requires
         dts_well_formed(a), dts_well_formed(b), dts_well_formed(c),
@@ -3080,7 +3067,7 @@ pub proof fn lemma_dts_mul_associative<T: OrderedField>(
     lemma_dts_same_radicand_transitive(a, b, c);
     match (a, b, c) {
         (DynTowerSpec::Rat(r1), DynTowerSpec::Rat(r2), DynTowerSpec::Rat(r3)) => {
-            T::axiom_mul_associative(r1, r2, r3);
+            Rational::axiom_mul_associative(r1, r2, r3);
         }
         (DynTowerSpec::Rat(r), DynTowerSpec::Rat(_), DynTowerSpec::Ext(re, im, d)) => {
             lemma_dts_mul_associative(DynTowerSpec::Rat(r), b, *re);
@@ -3199,9 +3186,9 @@ pub proof fn lemma_dts_mul_associative<T: OrderedField>(
 
 ///  Helper for EEE case of mul_associative. Extracted for Z3 rlimit scalability.
 #[verifier::rlimit(400)]
-proof fn lemma_dts_mul_associative_eee<T: OrderedField>(
-    a1: DynTowerSpec<T>, a2: DynTowerSpec<T>, b1: DynTowerSpec<T>, b2: DynTowerSpec<T>,
-    c1: DynTowerSpec<T>, c2: DynTowerSpec<T>, dd: DynTowerSpec<T>,
+proof fn lemma_dts_mul_associative_eee(
+    a1: DynTowerSpec, a2: DynTowerSpec, b1: DynTowerSpec, b2: DynTowerSpec,
+    c1: DynTowerSpec, c2: DynTowerSpec, dd: DynTowerSpec,
 )
     requires
         dts_well_formed(DynTowerSpec::Ext(Box::new(a1), Box::new(a2), Box::new(dd))),
@@ -3473,7 +3460,7 @@ proof fn lemma_dts_mul_associative_eee<T: OrderedField>(
         lemma_dts_same_radicand_symmetric(u1, u3);
         lemma_dts_same_radicand_transitive(u3, u1, u2);
         lemma_dts_same_radicand_transitive(u3, u1, u4);
-        lemma_dts_add_commutative(u4, u2);
+        DynTowerSpec::axiom_add_commutative(u4, u2);
         //  eqv((u1+u3)+(u4+u2), (u1+u3)+(u2+u4))
         lemma_dts_add_congruence_right(dts_add(u1, u3), dts_add(u4, u2), dts_add(u2, u4));
         //  eqv((u1+u3)+(u2+u4), (u1+u2)+(u3+u4)) via add_exchange
@@ -3673,7 +3660,7 @@ proof fn lemma_dts_mul_associative_eee<T: OrderedField>(
         lemma_dts_same_radicand_transitive(v2, v1, v3);
 
         //  Commut V4+V2 → V2+V4, then exchange(V1,V3,V2,V4)
-        lemma_dts_add_commutative(v4, v2);
+        DynTowerSpec::axiom_add_commutative(v4, v2);
         //  eqv((v1+v3)+(v4+v2), (v1+v3)+(v2+v4))
         lemma_dts_add_congruence_right(dts_add(v1, v3), dts_add(v4, v2), dts_add(v2, v4));
         //  eqv((v1+v3)+(v2+v4), (v1+v2)+(v3+v4))
@@ -4189,7 +4176,7 @@ proof fn lemma_dts_mul_associative_eee<T: OrderedField>(
 }
 
 ///  a·(b-c) ≡ a·b - a·c. Distributes mul over sub.
-pub proof fn lemma_dts_mul_distributes_over_sub<T: OrderedField>(a: DynTowerSpec<T>, b: DynTowerSpec<T>, c: DynTowerSpec<T>)
+pub proof fn lemma_dts_mul_distributes_over_sub(a: DynTowerSpec, b: DynTowerSpec, c: DynTowerSpec)
     requires
         dts_well_formed(a), dts_well_formed(b), dts_well_formed(c),
         dts_same_radicand(a, b), dts_same_radicand(a, c),
@@ -4206,7 +4193,7 @@ pub proof fn lemma_dts_mul_distributes_over_sub<T: OrderedField>(a: DynTowerSpec
     lemma_dts_mul_distributes_left(a, b, dts_neg(c));
     lemma_dts_neg_mul_right(a, c);
     lemma_dts_add_congruence_right(dts_mul(a, b), dts_mul(a, dts_neg(c)), dts_neg(dts_mul(a, c)));
-    lemma_dts_sub_is_add_neg(dts_mul(a, b), dts_mul(a, c));
+    DynTowerSpec::axiom_sub_is_add_neg(dts_mul(a, b), dts_mul(a, c));
     lemma_dts_eqv_symmetric(dts_sub(dts_mul(a, b), dts_mul(a, c)),
         dts_add(dts_mul(a, b), dts_neg(dts_mul(a, c))));
     lemma_dts_eqv_transitive(
@@ -4220,7 +4207,7 @@ pub proof fn lemma_dts_mul_distributes_over_sub<T: OrderedField>(a: DynTowerSpec
 }
 
 ///  (a-b)·c ≡ a·c - b·c. Distributes sub-mul on the right.
-pub proof fn lemma_dts_sub_mul_right<T: OrderedField>(a: DynTowerSpec<T>, b: DynTowerSpec<T>, c: DynTowerSpec<T>)
+pub proof fn lemma_dts_sub_mul_right(a: DynTowerSpec, b: DynTowerSpec, c: DynTowerSpec)
     requires
         dts_well_formed(a), dts_well_formed(b), dts_well_formed(c),
         dts_same_radicand(a, b), dts_same_radicand(a, c),
@@ -4266,7 +4253,7 @@ pub proof fn lemma_dts_sub_mul_right<T: OrderedField>(a: DynTowerSpec<T>, b: Dyn
 }
 
 ///  (a·b)² ≡ a²·b². Uses mul_associative + mul_commutative.
-pub proof fn lemma_dts_square_mul<T: OrderedField>(a: DynTowerSpec<T>, b: DynTowerSpec<T>)
+pub proof fn lemma_dts_square_mul(a: DynTowerSpec, b: DynTowerSpec)
     requires
         dts_well_formed(a), dts_well_formed(b), dts_same_radicand(a, b),
     ensures
@@ -4326,8 +4313,8 @@ pub proof fn lemma_dts_square_mul<T: OrderedField>(a: DynTowerSpec<T>, b: DynTow
 }
 
 ///  Four-commute: (a·c)·(b·e) ≡ (a·e)·(b·c). Swaps inner terms.
-pub proof fn lemma_dts_four_commute<T: OrderedField>(
-    a: DynTowerSpec<T>, b: DynTowerSpec<T>, c: DynTowerSpec<T>, e: DynTowerSpec<T>,
+pub proof fn lemma_dts_four_commute(
+    a: DynTowerSpec, b: DynTowerSpec, c: DynTowerSpec, e: DynTowerSpec,
 )
     requires
         dts_well_formed(a), dts_well_formed(b),
@@ -4429,8 +4416,8 @@ pub proof fn lemma_dts_four_commute<T: OrderedField>(
 }
 
 ///  Helper: cross-term identity ac·(d·be) ≡ d·(ae·bc).
-proof fn lemma_dts_norm_mul_cross<T: OrderedField>(
-    a: DynTowerSpec<T>, b: DynTowerSpec<T>, c: DynTowerSpec<T>, e: DynTowerSpec<T>, d: DynTowerSpec<T>,
+proof fn lemma_dts_norm_mul_cross(
+    a: DynTowerSpec, b: DynTowerSpec, c: DynTowerSpec, e: DynTowerSpec, d: DynTowerSpec,
 )
     requires
         dts_well_formed(a), dts_well_formed(b), dts_well_formed(c),
@@ -4535,8 +4522,8 @@ proof fn lemma_dts_norm_mul_cross<T: OrderedField>(
 
 ///  Helper: expand re² = (ac+dbe)² into 4 terms.
 ///  re·re ≡ (ac²+ac·dbe) + (dbe·ac+dbe²)
-proof fn lemma_dts_norm_mul_re_sq<T: OrderedField>(
-    a: DynTowerSpec<T>, b: DynTowerSpec<T>, c: DynTowerSpec<T>, e: DynTowerSpec<T>, d: DynTowerSpec<T>,
+proof fn lemma_dts_norm_mul_re_sq(
+    a: DynTowerSpec, b: DynTowerSpec, c: DynTowerSpec, e: DynTowerSpec, d: DynTowerSpec,
 )
     requires
         dts_well_formed(a), dts_well_formed(b), dts_well_formed(c),
@@ -4625,7 +4612,7 @@ proof fn lemma_dts_norm_mul_re_sq<T: OrderedField>(
     lemma_dts_mul_closed(re, dbe);
     lemma_dts_same_radicand_symmetric(re, dts_mul(re, ac));
     lemma_dts_same_radicand_transitive(dts_mul(re, ac), re, dts_mul(re, dbe));
-    verus_algebra::lemmas::additive_group_lemmas::lemma_add_congruence::<DynTowerSpec<T>>(
+    verus_algebra::lemmas::additive_group_lemmas::lemma_add_congruence::<DynTowerSpec>(
         dts_mul(re, ac), dts_add(dts_mul(ac, ac), dts_mul(ac, dbe)),
         dts_mul(re, dbe), dts_add(dts_mul(dbe, ac), dts_mul(dbe, dbe)));
     lemma_dts_same_radicand_reflexive(re); lemma_dts_mul_closed(re, re);
@@ -4654,8 +4641,8 @@ proof fn lemma_dts_norm_mul_re_sq<T: OrderedField>(
 }
 
 ///  Helper: pr_sub = ac² - d·ae² ≡ a²·ny  where ny = c²-d·e².
-proof fn lemma_dts_norm_mul_pr_sub<T: OrderedField>(
-    a: DynTowerSpec<T>, b: DynTowerSpec<T>, c: DynTowerSpec<T>, e: DynTowerSpec<T>, d: DynTowerSpec<T>,
+proof fn lemma_dts_norm_mul_pr_sub(
+    a: DynTowerSpec, b: DynTowerSpec, c: DynTowerSpec, e: DynTowerSpec, d: DynTowerSpec,
 )
     requires
         dts_well_formed(a), dts_well_formed(b), dts_well_formed(c),
@@ -4810,8 +4797,8 @@ proof fn lemma_dts_norm_mul_pr_sub<T: OrderedField>(
 }
 
 ///  Helper: qs_sub = (d·be)² - d·(bc)² ≡ -(d·b²·ny)  where ny = c²-d·e².
-proof fn lemma_dts_norm_mul_qs_sub<T: OrderedField>(
-    a: DynTowerSpec<T>, b: DynTowerSpec<T>, c: DynTowerSpec<T>, e: DynTowerSpec<T>, d: DynTowerSpec<T>,
+proof fn lemma_dts_norm_mul_qs_sub(
+    a: DynTowerSpec, b: DynTowerSpec, c: DynTowerSpec, e: DynTowerSpec, d: DynTowerSpec,
 )
     requires
         dts_well_formed(a), dts_well_formed(b), dts_well_formed(c),
@@ -5067,7 +5054,7 @@ proof fn lemma_dts_norm_mul_qs_sub<T: OrderedField>(
     lemma_dts_same_radicand_transitive(a, c, c2);
     lemma_dts_same_radicand_transitive(a, c2, ny);
     lemma_dts_same_radicand_symmetric(a, ny);
-    verus_algebra::lemmas::additive_group_lemmas::lemma_sub_antisymmetric::<DynTowerSpec<T>>(de2, c2);
+    verus_algebra::lemmas::additive_group_lemmas::lemma_sub_antisymmetric::<DynTowerSpec>(de2, c2);
     lemma_dts_neg_well_formed(ny);
     lemma_dts_same_radicand_neg(ny);
     lemma_dts_same_radicand_transitive(a, ny, dts_neg(ny));
@@ -5171,8 +5158,8 @@ proof fn lemma_dts_norm_mul_qs_sub<T: OrderedField>(
 
 ///  Helper: expand d·im² = d·(ae+bc)² into 4 terms.
 ///  d·(im·im) ≡ (d·ae²+d·ae·bc) + (d·bc·ae+d·bc²)
-proof fn lemma_dts_norm_mul_dim_sq<T: OrderedField>(
-    a: DynTowerSpec<T>, b: DynTowerSpec<T>, c: DynTowerSpec<T>, e: DynTowerSpec<T>, d: DynTowerSpec<T>,
+proof fn lemma_dts_norm_mul_dim_sq(
+    a: DynTowerSpec, b: DynTowerSpec, c: DynTowerSpec, e: DynTowerSpec, d: DynTowerSpec,
 )
     requires
         dts_well_formed(a), dts_well_formed(b), dts_well_formed(c),
@@ -5260,7 +5247,7 @@ proof fn lemma_dts_norm_mul_dim_sq<T: OrderedField>(
     lemma_dts_add_closed(dts_mul(im, ae), dts_mul(im, bc));
     lemma_dts_same_radicand_symmetric(im, dts_mul(im, ae));
     lemma_dts_same_radicand_transitive(dts_mul(im, ae), im, dts_mul(im, bc));
-    verus_algebra::lemmas::additive_group_lemmas::lemma_add_congruence::<DynTowerSpec<T>>(
+    verus_algebra::lemmas::additive_group_lemmas::lemma_add_congruence::<DynTowerSpec>(
         dts_mul(im, ae), dts_add(dts_mul(ae, ae), dts_mul(ae, bc)),
         dts_mul(im, bc), dts_add(dts_mul(bc, ae), dts_mul(bc, bc)));
     //  im·im ≡ (ae²+ae·bc) + (bc·ae+bc²)
@@ -5376,7 +5363,7 @@ proof fn lemma_dts_norm_mul_dim_sq<T: OrderedField>(
                               dts_add(dts_mul(d, dts_mul(bc, ae)), dts_mul(d, dts_mul(bc, bc))));
     let d_imsq_mid = dts_add(dts_mul(d, dts_add(dts_mul(ae, ae), dts_mul(ae, bc))),
                               dts_mul(d, dts_add(dts_mul(bc, ae), dts_mul(bc, bc))));
-    verus_algebra::lemmas::additive_group_lemmas::lemma_add_congruence::<DynTowerSpec<T>>(
+    verus_algebra::lemmas::additive_group_lemmas::lemma_add_congruence::<DynTowerSpec>(
         dts_mul(d, dts_add(dts_mul(ae, ae), dts_mul(ae, bc))),
         dts_add(dts_mul(d, dts_mul(ae, ae)), dts_mul(d, dts_mul(ae, bc))),
         dts_mul(d, dts_add(dts_mul(bc, ae), dts_mul(bc, bc))),
@@ -5385,11 +5372,11 @@ proof fn lemma_dts_norm_mul_dim_sq<T: OrderedField>(
     lemma_dts_eqv_transitive(dts_mul(d, im_sq), dts_mul(d, im_sq_exp), d_imsq_sum);
 }
 
-///  norm(x·y) ≡ norm(x)·norm(y) for DynTowerSpec<T>.
+///  norm(x·y) ≡ norm(x)·norm(y) for DynTowerSpec.
 ///  The identity: (ac+dbe)² - d·(ae+bc)² ≡ (a²-d·b²)·(c²-d·e²)
 ///  follows from cross-term cancellation: (ac)·(dbe) ≡ d·(ae·bc).
-pub proof fn lemma_dts_norm_mul<T: OrderedField>(
-    a: DynTowerSpec<T>, b: DynTowerSpec<T>, c: DynTowerSpec<T>, e: DynTowerSpec<T>, d: DynTowerSpec<T>,
+pub proof fn lemma_dts_norm_mul(
+    a: DynTowerSpec, b: DynTowerSpec, c: DynTowerSpec, e: DynTowerSpec, d: DynTowerSpec,
 )
     requires
         dts_well_formed(a), dts_well_formed(b), dts_well_formed(c),
@@ -5645,9 +5632,9 @@ pub proof fn lemma_dts_norm_mul<T: OrderedField>(
     let r = dts_add(dts_mul(d, dts_mul(ae, ae)), dts_mul(d, dts_mul(ae, bc)));
     let s = dts_add(dts_mul(d, dts_mul(bc, ae)), dts_mul(d, dts_mul(bc, bc)));
     //  (p+q)-(r+s) ≡ (p-r)+(q-s)
-    verus_algebra::determinant::lemma_sub_pairs::<DynTowerSpec<T>>(p, q, r, s);
+    verus_algebra::determinant::lemma_sub_pairs::<DynTowerSpec>(p, q, r, s);
     //  p-r: sub_pairs then cancel ac·dbe - d·ae·bc ≡ 0
-    verus_algebra::determinant::lemma_sub_pairs::<DynTowerSpec<T>>(
+    verus_algebra::determinant::lemma_sub_pairs::<DynTowerSpec>(
         dts_mul(ac, ac), dts_mul(ac, dbe), dts_mul(d, dts_mul(ae, ae)), dts_mul(d, dts_mul(ae, bc)));
     //  ac·dbe ≡ d·ae·bc so ac·dbe - d·ae·bc ≡ 0
     //  same_radicand(a, ac·dbe): a→ac→mul(ac,dbe) via mul_closed
@@ -5662,7 +5649,7 @@ pub proof fn lemma_dts_norm_mul<T: OrderedField>(
     lemma_dts_eqv_reflexive(dts_mul(d, dts_mul(ae, bc)));
     lemma_dts_sub_congruence_both(dts_mul(ac, dbe), dts_mul(d, dts_mul(ae, bc)),
         dts_mul(d, dts_mul(ae, bc)), dts_mul(d, dts_mul(ae, bc)));
-    verus_algebra::lemmas::additive_group_lemmas::lemma_sub_self::<DynTowerSpec<T>>(
+    verus_algebra::lemmas::additive_group_lemmas::lemma_sub_self::<DynTowerSpec>(
         dts_mul(d, dts_mul(ae, bc)));
     lemma_dts_eqv_transitive(dts_sub(dts_mul(ac, dbe), dts_mul(d, dts_mul(ae, bc))),
         dts_sub(dts_mul(d, dts_mul(ae, bc)), dts_mul(d, dts_mul(ae, bc))), dts_zero());
@@ -5680,7 +5667,7 @@ pub proof fn lemma_dts_norm_mul<T: OrderedField>(
     lemma_dts_same_radicand_transitive(a, dts_mul(ac, ac), pr_sub);
     lemma_dts_same_radicand_symmetric(a, pr_sub);
     lemma_dts_eqv_reflexive(pr_sub);
-    verus_algebra::lemmas::additive_group_lemmas::lemma_add_congruence::<DynTowerSpec<T>>(
+    verus_algebra::lemmas::additive_group_lemmas::lemma_add_congruence::<DynTowerSpec>(
         pr_sub, pr_sub, dts_sub(dts_mul(ac, dbe), dts_mul(d, dts_mul(ae, bc))), dts_zero());
     lemma_dts_add_zero_right(pr_sub);
     lemma_dts_eqv_transitive(dts_sub(p, r),
@@ -5688,7 +5675,7 @@ pub proof fn lemma_dts_norm_mul<T: OrderedField>(
         dts_add(pr_sub, dts_zero()));
     lemma_dts_eqv_transitive(dts_sub(p, r), dts_add(pr_sub, dts_zero()), pr_sub);
     //  q-s: sub_pairs then cancel dbe·ac - d·bc·ae ≡ 0
-    verus_algebra::determinant::lemma_sub_pairs::<DynTowerSpec<T>>(
+    verus_algebra::determinant::lemma_sub_pairs::<DynTowerSpec>(
         dts_mul(dbe, ac), dts_mul(dbe, dbe), dts_mul(d, dts_mul(bc, ae)), dts_mul(d, dts_mul(bc, bc)));
     //  dbe·ac ≡ ac·dbe (commutative) ≡ d·ae·bc (cross) ≡ d·bc·ae (commutative ae,bc inside d·...)
     lemma_dts_mul_commutative(dbe, ac);
@@ -5714,7 +5701,7 @@ pub proof fn lemma_dts_norm_mul<T: OrderedField>(
     lemma_dts_eqv_reflexive(dts_mul(d, dts_mul(bc, ae)));
     lemma_dts_sub_congruence_both(dts_mul(dbe, ac), dts_mul(d, dts_mul(bc, ae)),
         dts_mul(d, dts_mul(bc, ae)), dts_mul(d, dts_mul(bc, ae)));
-    verus_algebra::lemmas::additive_group_lemmas::lemma_sub_self::<DynTowerSpec<T>>(
+    verus_algebra::lemmas::additive_group_lemmas::lemma_sub_self::<DynTowerSpec>(
         dts_mul(d, dts_mul(bc, ae)));
     lemma_dts_eqv_transitive(dts_sub(dts_mul(dbe, ac), dts_mul(d, dts_mul(bc, ae))),
         dts_sub(dts_mul(d, dts_mul(bc, ae)), dts_mul(d, dts_mul(bc, ae))), dts_zero());
@@ -5733,10 +5720,10 @@ pub proof fn lemma_dts_norm_mul<T: OrderedField>(
     lemma_dts_same_radicand_transitive(a, dts_mul(dbe, dbe), qs_sub);
     lemma_dts_same_radicand_symmetric(a, qs_sub);
     lemma_dts_eqv_reflexive(qs_sub);
-    verus_algebra::lemmas::additive_group_lemmas::lemma_add_congruence::<DynTowerSpec<T>>(
+    verus_algebra::lemmas::additive_group_lemmas::lemma_add_congruence::<DynTowerSpec>(
         dts_sub(dts_mul(dbe, ac), dts_mul(d, dts_mul(bc, ae))), dts_zero(), qs_sub, qs_sub);
     assert(dts_eqv(dts_add(dts_zero(), qs_sub), dts_add(qs_sub, dts_zero()))) by {
-        lemma_dts_add_commutative(dts_zero(), qs_sub);
+        DynTowerSpec::axiom_add_commutative(dts_zero(), qs_sub);
     };
     lemma_dts_add_zero_right(qs_sub);
     lemma_dts_eqv_transitive(dts_add(dts_zero(), qs_sub), dts_add(qs_sub, dts_zero()), qs_sub);
@@ -5746,7 +5733,7 @@ pub proof fn lemma_dts_norm_mul<T: OrderedField>(
     lemma_dts_eqv_transitive(dts_sub(q, s), dts_add(dts_zero(), qs_sub), qs_sub);
     //  (p-r)+(q-s) ≡ pr_sub+qs_sub
     let pq_rs_sub = dts_add(pr_sub, qs_sub);
-    verus_algebra::lemmas::additive_group_lemmas::lemma_add_congruence::<DynTowerSpec<T>>(
+    verus_algebra::lemmas::additive_group_lemmas::lemma_add_congruence::<DynTowerSpec>(
         dts_sub(p, r), pr_sub, dts_sub(q, s), qs_sub);
     lemma_dts_eqv_transitive(dts_sub(dts_add(p, q), dts_add(r, s)),
         dts_add(dts_sub(p, r), dts_sub(q, s)), pq_rs_sub);
@@ -5836,13 +5823,22 @@ pub proof fn lemma_dts_norm_mul<T: OrderedField>(
     lemma_dts_mul_closed(d, dts_mul(b2, ny));
     lemma_dts_mul_associative(d, b2, ny);
     lemma_dts_eqv_symmetric(dts_mul(d, dts_mul(b2, ny)), dts_mul(db2, ny));
-    //  neg(d·b2·ny) ≡ neg(db2·ny) by neg_congruence from X ≡ Y
+    //  neg(d·b2·ny) ≡ neg(db2·ny)
     assert(dts_eqv(dts_neg(dts_mul(d, dts_mul(b2, ny))), dts_neg(dts_mul(db2, ny)))) by {
-        lemma_dts_neg_congruence(dts_mul(d, dts_mul(b2, ny)), dts_mul(db2, ny));
-    };
-    //  LEGACY: the rest of the original by-block was cleaning up sub(zero, X) ≡ neg(X).
-    //  With generic T, neg_congruence is direct. Skip the sub_congruence detour.
-    if false {  //  dead code — preserved for reference during migration
+        verus_algebra::lemmas::additive_group_lemmas::lemma_sub_congruence::<DynTowerSpec>(
+            dts_zero(), dts_zero(), dts_mul(d, dts_mul(b2, ny)), dts_mul(db2, ny));
+        lemma_dts_sub_is_add_neg(dts_zero(), dts_mul(d, dts_mul(b2, ny)));
+        lemma_dts_sub_is_add_neg(dts_zero(), dts_mul(db2, ny));
+        assert(dts_eqv(dts_add(dts_zero(), dts_neg(dts_mul(d, dts_mul(b2, ny)))),
+                       dts_neg(dts_mul(d, dts_mul(b2, ny))))) by {
+            verus_algebra::lemmas::additive_group_lemmas::lemma_add_zero_left::<DynTowerSpec>(
+                dts_neg(dts_mul(d, dts_mul(b2, ny))));
+        };
+        assert(dts_eqv(dts_add(dts_zero(), dts_neg(dts_mul(db2, ny))),
+                       dts_neg(dts_mul(db2, ny)))) by {
+            verus_algebra::lemmas::additive_group_lemmas::lemma_add_zero_left::<DynTowerSpec>(
+                dts_neg(dts_mul(db2, ny)));
+        };
         lemma_dts_eqv_symmetric(
             dts_neg(dts_mul(d, dts_mul(b2, ny))),
             dts_add(dts_zero(), dts_neg(dts_mul(d, dts_mul(b2, ny)))));
@@ -5880,7 +5876,7 @@ pub proof fn lemma_dts_norm_mul<T: OrderedField>(
     lemma_dts_eqv_transitive(qs_sub, dts_neg(dts_mul(d, dts_mul(b2, ny))),
         dts_neg(dts_mul(db2, ny)));
     //  pr_sub + qs_sub ≡ a2·ny + neg(db2·ny) = a2·ny - db2·ny = nx·ny
-    verus_algebra::lemmas::additive_group_lemmas::lemma_add_congruence::<DynTowerSpec<T>>(
+    verus_algebra::lemmas::additive_group_lemmas::lemma_add_congruence::<DynTowerSpec>(
         pr_sub, dts_mul(a2, ny), qs_sub, dts_neg(dts_mul(db2, ny)));
     //  a2·ny + neg(db2·ny) ≡ a2·ny - db2·ny by sub_is_add_neg
     lemma_dts_same_radicand_transitive(a, a2, dts_mul(a2, ny));
@@ -5918,8 +5914,8 @@ pub proof fn lemma_dts_norm_mul<T: OrderedField>(
 ///  Square-le-square at fuel level: 0 ≤ a ≤ b → a² ≤ b².
 ///  Uses difference_of_squares: b²-a² = (b-a)(b+a), both factors nonneg.
 ///  Requires nonneg_mul IH (mutually recursive).
-pub proof fn lemma_dts_square_le_square_fuel<T: OrderedField>(
-    a: DynTowerSpec<T>, b: DynTowerSpec<T>, fuel: nat,
+pub proof fn lemma_dts_square_le_square_fuel(
+    a: DynTowerSpec, b: DynTowerSpec, fuel: nat,
 )
     requires
         fuel >= dts_depth(a) + 1, fuel >= dts_depth(b) + 1,
@@ -5948,7 +5944,7 @@ pub proof fn lemma_dts_square_le_square_fuel<T: OrderedField>(
     lemma_dts_difference_of_squares(a, b);
     //  nonneg(b): from nonneg(a) + nonneg(b-a) → nonneg(a + (b-a))
     //  a + (b-a) = a + sub(b,a) = a + add(b, neg(a)) ≡ b by additive algebra
-    verus_algebra::lemmas::additive_group_lemmas::lemma_add_then_sub_cancel::<DynTowerSpec<T>>(b, a);
+    verus_algebra::lemmas::additive_group_lemmas::lemma_add_then_sub_cancel::<DynTowerSpec>(b, a);
     //  (b + a) - a ≡ b. Hmm wait, add_then_sub gives (a+b)-b ≡ a. I want a+(b-a) ≡ b.
     //  Actually: a + sub(b,a) = a + (b-a). By commutative: (b-a) + a.
     //  sub_add_cancel: sub(b,a).add(a) ≡ b. This is the right one.
@@ -5963,9 +5959,9 @@ pub proof fn lemma_dts_square_le_square_fuel<T: OrderedField>(
     lemma_dts_nonneg_add_closed_fuel(a, dts_sub(b, a), fuel);
     //  nonneg(add(a, sub(b,a)))
     //  add(a, sub(b,a)) ≡ b: use additive group lemma
-    verus_algebra::lemmas::additive_group_lemmas::lemma_sub_then_add_cancel::<DynTowerSpec<T>>(b, a);
+    verus_algebra::lemmas::additive_group_lemmas::lemma_sub_then_add_cancel::<DynTowerSpec>(b, a);
     //  sub(b,a).add(a) ≡ b → add(sub(b,a), a) ≡ b
-    lemma_dts_add_commutative(a, dts_sub(b, a));
+    DynTowerSpec::axiom_add_commutative(a, dts_sub(b, a));
     lemma_dts_eqv_transitive(dts_add(a, dts_sub(b, a)), dts_add(dts_sub(b, a), a), b);
     //  nonneg(add(a, sub(b,a))) → nonneg(b) by congruence
     //  Need same_radicand for congruence
@@ -6016,8 +6012,8 @@ pub proof fn lemma_dts_square_le_square_fuel<T: OrderedField>(
 
 ///  le_mul_nonneg_monotone at fuel level: a ≤ b ∧ 0 ≤ c → a*c ≤ b*c.
 ///  Uses distributivity: (b-a)*c ≡ b*c - a*c. nonneg((b-a)*c) by nonneg_mul IH.
-pub proof fn lemma_dts_le_mul_nonneg_monotone_fuel<T: OrderedField>(
-    a: DynTowerSpec<T>, b: DynTowerSpec<T>, c: DynTowerSpec<T>, fuel: nat,
+pub proof fn lemma_dts_le_mul_nonneg_monotone_fuel(
+    a: DynTowerSpec, b: DynTowerSpec, c: DynTowerSpec, fuel: nat,
 )
     requires
         fuel >= dts_depth(a) + 1, fuel >= dts_depth(b) + 1, fuel >= dts_depth(c) + 1,
@@ -6115,7 +6111,7 @@ pub proof fn lemma_dts_le_mul_nonneg_monotone_fuel<T: OrderedField>(
 }
 
 ///  nonneg_radicands preserved by add.
-pub proof fn lemma_dts_nonneg_radicands_add<T: OrderedField>(a: DynTowerSpec<T>, b: DynTowerSpec<T>)
+pub proof fn lemma_dts_nonneg_radicands_add(a: DynTowerSpec, b: DynTowerSpec)
     requires
         dts_nonneg_radicands(a), dts_nonneg_radicands(b),
     ensures
@@ -6138,7 +6134,7 @@ pub proof fn lemma_dts_nonneg_radicands_add<T: OrderedField>(a: DynTowerSpec<T>,
 }
 
 ///  nonneg_radicands preserved by neg.
-pub proof fn lemma_dts_nonneg_radicands_neg<T: OrderedField>(a: DynTowerSpec<T>)
+pub proof fn lemma_dts_nonneg_radicands_neg(a: DynTowerSpec)
     requires dts_nonneg_radicands(a),
     ensures dts_nonneg_radicands(dts_neg(a)),
     decreases a,
@@ -6153,7 +6149,7 @@ pub proof fn lemma_dts_nonneg_radicands_neg<T: OrderedField>(a: DynTowerSpec<T>)
 }
 
 ///  nonneg_radicands preserved by mul.
-pub proof fn lemma_dts_nonneg_radicands_mul<T: OrderedField>(a: DynTowerSpec<T>, b: DynTowerSpec<T>)
+pub proof fn lemma_dts_nonneg_radicands_mul(a: DynTowerSpec, b: DynTowerSpec)
     requires
         dts_nonneg_radicands(a), dts_nonneg_radicands(b),
     ensures
@@ -6188,9 +6184,9 @@ pub proof fn lemma_dts_nonneg_radicands_mul<T: OrderedField>(a: DynTowerSpec<T>,
 ///  Helper for C1+C2 norm bound: establishes nonneg(sub(sum_re², d*sum_im²))
 ///  at fuel f. Part of the mutual recursion group.
 #[verifier::rlimit(120)]
-pub proof fn lemma_dts_c1c2_norm_bound<T: OrderedField>(
-    a1: DynTowerSpec<T>, b1: DynTowerSpec<T>, a2: DynTowerSpec<T>, b2: DynTowerSpec<T>,
-    dd: DynTowerSpec<T>, f: nat,
+pub proof fn lemma_dts_c1c2_norm_bound(
+    a1: DynTowerSpec, b1: DynTowerSpec, a2: DynTowerSpec, b2: DynTowerSpec,
+    dd: DynTowerSpec, f: nat,
 )
     requires
         f >= dts_depth(a1) + 1, f >= dts_depth(b1) + 1,
@@ -6263,11 +6259,11 @@ pub proof fn lemma_dts_c1c2_norm_bound<T: OrderedField>(
     //  sub(sum_re, r) ≡ p by add_then_sub_cancel
     if b1_nn {
         verus_algebra::lemmas::additive_group_lemmas::lemma_add_then_sub_cancel::<
-            DynTowerSpec<T>>(a1, a2);
+            DynTowerSpec>(a1, a2);
     } else {
-        lemma_dts_add_commutative(a1, a2);
+        DynTowerSpec::axiom_add_commutative(a1, a2);
         verus_algebra::lemmas::additive_group_lemmas::lemma_add_then_sub_cancel::<
-            DynTowerSpec<T>>(a2, a1);
+            DynTowerSpec>(a2, a1);
         lemma_dts_add_congruence_left(
             dts_add(a1, a2), dts_add(a2, a1), dts_neg(a1));
     }
@@ -6297,14 +6293,14 @@ pub proof fn lemma_dts_c1c2_norm_bound<T: OrderedField>(
     if b1_nn {
         //  sub(add(a1,a2), a2) ≡ a1 → symmetric → a1 ≡ sub(sum_re, a2)
         verus_algebra::lemmas::additive_group_lemmas::lemma_add_then_sub_cancel::<
-            DynTowerSpec<T>>(a1, a2);
+            DynTowerSpec>(a1, a2);
         lemma_dts_eqv_symmetric(dts_sub(dts_add(a1, a2), a2), a1);
         lemma_dts_nonneg_fuel_congruence(a1, dts_sub(sum_re, a2), f);
     } else {
         //  sub(add(a1,a2), a1): commutative + cancel
-        lemma_dts_add_commutative(a1, a2);
+        DynTowerSpec::axiom_add_commutative(a1, a2);
         verus_algebra::lemmas::additive_group_lemmas::lemma_add_then_sub_cancel::<
-            DynTowerSpec<T>>(a2, a1);
+            DynTowerSpec>(a2, a1);
         lemma_dts_add_congruence_left(
             dts_add(a1, a2), dts_add(a2, a1), dts_neg(a1));
         //  sub(add(a2,a1), a1) ≡ a2 [add_then_sub]. symmetric: a2 ≡ sub(add(a2,a1), a1).
@@ -6446,7 +6442,7 @@ pub proof fn lemma_dts_c1c2_norm_bound<T: OrderedField>(
     lemma_dts_nonneg_add_closed_fuel(
         dts_sub(sum_re_sq, r_sq), dts_sub(r_sq, d_s_sq), f);
     //  sub_add_sub chain
-    verus_algebra::lemmas::additive_group_lemmas::lemma_sub_add_sub::<DynTowerSpec<T>>(
+    verus_algebra::lemmas::additive_group_lemmas::lemma_sub_add_sub::<DynTowerSpec>(
         sum_re_sq, r_sq, d_s_sq);
     lemma_dts_add_closed(
         dts_sub(sum_re_sq, r_sq), dts_sub(r_sq, d_s_sq));
@@ -6498,11 +6494,11 @@ pub proof fn lemma_dts_c1c2_norm_bound<T: OrderedField>(
     lemma_dts_neg_involution(sum_im);
     if b1_nn {
         verus_algebra::lemmas::additive_group_lemmas::lemma_add_then_sub_cancel::<
-            DynTowerSpec<T>>(b1, b2);
+            DynTowerSpec>(b1, b2);
     } else {
-        lemma_dts_add_commutative(b1, b2);
+        DynTowerSpec::axiom_add_commutative(b1, b2);
         verus_algebra::lemmas::additive_group_lemmas::lemma_add_then_sub_cancel::<
-            DynTowerSpec<T>>(b2, b1);
+            DynTowerSpec>(b2, b1);
         lemma_dts_add_congruence_left(
             dts_add(b1, b2), dts_add(b2, b1), dts_neg(b1));
         //  Chain: sub(sum_im, b1) ≡ sub(add(b2,b1), b1) ≡ b2 = sub(sum_im, s) ≡ q
@@ -6513,7 +6509,7 @@ pub proof fn lemma_dts_c1c2_norm_bound<T: OrderedField>(
     }
     //  sub(sum_im, s) ≡ q. Chain to sub(ns, nsm) via neg_involution + add_congruence.
     lemma_dts_add_congruence_right(dts_neg(s), dts_neg(nsm), sum_im);
-    lemma_dts_add_commutative(dts_neg(s), sum_im);
+    DynTowerSpec::axiom_add_commutative(dts_neg(s), sum_im);
     lemma_dts_eqv_transitive(
         dts_sub(ns, nsm), dts_add(dts_neg(s), sum_im), dts_sub(sum_im, s));
     //  eqv(sub(sum_im, s), q) from if/else block above
@@ -6659,7 +6655,7 @@ pub proof fn lemma_dts_c1c2_norm_bound<T: OrderedField>(
     //  nonneg(sub(d*s², d*sum_im²)) ✓ = T3
 
     //  ═══ Final chain: T1+T2+T3 ═══
-    verus_algebra::lemmas::additive_group_lemmas::lemma_sub_add_sub::<DynTowerSpec<T>>(
+    verus_algebra::lemmas::additive_group_lemmas::lemma_sub_add_sub::<DynTowerSpec>(
         sum_re_sq, d_s_sq, d_sum_im_sq);
     lemma_dts_same_radicand_symmetric(d_s_sq, dts_sub(d_s_sq, d_sum_im_sq));
     lemma_dts_same_radicand_transitive(
@@ -6707,8 +6703,8 @@ pub proof fn lemma_dts_c1c2_norm_bound<T: OrderedField>(
 }
 
 #[verifier::rlimit(80)]
-pub proof fn lemma_dts_nonneg_add_closed_fuel<T: OrderedField>(
-    x: DynTowerSpec<T>, y: DynTowerSpec<T>, fuel: nat,
+pub proof fn lemma_dts_nonneg_add_closed_fuel(
+    x: DynTowerSpec, y: DynTowerSpec, fuel: nat,
 )
     requires
         fuel >= dts_depth(x) + 1, fuel >= dts_depth(y) + 1,
@@ -6723,7 +6719,7 @@ pub proof fn lemma_dts_nonneg_add_closed_fuel<T: OrderedField>(
 {
     match (x, y) {
         (DynTowerSpec::Rat(r1), DynTowerSpec::Rat(r2)) => {
-            verus_algebra::inequalities::lemma_nonneg_add::<T>(r1, r2);
+            verus_algebra::inequalities::lemma_nonneg_add::<Rational>(r1, r2);
         }
         (DynTowerSpec::Ext(re1, im1, d), DynTowerSpec::Ext(re2, im2, _)) => {
             let f = (fuel - 1) as nat;
@@ -6793,12 +6789,12 @@ pub proof fn lemma_dts_nonneg_add_closed_fuel<T: OrderedField>(
 
                 //  sub(sum_re, r) ≡ p via add_then_sub_cancel
                 verus_algebra::lemmas::additive_group_lemmas::lemma_add_then_sub_cancel::<
-                    DynTowerSpec<T>>(p, r);
+                    DynTowerSpec>(p, r);
                 //  (p+r) - r ≡ p. And sum_re = add(a1,a2).
                 //  If b1_nn: sum_re = add(a1,a2) = add(p,r). OK.
                 //  If !b1_nn: sum_re = add(a1,a2) = add(r,p). Need commutative.
                 if !b1_nn {
-                    lemma_dts_add_commutative(a1, a2);
+                    DynTowerSpec::axiom_add_commutative(a1, a2);
                 }
                 //  nonneg(sub(sum_re, r)) from nonneg(p) by congruence
                 //  sub(sum_re, r) ≡ sub(add(p,r), r) ≡ p
@@ -6834,7 +6830,7 @@ pub proof fn lemma_dts_nonneg_add_closed_fuel<T: OrderedField>(
                     //  add(a1,a2) ≡ add(a2,a1) by commutative (already called)
                     //  sub(add(a2,a1), a1) ≡ a2 by add_then_sub_cancel(a2, a1)
                     verus_algebra::lemmas::additive_group_lemmas::lemma_add_then_sub_cancel::<
-                        DynTowerSpec<T>>(a2, a1);
+                        DynTowerSpec>(a2, a1);
                     lemma_dts_eqv_symmetric(dts_sub(dts_add(a2, a1), a1), a2);
                     //  sub(sum_re, a1) ≡ sub(add(a2,a1), a1) by sub_congruence from commutative
                     //  Actually, sub(add(a1,a2), a1) and sub(add(a2,a1), a1) differ.
@@ -6916,7 +6912,7 @@ pub proof fn lemma_dts_nonneg_add_closed_fuel<T: OrderedField>(
                 lemma_dts_nonneg_radicands_mul(s, s);
                 lemma_dts_nonneg_radicands_mul(dd, s_sq);
                 //  sub_add_sub(sum_re², r², d*s²)
-                verus_algebra::lemmas::additive_group_lemmas::lemma_sub_add_sub::<DynTowerSpec<T>>(
+                verus_algebra::lemmas::additive_group_lemmas::lemma_sub_add_sub::<DynTowerSpec>(
                     sum_re_sq, r_sq, d_s_sq);
                 //  nonneg_add(sub(sum_re²,r²), sub(r²,d*s²)) at fuel f
                 lemma_dts_same_radicand_symmetric(sum_re_sq, dts_sub(sum_re_sq, r_sq));
@@ -7074,7 +7070,7 @@ pub proof fn lemma_dts_nonneg_add_closed_fuel<T: OrderedField>(
                 lemma_dts_depth_neg(nsm);
                 lemma_dts_depth_add_le(ns, dts_neg(nsm));
                 verus_algebra::lemmas::additive_group_lemmas::lemma_add_sub_cancel_right::<
-                    DynTowerSpec<T>>(ns, nsm, s);
+                    DynTowerSpec>(ns, nsm, s);
                 //  sub(ns, nsm) = (neg(s)+s)-(neg(sum_im)+s) ≡ ... hmm, not directly useful.
                 //  Simpler: add_sub_cancel_right(q, neg_q_complement, s) doesn't help.
                 //  Use direct: neg(s)-neg(sum_im) = neg(s)+sum_im (by neg_involution on neg(sum_im))
@@ -7095,14 +7091,14 @@ pub proof fn lemma_dts_nonneg_add_closed_fuel<T: OrderedField>(
                 //  ≡ sub(sum_im, s) [by add_commutative + sub def]
                 //  ≡ q [by add_then_sub_cancel(q, s_complement)]
                 lemma_dts_neg_involution(sum_im);
-                lemma_dts_add_commutative(dts_neg(s), sum_im);
+                DynTowerSpec::axiom_add_commutative(dts_neg(s), sum_im);
                 if b1_nn {
                     verus_algebra::lemmas::additive_group_lemmas::lemma_add_then_sub_cancel::<
-                        DynTowerSpec<T>>(b1, b2);
+                        DynTowerSpec>(b1, b2);
                 } else {
-                    lemma_dts_add_commutative(b1, b2);
+                    DynTowerSpec::axiom_add_commutative(b1, b2);
                     verus_algebra::lemmas::additive_group_lemmas::lemma_add_then_sub_cancel::<
-                        DynTowerSpec<T>>(b2, b1);
+                        DynTowerSpec>(b2, b1);
                 }
                 //  Explicit eqv chain: q ≡ sub(sum_im, s) ≡ sub(ns, nsm)
                 //  sub(ns, nsm) = add(neg(s), neg(neg(sum_im)))
@@ -7112,7 +7108,7 @@ pub proof fn lemma_dts_nonneg_add_closed_fuel<T: OrderedField>(
                     dts_neg(s), dts_neg(nsm), sum_im);
                 //  Chain: sub(ns,nsm) ≡ add(neg(s),sum_im) ≡ sub(sum_im,s) ≡ q
                 //  Chain sub(ns,nsm) → add(neg(s),sum_im) → sub(sum_im,s) → q
-                lemma_dts_add_commutative(dts_neg(s), sum_im);
+                DynTowerSpec::axiom_add_commutative(dts_neg(s), sum_im);
                 lemma_dts_eqv_transitive(
                     dts_sub(ns, nsm),
                     dts_add(dts_neg(s), sum_im),
@@ -7130,12 +7126,12 @@ pub proof fn lemma_dts_nonneg_add_closed_fuel<T: OrderedField>(
                 if b1_nn {
                     //  sub(add(b1,b2), b2) ≡ b1 = q
                     verus_algebra::lemmas::additive_group_lemmas::lemma_add_then_sub_cancel::<
-                        DynTowerSpec<T>>(b1, b2);
+                        DynTowerSpec>(b1, b2);
                 } else {
                     //  sub(add(b1,b2), b1): commutative + cancel
-                    lemma_dts_add_commutative(b1, b2);
+                    DynTowerSpec::axiom_add_commutative(b1, b2);
                     verus_algebra::lemmas::additive_group_lemmas::lemma_add_then_sub_cancel::<
-                        DynTowerSpec<T>>(b2, b1);
+                        DynTowerSpec>(b2, b1);
                     lemma_dts_add_congruence_left(
                         dts_add(b1, b2), dts_add(b2, b1), dts_neg(b1));
                 }
@@ -7281,7 +7277,7 @@ pub proof fn lemma_dts_nonneg_add_closed_fuel<T: OrderedField>(
                 //  nonneg(sub(d*s², d*sum_im²)) ✓ = T3
 
                 //  ── Final chain: T1+T2+T3 → nonneg(sub(sum_re², d*sum_im²)) ──
-                verus_algebra::lemmas::additive_group_lemmas::lemma_sub_add_sub::<DynTowerSpec<T>>(
+                verus_algebra::lemmas::additive_group_lemmas::lemma_sub_add_sub::<DynTowerSpec>(
                     sum_re_sq, d_s_sq, d_sum_im_sq);
                 lemma_dts_same_radicand_symmetric(d_s_sq, dts_sub(d_s_sq, d_sum_im_sq));
                 lemma_dts_same_radicand_transitive(
@@ -7328,9 +7324,9 @@ pub proof fn lemma_dts_nonneg_add_closed_fuel<T: OrderedField>(
 ///  C2×C2 helper: both x,y are C2 (re nonneg, neg(im) nonneg, norm ≥ 0).
 ///  Product re ≥ 0 (pos×pos + neg_mul_neg on ims) and norm ≥ 0 (direct mul of nonneg norms).
 #[verifier::rlimit(120)]
-proof fn lemma_dts_nonneg_mul_cc<T: OrderedField>(
-    a1: DynTowerSpec<T>, b1: DynTowerSpec<T>, a2: DynTowerSpec<T>, b2: DynTowerSpec<T>,
-    dd: DynTowerSpec<T>, f: nat,
+proof fn lemma_dts_nonneg_mul_cc(
+    a1: DynTowerSpec, b1: DynTowerSpec, a2: DynTowerSpec, b2: DynTowerSpec,
+    dd: DynTowerSpec, f: nat,
 )
     requires
         f >= dts_depth(a1) + 1, f >= dts_depth(b1) + 1,
@@ -7599,9 +7595,9 @@ proof fn lemma_dts_nonneg_mul_cc<T: OrderedField>(
 ///  B×B helper: both x,y are C3 (neg(re) nonneg, im nonneg).
 ///  Product re ≥ 0 (neg×neg + pos×pos) and norm ≥ 0 (neg×neg on norms).
 #[verifier::rlimit(120)]
-proof fn lemma_dts_nonneg_mul_bb<T: OrderedField>(
-    a1: DynTowerSpec<T>, b1: DynTowerSpec<T>, a2: DynTowerSpec<T>, b2: DynTowerSpec<T>,
-    dd: DynTowerSpec<T>, f: nat,
+proof fn lemma_dts_nonneg_mul_bb(
+    a1: DynTowerSpec, b1: DynTowerSpec, a2: DynTowerSpec, b2: DynTowerSpec,
+    dd: DynTowerSpec, f: nat,
 )
     requires
         f >= dts_depth(a1) + 1, f >= dts_depth(b1) + 1,
@@ -7758,9 +7754,9 @@ proof fn lemma_dts_nonneg_mul_bb<T: OrderedField>(
 
 ///  B×B norm helper: establishes nonneg(sub(re², d*im²), f) for conclude_re.
 ///  norm(product) ≡ nx*ny by norm_mul. nx ≤ 0 and ny ≤ 0 → nx*ny ≥ 0 by neg_mul_neg.
-proof fn lemma_dts_nonneg_mul_bb_norm<T: OrderedField>(
-    a1: DynTowerSpec<T>, b1: DynTowerSpec<T>, a2: DynTowerSpec<T>, b2: DynTowerSpec<T>,
-    dd: DynTowerSpec<T>, f: nat,
+proof fn lemma_dts_nonneg_mul_bb_norm(
+    a1: DynTowerSpec, b1: DynTowerSpec, a2: DynTowerSpec, b2: DynTowerSpec,
+    dd: DynTowerSpec, f: nat,
 )
     requires
         f >= dts_depth(a1) + 1, f >= dts_depth(b1) + 1,
@@ -7871,12 +7867,12 @@ proof fn lemma_dts_nonneg_mul_bb_norm<T: OrderedField>(
         lemma_dts_same_radicand_symmetric(a1, dts_mul(a1, a1));
         lemma_dts_same_radicand_transitive(dts_mul(a1, a1), a1, dd);
         lemma_dts_same_radicand_transitive(dts_mul(a1, a1), dd, dts_mul(dd, dts_mul(b1, b1)));
-        verus_algebra::lemmas::additive_group_lemmas::lemma_sub_antisymmetric::<DynTowerSpec<T>>(
+        verus_algebra::lemmas::additive_group_lemmas::lemma_sub_antisymmetric::<DynTowerSpec>(
             dts_mul(dd, dts_mul(b1, b1)), dts_mul(a1, a1));
         lemma_dts_same_radicand_transitive(dts_mul(a2, a2), a2, a1);
         lemma_dts_same_radicand_transitive(dts_mul(a2, a2), a1, dd);
         lemma_dts_same_radicand_transitive(dts_mul(a2, a2), dd, dts_mul(dd, dts_mul(b2, b2)));
-        verus_algebra::lemmas::additive_group_lemmas::lemma_sub_antisymmetric::<DynTowerSpec<T>>(
+        verus_algebra::lemmas::additive_group_lemmas::lemma_sub_antisymmetric::<DynTowerSpec>(
             dts_mul(dd, dts_mul(b2, b2)), dts_mul(a2, a2));
         //  well_formed(nx) and well_formed(ny) for neg_mul_neg
         lemma_dts_neg_well_formed(dts_mul(dd, dts_mul(b1, b1)));
@@ -8011,8 +8007,8 @@ proof fn lemma_dts_nonneg_mul_bb_norm<T: OrderedField>(
 
 ///  Nonneg closed under multiplication. Mutually recursive with nonneg_add_closed.
 #[verifier::rlimit(200)]
-pub proof fn lemma_dts_nonneg_mul_closed_fuel<T: OrderedField>(
-    x: DynTowerSpec<T>, y: DynTowerSpec<T>, fuel: nat,
+pub proof fn lemma_dts_nonneg_mul_closed_fuel(
+    x: DynTowerSpec, y: DynTowerSpec, fuel: nat,
 )
     requires
         fuel >= dts_depth(x) + 1, fuel >= dts_depth(y) + 1,
@@ -8028,7 +8024,7 @@ pub proof fn lemma_dts_nonneg_mul_closed_fuel<T: OrderedField>(
     match (x, y) {
         (DynTowerSpec::Rat(r1), DynTowerSpec::Rat(r2)) => {
             verus_algebra::lemmas::ordered_ring_lemmas::lemma_nonneg_mul_nonneg::<
-                T>(r1, r2);
+                Rational>(r1, r2);
         }
         (DynTowerSpec::Ext(re1, im1, d), DynTowerSpec::Ext(re2, im2, _)) => {
             let f = (fuel - 1) as nat;
@@ -8144,11 +8140,11 @@ pub proof fn lemma_dts_nonneg_mul_closed_fuel<T: OrderedField>(
 ///  (dd*b1²)*(dd*b2²) ≥ na2²*a1² via le_mul_nonneg_monotone chain (inlined).
 ///  This gives Q² ≥ P² where Q=dd*b1*b2, P=a1*a2 (after square_mul congruences).
 #[verifier::rlimit(200)]
-proof fn lemma_dts_cauchy_schwarz_step<T: OrderedField>(
-    a1_sq: DynTowerSpec<T>, na2_sq: DynTowerSpec<T>,
-    dd_b1_sq: DynTowerSpec<T>, dd_b2_sq: DynTowerSpec<T>,
-    dd: DynTowerSpec<T>, nx: DynTowerSpec<T>, ny: DynTowerSpec<T>,
-    a2_sq: DynTowerSpec<T>, f: nat,
+proof fn lemma_dts_cauchy_schwarz_step(
+    a1_sq: DynTowerSpec, na2_sq: DynTowerSpec,
+    dd_b1_sq: DynTowerSpec, dd_b2_sq: DynTowerSpec,
+    dd: DynTowerSpec, nx: DynTowerSpec, ny: DynTowerSpec,
+    a2_sq: DynTowerSpec, f: nat,
 )
     requires
         f >= dts_depth(a1_sq) + 1, f >= dts_depth(na2_sq) + 1,
@@ -8403,9 +8399,9 @@ proof fn lemma_dts_cauchy_schwarz_step<T: OrderedField>(
 ///  Proves nonneg of product = Ext(re_val, im_val, dd) where im_val=0.
 ///  Uses norm chain for mixed-sign norms and Cauchy-Schwarz for same-sign.
 #[verifier::rlimit(200)]
-proof fn lemma_dts_nonneg_mul_iszero_im<T: OrderedField>(
-    a1: DynTowerSpec<T>, b1: DynTowerSpec<T>, a2: DynTowerSpec<T>, b2: DynTowerSpec<T>,
-    dd: DynTowerSpec<T>, f: nat,
+proof fn lemma_dts_nonneg_mul_iszero_im(
+    a1: DynTowerSpec, b1: DynTowerSpec, a2: DynTowerSpec, b2: DynTowerSpec,
+    dd: DynTowerSpec, f: nat,
 )
     requires
         f >= dts_depth(a1) + 1, f >= dts_depth(b1) + 1,
@@ -8863,7 +8859,7 @@ proof fn lemma_dts_nonneg_mul_iszero_im<T: OrderedField>(
                     dts_neg(ny), dts_sub(dd_b2_sq, dts_mul(a2, a2)), f);
                 //  Transfer to sub(dd_b2_sq, na2_sq) via sub_congruence_both.
                 lemma_dts_eqv_symmetric(na2_sq, a2_sq);
-                lemma_dts_eqv_reflexive(dd_b2_sq);
+                DynTowerSpec::axiom_eqv_reflexive(dd_b2_sq);
                 lemma_dts_same_radicand_reflexive(dd_b2_sq);
                 lemma_dts_same_radicand_symmetric(na2_sq, a2_sq);
                 lemma_dts_sub_congruence_both(dd_b2_sq, a2_sq, dd_b2_sq, na2_sq);
@@ -8977,7 +8973,7 @@ proof fn lemma_dts_nonneg_mul_iszero_im<T: OrderedField>(
                 lemma_dts_same_radicand_symmetric(a1, a1_sq);
                 lemma_dts_same_radicand_transitive(na2_sq, a1, a1_sq);
                 lemma_dts_mul_closed(na2_sq, a1_sq);
-                lemma_dts_eqv_reflexive(dts_mul(dd_b1_sq, dd_b2_sq));
+                DynTowerSpec::axiom_eqv_reflexive(dts_mul(dd_b1_sq, dd_b2_sq));
                 lemma_dts_same_radicand_reflexive(dts_mul(dd_b1_sq, dd_b2_sq));
                 lemma_dts_same_radicand_symmetric(a1_sq, dts_mul(a1_sq, dd_b2_sq));
                 lemma_dts_same_radicand_transitive(dts_mul(a1_sq, dd_b2_sq), a1_sq, dd_b2_sq);
@@ -9047,7 +9043,7 @@ proof fn lemma_dts_nonneg_mul_iszero_im<T: OrderedField>(
                 lemma_dts_nonneg_add_closed_fuel(
                     dts_sub(dts_mul(dd_b1_sq, dd_b2_sq), dts_mul(dd_b2_sq, a1_sq)),
                     dts_sub(dts_mul(dd_b2_sq, a1_sq), dts_mul(na2_sq, a1_sq)), f);
-                verus_algebra::lemmas::additive_group_lemmas::lemma_sub_add_sub::<DynTowerSpec<T>>(
+                verus_algebra::lemmas::additive_group_lemmas::lemma_sub_add_sub::<DynTowerSpec>(
                     dts_mul(dd_b1_sq, dd_b2_sq), dts_mul(dd_b2_sq, a1_sq), dts_mul(na2_sq, a1_sq));
                 //  ═══ nonneg(sub(dd_b1_sq*dd_b2_sq, na2_sq*a1_sq)) ═══
                 //  This is Q² ≥ P² (after square_mul congruences).
@@ -9119,17 +9115,17 @@ proof fn lemma_dts_nonneg_mul_iszero_im<T: OrderedField>(
         //  neg(zero) ≡ zero by axiom_neg_zero or eqv chain.
         //  Use: eqv(neg(dd*im²), zero) via eqv chain.
         lemma_dts_neg_well_formed(dts_mul(dd, dts_mul(im_val, im_val)));
-        lemma_dts_neg_congruence(
+        DynTowerSpec::axiom_neg_congruence(
             dts_mul(dd, dts_mul(im_val, im_val)), dts_zero());
         //  eqv(neg(dd*im²), neg(zero)). neg(zero) = neg(Rat(0)) = Rat(0) = zero structurally.
         //  So eqv(neg(dd*im²), zero) if neg(dts_zero()) == dts_zero().
-        assert(dts_neg(dts_zero::<T>()) == dts_zero::<T>());
+        assert(dts_neg(dts_zero()) == dts_zero());
         //  add(re², neg(dd*im²)) ≡ add(re², zero) ≡ re²
         lemma_dts_add_congruence_right(
             dts_mul(re_val, re_val),
             dts_neg(dts_mul(dd, dts_mul(im_val, im_val))),
             dts_zero());
-        lemma_dts_add_zero_right(dts_mul(re_val, re_val));
+        DynTowerSpec::axiom_add_zero_right(dts_mul(re_val, re_val));
         lemma_dts_eqv_transitive(
             dts_sub(dts_mul(re_val, re_val), dts_mul(dd, dts_mul(im_val, im_val))),
             dts_add(dts_mul(re_val, re_val), dts_zero()),
@@ -9165,7 +9161,7 @@ proof fn lemma_dts_nonneg_mul_iszero_im<T: OrderedField>(
             dts_sub(dts_mul(re_val, re_val), dts_mul(dd, dts_mul(im_val, im_val))),
             dts_mul(re_val, re_val));
         //  neg_congruence: eqv(nx*ny, re²) → eqv(neg(nx*ny), neg(re²))
-        lemma_dts_neg_congruence(dts_mul(nx, ny), dts_mul(re_val, re_val));
+        DynTowerSpec::axiom_neg_congruence(dts_mul(nx, ny), dts_mul(re_val, re_val));
         //  Transfer nonneg(neg(nx*ny)) → nonneg(neg(re²))
         lemma_dts_nonneg_fuel_congruence(
             dts_neg(dts_mul(nx, ny)), dts_neg(dts_mul(re_val, re_val)), f);
@@ -9249,7 +9245,7 @@ proof fn lemma_dts_nonneg_mul_iszero_im<T: OrderedField>(
         lemma_dts_nonneg_radicands_neg(product_norm);
         lemma_norm_definite_neg(product_norm);
         lemma_dts_depth_neg(product_norm);
-        lemma_dts_neg_congruence(product_norm, dts_mul(re_val, re_val));
+        DynTowerSpec::axiom_neg_congruence(product_norm, dts_mul(re_val, re_val));
         lemma_dts_same_radicand_symmetric(product_norm, re_val);
         lemma_dts_same_radicand_transitive(re_val, product_norm, dts_neg(product_norm));
         lemma_dts_same_radicand_transitive(product_norm, re_val, dts_neg(product_norm));
@@ -9306,9 +9302,9 @@ proof fn lemma_dts_nonneg_mul_iszero_im<T: OrderedField>(
 ///  Helper for remaining nonneg_mul cases (C1×C2, C2×C1, A×B, B×A).
 ///  Extracted from nonneg_mul_closed_fuel for rlimit management.
 #[verifier::rlimit(200)]
-proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
-    a1: DynTowerSpec<T>, b1: DynTowerSpec<T>, a2: DynTowerSpec<T>, b2: DynTowerSpec<T>,
-    dd: DynTowerSpec<T>, f: nat,
+proof fn lemma_dts_nonneg_mul_remaining(
+    a1: DynTowerSpec, b1: DynTowerSpec, a2: DynTowerSpec, b2: DynTowerSpec,
+    dd: DynTowerSpec, f: nat,
 )
     requires
         f >= dts_depth(a1) + 1, f >= dts_depth(b1) + 1,
@@ -9648,7 +9644,7 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                             lemma_dts_same_radicand_transitive(dts_mul(dts_neg(b1), b2), dts_neg(b1), b1);
                             lemma_dts_same_radicand_symmetric(b1, dts_mul(b1, neg_b2));
                             lemma_dts_same_radicand_transitive(dts_mul(dts_neg(b1), b2), b1, dts_mul(b1, neg_b2));
-                            lemma_dts_neg_involution(b2);
+                            assert(dts_neg(neg_b2) == b2);
                             lemma_dts_nonneg_fuel_congruence(dts_mul(dts_neg(b1), b2), dts_mul(b1, neg_b2), f);
                         } else {
                             //  b1≥0 and !neg_b2_nn → b2≥0 (from le_total on neg_b2).
@@ -9680,7 +9676,7 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                             //  Then re_val and im_val are zero → handled by is_zero shortcuts above.
                             //  ═══ Point C: b1≥0, b2≥0, both norms same sign ═══
                             //  nonneg(b2) from !neg_b2_nn + le_total on neg_b2
-                            lemma_dts_neg_involution(b2);
+                            assert(dts_neg(neg_b2) == b2);
                             lemma_dts_nonneg_or_neg_nonneg_fuel(b2, f);
                             //  !a2_nn (otherwise C1×C1 handled by parent)
                             lemma_dts_nonneg_or_neg_nonneg_fuel(a2, f);
@@ -9880,7 +9876,7 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
 
 ///  Square is nonneg: mul(x, x) ≥ 0 for any well-formed DTS value.
 ///  Uses le_total to split into nonneg(x) and nonneg(neg(x)) cases.
-pub proof fn lemma_dts_square_nonneg<T: OrderedField>(x: DynTowerSpec<T>, fuel: nat)
+pub proof fn lemma_dts_square_nonneg(x: DynTowerSpec, fuel: nat)
     requires
         fuel >= dts_depth(x) + 1,
         dts_well_formed(x),
@@ -9919,7 +9915,7 @@ pub proof fn lemma_dts_square_nonneg<T: OrderedField>(x: DynTowerSpec<T>, fuel: 
 
 ///  norm_definite propagates through add: if both args are norm_definite
 ///  with same radicand, the sum is norm_definite.
-proof fn lemma_norm_definite_add<T: OrderedField>(x: DynTowerSpec<T>, y: DynTowerSpec<T>)
+proof fn lemma_norm_definite_add(x: DynTowerSpec, y: DynTowerSpec)
     requires
         dts_well_formed(x), dts_well_formed(y),
         dts_same_radicand(x, y),
@@ -9939,7 +9935,7 @@ proof fn lemma_norm_definite_add<T: OrderedField>(x: DynTowerSpec<T>, y: DynTowe
 }
 
 ///  norm_definite propagates through neg.
-proof fn lemma_norm_definite_neg<T: OrderedField>(x: DynTowerSpec<T>)
+proof fn lemma_norm_definite_neg(x: DynTowerSpec)
     requires dts_norm_definite(x),
     ensures dts_norm_definite(dts_neg(x)),
     decreases x,
@@ -9955,7 +9951,7 @@ proof fn lemma_norm_definite_neg<T: OrderedField>(x: DynTowerSpec<T>)
 
 ///  norm_definite propagates through mul: if both args are norm_definite
 ///  with same radicand, the product is norm_definite.
-proof fn lemma_norm_definite_mul<T: OrderedField>(x: DynTowerSpec<T>, y: DynTowerSpec<T>)
+proof fn lemma_norm_definite_mul(x: DynTowerSpec, y: DynTowerSpec)
     requires
         dts_well_formed(x), dts_well_formed(y),
         dts_same_radicand(x, y),
@@ -10012,8 +10008,8 @@ proof fn lemma_norm_definite_mul<T: OrderedField>(x: DynTowerSpec<T>, y: DynTowe
 ///    neg_norm' = sub(mul(d, mul(neg(b),neg(b))), mul(neg(a),neg(a)))
 ///  This is eqv to neg(norm) where norm = sub(mul(a,a), mul(d, mul(b,b))).
 ///  Given nonneg(neg_norm', f), derives nonneg(neg(norm), f).
-proof fn lemma_dts_neg_norm_congruence<T: OrderedField>(
-    a: DynTowerSpec<T>, b: DynTowerSpec<T>, dd: DynTowerSpec<T>, f: nat,
+proof fn lemma_dts_neg_norm_congruence(
+    a: DynTowerSpec, b: DynTowerSpec, dd: DynTowerSpec, f: nat,
 )
     requires
         dts_well_formed(a), dts_well_formed(b), dts_well_formed(dd),
@@ -10094,7 +10090,7 @@ proof fn lemma_dts_neg_norm_congruence<T: OrderedField>(
     lemma_dts_same_radicand_transitive(dts_mul(a, a), a, dd);
     lemma_dts_same_radicand_transitive(dts_mul(a, a), dd, dts_mul(dd, dts_mul(b, b)));
     lemma_dts_same_radicand_symmetric(dts_mul(a, a), dts_mul(dd, dts_mul(b, b)));
-    verus_algebra::lemmas::additive_group_lemmas::lemma_sub_antisymmetric::<DynTowerSpec<T>>(
+    verus_algebra::lemmas::additive_group_lemmas::lemma_sub_antisymmetric::<DynTowerSpec>(
         dts_mul(dd, dts_mul(b, b)), dts_mul(a, a));
     //  neg_norm = sub(d*b², a²) ≡ neg(sub(a², d*b²)) = neg(norm) ✓
     //  Step 5: chain: neg_norm' ≡ neg_norm ≡ neg(norm)
@@ -10137,7 +10133,7 @@ proof fn lemma_dts_neg_norm_congruence<T: OrderedField>(
 ///  le_antisymmetric for norm-definite DTS towers:
 ///  nonneg(x) ∧ nonneg(neg(x)) → is_zero(x).
 ///  Part of the mutual recursion with nonneg_mul/add (decreases fuel, 1nat).
-pub proof fn lemma_dts_le_antisymmetric_fuel<T: OrderedField>(x: DynTowerSpec<T>, fuel: nat)
+pub proof fn lemma_dts_le_antisymmetric_fuel(x: DynTowerSpec, fuel: nat)
     requires
         fuel >= dts_depth(x) + 1,
         dts_well_formed(x),
@@ -10151,8 +10147,17 @@ pub proof fn lemma_dts_le_antisymmetric_fuel<T: OrderedField>(x: DynTowerSpec<T>
 {
     match x {
         DynTowerSpec::Rat(r) => {
-            //  nonneg(Rat(r)) = zero.le(r). nonneg(neg(Rat(r))) = zero.le(r.neg()).
-            lemma_nonneg_both_implies_eqv_zero::<T>(r);
+            //  nonneg(Rat(r)) = 0.le_spec(r). nonneg(neg(Rat(r))) = 0.le_spec(neg(r)).
+            //  0.le_spec(neg(r)): 0 ≤ -r.num, so r.num ≤ 0.
+            //  r.le_spec(0): r.num * 1 ≤ 0 * r.denom() = r.num ≤ 0.
+            let zero = Rational::from_int_spec(0);
+            let neg_r = r.neg_spec();
+            assert(zero.num == 0 && zero.den == 0);
+            assert(neg_r.num == -r.num && neg_r.den == r.den);
+            assert(r.le_spec(zero)) by (nonlinear_arith)
+                requires zero.le_spec(neg_r), zero.num == 0, neg_r.num == -r.num, neg_r.den == r.den;
+            Rational::lemma_le_antisymmetric(zero, r);
+            Rational::lemma_eqv_zero_iff_num_zero(r);
         }
         DynTowerSpec::Ext(re, im, d) => {
             let f = (fuel - 1) as nat;
@@ -10318,7 +10323,15 @@ pub proof fn lemma_dts_le_antisymmetric_fuel<T: OrderedField>(x: DynTowerSpec<T>
                 //  both_nonneg(db2). For Rat: le_antisymmetric directly. For Ext: IH.
                 match db2 {
                     DynTowerSpec::Rat(r_db2) => {
-                        lemma_nonneg_both_implies_eqv_zero::<T>(r_db2);
+                        //  nonneg(Rat(v)) ∧ nonneg(neg(Rat(v))) → v=0
+                        let zero_r = Rational::from_int_spec(0);
+                        let neg_db2_r = r_db2.neg_spec();
+                        assert(r_db2.le_spec(zero_r)) by (nonlinear_arith)
+                            requires zero_r.le_spec(neg_db2_r),
+                                zero_r.num == 0, zero_r.den == 0,
+                                neg_db2_r.num == -r_db2.num, neg_db2_r.den == r_db2.den;
+                        Rational::lemma_le_antisymmetric(zero_r, r_db2);
+                        Rational::lemma_eqv_zero_iff_num_zero(r_db2);
                     }
                     _ => {
                         //  Ext db2: use norm_definite_mul propagation
@@ -10424,7 +10437,14 @@ pub proof fn lemma_dts_le_antisymmetric_fuel<T: OrderedField>(x: DynTowerSpec<T>
                 }
                 match a_sq {
                     DynTowerSpec::Rat(r_a2) => {
-                        lemma_nonneg_both_implies_eqv_zero::<T>(r_a2);
+                        let zero_r = Rational::from_int_spec(0);
+                        let neg_a2 = r_a2.neg_spec();
+                        assert(r_a2.le_spec(zero_r)) by (nonlinear_arith)
+                            requires zero_r.le_spec(neg_a2),
+                                zero_r.num == 0, zero_r.den == 0,
+                                neg_a2.num == -r_a2.num, neg_a2.den == r_a2.den;
+                        Rational::lemma_le_antisymmetric(zero_r, r_a2);
+                        Rational::lemma_eqv_zero_iff_num_zero(r_a2);
                     }
                     _ => {}
                 }
@@ -10494,14 +10514,20 @@ pub proof fn lemma_dts_le_antisymmetric_fuel<T: OrderedField>(x: DynTowerSpec<T>
                         //  norm is Rat. Direct le_antisymmetric.
                         match (b, dd) {
                             (DynTowerSpec::Rat(rb), DynTowerSpec::Rat(rd)) => {
-                                //  norm = dts_sub(Rat(ra*ra), Rat(rd*(rb*rb)))
-                                //       = dts_add(Rat(ra*ra), dts_neg(Rat(rd*(rb*rb))))
-                                //       = Rat(ra.mul(ra).add(rd.mul(rb.mul(rb)).neg()))
-                                let norm_r = ra.mul(ra).add(rd.mul(rb.mul(rb)).neg());
+                                let norm_r = ra.mul_spec(ra).sub_spec(
+                                    rd.mul_spec(rb.mul_spec(rb)));
                                 assert(norm == DynTowerSpec::Rat(norm_r));
+                                //  nonneg_fuel(norm, f) → nonneg_fuel(Rat(norm_r), f) → 0 ≤ norm_r
                                 assert(dts_nonneg_fuel(norm, f));
                                 assert(dts_nonneg_fuel(DynTowerSpec::Rat(norm_r), f));
-                                lemma_nonneg_both_implies_eqv_zero::<T>(norm_r);
+                                let zero_r = Rational::from_int_spec(0);
+                                let neg_norm_r = norm_r.neg_spec();
+                                assert(norm_r.le_spec(zero_r)) by (nonlinear_arith)
+                                    requires zero_r.le_spec(neg_norm_r),
+                                        zero_r.num == 0, zero_r.den == 0,
+                                        neg_norm_r.num == -norm_r.num, neg_norm_r.den == norm_r.den;
+                                Rational::lemma_le_antisymmetric(zero_r, norm_r);
+                                Rational::lemma_eqv_zero_iff_num_zero(norm_r);
                             }
                             _ => {} //  unreachable: same_radicand(Rat, Ext) = false
                         }
@@ -10632,7 +10658,7 @@ pub proof fn lemma_dts_le_antisymmetric_fuel<T: OrderedField>(x: DynTowerSpec<T>
                 //  Now have nonneg(norm) from C2' congruence and nonneg(neg_norm) from C3.
                 //  neg_norm = sub(d*b², a²) ≡ neg(norm) by sub_antisymmetric
                 lemma_dts_same_radicand_symmetric(dts_mul(a, a), dts_mul(dd, dts_mul(b, b)));
-                verus_algebra::lemmas::additive_group_lemmas::lemma_sub_antisymmetric::<DynTowerSpec<T>>(
+                verus_algebra::lemmas::additive_group_lemmas::lemma_sub_antisymmetric::<DynTowerSpec>(
                     dts_mul(dd, dts_mul(b, b)), dts_mul(a, a));
                 let neg_norm_actual = dts_sub(dts_mul(dd, dts_mul(b, b)), dts_mul(a, a));
                 lemma_dts_neg_well_formed(dts_mul(dd, dts_mul(b, b)));
@@ -10679,14 +10705,20 @@ pub proof fn lemma_dts_le_antisymmetric_fuel<T: OrderedField>(x: DynTowerSpec<T>
                         //  norm is Rat. Direct le_antisymmetric.
                         match (b, dd) {
                             (DynTowerSpec::Rat(rb), DynTowerSpec::Rat(rd)) => {
-                                //  norm = dts_sub(Rat(ra*ra), Rat(rd*(rb*rb)))
-                                //       = dts_add(Rat(ra*ra), dts_neg(Rat(rd*(rb*rb))))
-                                //       = Rat(ra.mul(ra).add(rd.mul(rb.mul(rb)).neg()))
-                                let norm_r = ra.mul(ra).add(rd.mul(rb.mul(rb)).neg());
+                                let norm_r = ra.mul_spec(ra).sub_spec(
+                                    rd.mul_spec(rb.mul_spec(rb)));
                                 assert(norm == DynTowerSpec::Rat(norm_r));
+                                //  nonneg_fuel(norm, f) → nonneg_fuel(Rat(norm_r), f) → 0 ≤ norm_r
                                 assert(dts_nonneg_fuel(norm, f));
                                 assert(dts_nonneg_fuel(DynTowerSpec::Rat(norm_r), f));
-                                lemma_nonneg_both_implies_eqv_zero::<T>(norm_r);
+                                let zero_r = Rational::from_int_spec(0);
+                                let neg_norm_r = norm_r.neg_spec();
+                                assert(norm_r.le_spec(zero_r)) by (nonlinear_arith)
+                                    requires zero_r.le_spec(neg_norm_r),
+                                        zero_r.num == 0, zero_r.den == 0,
+                                        neg_norm_r.num == -norm_r.num, neg_norm_r.den == norm_r.den;
+                                Rational::lemma_le_antisymmetric(zero_r, norm_r);
+                                Rational::lemma_eqv_zero_iff_num_zero(norm_r);
                             }
                             _ => {} //  unreachable: same_radicand(Rat, Ext) = false
                         }
@@ -10735,6 +10767,90 @@ pub proof fn lemma_dts_le_antisymmetric_fuel<T: OrderedField>(x: DynTowerSpec<T>
             //  nonneg(x) = false. Contradiction with precondition.
             return;
         }
+    }
+}
+
+///  Algebraic helper: if α² ≡ δ·β² and δ is not a rational perfect square, then β ≡ 0.
+///  Proof: if β ≢ 0, construct s = α/β. Then s² = α²/β² = δ·β²/β² = δ, contradiction.
+proof fn lemma_rational_nonsquare_forces_zero(
+    alpha: Rational, beta: Rational, delta: Rational,
+)
+    requires
+        alpha.mul_spec(alpha).eqv_spec(delta.mul_spec(beta.mul_spec(beta))),
+        !dts_is_rational_square(DynTowerSpec::Rat(delta)),
+    ensures
+        beta.eqv_spec(Rational::from_int_spec(0)),
+{
+    Rational::lemma_eqv_zero_iff_num_zero(beta);
+    if beta.num != 0 {
+        //  beta ≢ 0. Construct witness s = alpha/beta.
+        let s = alpha.div_spec(beta);
+        let alpha_sq = alpha.mul_spec(alpha);
+        let beta_sq = beta.mul_spec(beta);
+        let delta_beta_sq = delta.mul_spec(beta_sq);
+        //  Step 1: beta_sq ≢ 0
+        Rational::lemma_eqv_zero_iff_num_zero(beta_sq);
+        assert(beta_sq.num == beta.num * beta.num);
+        assert(beta_sq.num != 0) by (nonlinear_arith)
+            requires beta.num != 0, beta_sq.num == beta.num * beta.num;
+        //  Step 2: alpha_sq/beta_sq ≡ delta_beta_sq/beta_sq (div congruence from alpha_sq ≡ delta_beta_sq)
+        Rational::lemma_div_congruence(alpha_sq, delta_beta_sq, beta_sq);
+        //  Step 3: delta_beta_sq/beta_sq ≡ delta (div_mul_cancel)
+        Rational::lemma_div_mul_cancel(delta, beta_sq);
+        //  Step 4: alpha_sq/beta_sq ≡ delta (transitivity)
+        Rational::lemma_eqv_transitive(alpha_sq.div_spec(beta_sq), delta_beta_sq.div_spec(beta_sq), delta);
+        //  Step 5: s*s ≡ alpha_sq/beta_sq (by div_div: (alpha/beta)*(alpha/beta) = ... )
+        //  s*s = (alpha/beta)*(alpha/beta)
+        //  Use div_mul_assoc: (alpha/beta)*X ≡ (alpha*X)/beta
+        //  With X = s = alpha/beta: s*s ≡ (alpha*s)/beta
+        //  And alpha*s = alpha*(alpha/beta):
+        //    by mul_commutative: alpha*s = s*alpha
+        //    by div_mul_assoc: s*alpha = (alpha*alpha)/beta = alpha_sq/beta
+        //  So s*s ≡ (alpha_sq/beta)/beta = alpha_sq/(beta*beta) by div_div
+        Rational::lemma_div_mul_assoc(alpha, beta, s);
+        //  (alpha/beta)*s ≡ (alpha*s)/beta
+        Rational::lemma_mul_commutative(s, s);
+        //  s*s = s*s (trivial, but s = alpha/beta)
+        Rational::lemma_mul_commutative(alpha, s);
+        //  alpha*s ≡ s*alpha
+        Rational::lemma_div_mul_assoc(alpha, beta, alpha);
+        //  (alpha/beta)*alpha ≡ (alpha*alpha)/beta = alpha_sq/beta
+        //  So s*alpha ≡ alpha_sq/beta
+        //  And (alpha*s)/beta ≡ (s*alpha)/beta ≡ (alpha_sq/beta)/beta
+        let alpha_s = alpha.mul_spec(s);
+        let s_alpha = s.mul_spec(alpha);
+        //  s*s ≡ (alpha*s)/beta [from div_mul_assoc with alpha, beta, s → s*s ≡ (alpha*s)/beta]
+        //  Wait, div_mul_assoc(alpha, beta, s): (alpha/beta)*s ≡ (alpha*s)/beta
+        //  And s = alpha/beta. So (alpha/beta)*(alpha/beta) ≡ (alpha*(alpha/beta))/beta
+        //  = (alpha*s)/beta
+        //  alpha*s: by mul_commutative = s*alpha. By div_mul_assoc(alpha, beta, alpha):
+        //    (alpha/beta)*alpha ≡ (alpha*alpha)/beta = alpha_sq/beta
+        //  So s*alpha ≡ alpha_sq/beta, hence alpha*s ≡ alpha_sq/beta (commutative)
+        //  Therefore s*s ≡ (alpha_sq/beta)/beta
+        //  By div_div: (alpha_sq/beta)/beta ≡ alpha_sq/(beta*beta) = alpha_sq/beta_sq
+        Rational::lemma_div_div(alpha_sq, beta, beta);
+        //  (alpha_sq/beta)/beta ≡ alpha_sq/beta_sq
+        //  Now chain: s*s ≡ (alpha*s)/beta [div_mul_assoc]
+        //             (alpha*s)/beta: alpha*s ≡ alpha_sq/beta [from above]
+        //               → (alpha*s)/beta ≡ (alpha_sq/beta)/beta [div_congruence]
+        //               → (alpha_sq/beta)/beta ≡ alpha_sq/beta_sq [div_div]
+        //  But this requires eqv-congruence for div on the first arg too.
+        //  Let me use: alpha*s ≡ s*alpha [commutative]. s*alpha ≡ alpha_sq/beta [div_mul_assoc].
+        //  So alpha*s ≡ alpha_sq/beta [transitivity].
+        Rational::lemma_eqv_transitive(alpha_s, s_alpha, alpha_sq.div_spec(beta));
+        //  (alpha*s)/beta ≡ (alpha_sq/beta)/beta [div_congruence on alpha*s ≡ alpha_sq/beta]
+        Rational::lemma_div_congruence(alpha_s, alpha_sq.div_spec(beta), beta);
+        //  s*s ≡ (alpha*s)/beta [div_mul_assoc(alpha, beta, s)]
+        //  (alpha*s)/beta ≡ (alpha_sq/beta)/beta [div_congruence]
+        //  (alpha_sq/beta)/beta ≡ alpha_sq/beta_sq [div_div]
+        let ss = s.mul_spec(s);
+        Rational::lemma_eqv_transitive(ss, alpha_s.div_spec(beta), alpha_sq.div_spec(beta).div_spec(beta));
+        Rational::lemma_eqv_transitive(ss, alpha_sq.div_spec(beta).div_spec(beta), alpha_sq.div_spec(beta_sq));
+        //  s*s ≡ alpha_sq/beta_sq ≡ delta [transitivity]
+        Rational::lemma_eqv_transitive(ss, alpha_sq.div_spec(beta_sq), delta);
+        //  Contradiction: s*s ≡ delta but delta is not a rational perfect square
+        assert(dts_is_rational_square(DynTowerSpec::Rat(delta)));
+        assert(false);
     }
 }
 
