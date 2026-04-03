@@ -849,37 +849,9 @@ pub proof fn lemma_dts_neg_well_formed<T: OrderedField>(a: DynTowerSpec<T>)
 ///  neg(sub(a, b)) ≡ sub(b, a) (negation swaps subtraction order).
 pub proof fn lemma_dts_neg_sub_swap<T: OrderedField>(a: DynTowerSpec<T>, b: DynTowerSpec<T>)
     ensures dts_eqv(dts_neg(dts_sub(a, b)), dts_sub(b, a)),
-    decreases a, b,
 {
-    //  neg(sub(a,b)) = neg(add(a, neg(b)))
-    lemma_dts_sub_is_add_neg(a, b);
-    lemma_dts_neg_congruence(dts_sub(a, b), dts_add(a, dts_neg(b)));
-    //  neg(add(a, neg(b))) ≡ add(neg(a), neg(neg(b))) by neg_add... but we don't have neg_add for DTS
-    //  Alternative: neg(add(a, neg(b))) ≡ add(neg(a), b) via:
-    //    add(a, neg(b)) + add(neg(a), b) = (a + neg(a)) + (neg(b) + b) = 0 + 0 = 0
-    //    So neg(add(a, neg(b))) ≡ add(neg(a), b) by uniqueness of additive inverse.
-    //  This needs add_inverse + add_commutative + add_associative.
-    //  Simpler: just use sub_is_add_neg on both sides and show structural eqv.
-    //  sub(b, a) = add(b, neg(a)). And neg(sub(a,b))... hard without neg_add.
-    //  Let me try: Z3 may unfold for small depth since all are open spec fn.
-    match (a, b) {
-        (DynTowerSpec::Rat(r1), DynTowerSpec::Rat(r2)) => {
-            verus_algebra::lemmas::additive_group_lemmas::lemma_neg_sub::<
-                T>(r1, r2);
-        }
-        (DynTowerSpec::Ext(re1, im1, _), DynTowerSpec::Ext(re2, im2, _)) => {
-            lemma_dts_neg_sub_swap(*re1, *re2);
-            lemma_dts_neg_sub_swap(*im1, *im2);
-        }
-        (DynTowerSpec::Rat(r), DynTowerSpec::Ext(re, im, _)) => {
-            lemma_dts_neg_sub_swap(DynTowerSpec::Rat(r), *re);
-            lemma_dts_neg_involution(*im);
-        }
-        (DynTowerSpec::Ext(re, im, _), DynTowerSpec::Rat(r)) => {
-            lemma_dts_neg_sub_swap(*re, DynTowerSpec::Rat(r));
-            lemma_dts_neg_involution(*im);
-        }
-    }
+    //  Use the generic AdditiveGroup lemma since DynTowerSpec<T>: AdditiveGroup
+    verus_algebra::lemmas::additive_group_lemmas::lemma_neg_sub::<DynTowerSpec<T>>(a, b);
 }
 
 ///  neg(neg(x)) ≡ x (double negation / involution).
