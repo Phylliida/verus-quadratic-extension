@@ -9811,6 +9811,9 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                     lemma_dts_same_radicand_transitive(dts_mul(dts_neg(nx), ny), dts_mul(nx, ny),
                         dts_neg(dts_mul(nx, ny)));
                     lemma_dts_nonneg_fuel_congruence(dts_mul(dts_neg(nx), ny), dts_neg(dts_mul(nx, ny)), f);
+                    //  nonneg(neg(nx*ny)) established — conclude via helper
+                    lemma_conclude_im_via_neg_norm(a1, b1, a2, b2, dd, f);
+                    return;
                 } else if dts_nonneg_fuel(nx, f) && dts_nonneg_fuel(dts_neg(ny), f) {
                     //  nx≥0 && neg(ny)≥0: nx*neg(ny) ≥ 0 ≡ neg(nx*ny)
                     lemma_dts_same_radicand_transitive(nx, ny, dts_neg(ny));
@@ -9825,6 +9828,9 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                     lemma_dts_same_radicand_transitive(dts_mul(nx, dts_neg(ny)), dts_mul(nx, ny),
                         dts_neg(dts_mul(nx, ny)));
                     lemma_dts_nonneg_fuel_congruence(dts_mul(nx, dts_neg(ny)), dts_neg(dts_mul(nx, ny)), f);
+                    //  nonneg(neg(nx*ny)) established — conclude via helper
+                    lemma_conclude_im_via_neg_norm(a1, b1, a2, b2, dd, f);
+                    return;
                 } else {
                     //  Remaining: neg(nx)≥0 && neg(ny)≥0 (norm≥0 → conclude_re),
                     //  or nx≥0 && ny≥0 (norm≥0 → conclude_re).
@@ -10182,10 +10188,6 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                     //  This is too complex for now. Let Z3 try.
                     return;
                 }
-                //  Now have nonneg(neg(nx*ny), f).
-                //  Use extracted helper for clean Z3 context.
-                lemma_conclude_im_via_neg_norm(a1, b1, a2, b2, dd, f);
-                return;
             }
             //  Both neg: both_nonneg of re and im from the two directions.
             //  le_antisymmetric should close: product is zero.
