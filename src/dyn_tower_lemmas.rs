@@ -950,6 +950,93 @@ proof fn lemma_transfer_neg_norm<T: OrderedField>(
     lemma_dts_nonneg_fuel_congruence(neg_nxny, neg_norm, f);
 }
 
+///  If is_zero(x), then is_zero(mul(x, y)) — zero times anything is zero.
+///  Structural induction on depth of both arguments.
+pub proof fn lemma_dts_is_zero_mul_left<T: OrderedField>(
+    x: DynTowerSpec<T>, y: DynTowerSpec<T>,
+)
+    requires dts_is_zero(x),
+    ensures dts_is_zero(dts_mul(x, y)),
+    decreases dts_depth(x) + dts_depth(y),
+{
+    match (x, y) {
+        (DynTowerSpec::Rat(rx), DynTowerSpec::Rat(ry)) => {
+            //  Rat×Rat: mul(Rat(rx), Rat(ry)) = Rat(rx*ry). rx ≡ 0 → rx*ry ≡ 0.
+            T::axiom_mul_zero_right(ry);
+            T::axiom_eqv_symmetric(ry.mul(T::zero()), T::zero());
+            T::axiom_eqv_transitive(rx.mul(ry), T::zero().mul(ry), T::zero());
+        }
+        (DynTowerSpec::Ext(xre, xim, xd), DynTowerSpec::Ext(yre, yim, _)) => {
+            //  Products of zero components
+            lemma_dts_is_zero_mul_left(*xre, *yre);
+            lemma_dts_is_zero_mul_left(*xim, *yim);
+            lemma_dts_is_zero_mul_left(*xre, *yim);
+            lemma_dts_is_zero_mul_left(*xim, *yre);
+            //  d*(xim*yim): xim*yim is_zero, d might not be. Use is_zero_mul_right.
+            lemma_dts_is_zero_mul_right(*xd, dts_mul(*xim, *yim));
+            //  Z3 unfolds: add of two is_zero values → is_zero. For both re and im components.
+        }
+        (DynTowerSpec::Rat(r), DynTowerSpec::Ext(yre, yim, _)) => {
+            lemma_dts_is_zero_mul_left(DynTowerSpec::Rat(r), *yre);
+            lemma_dts_is_zero_mul_left(DynTowerSpec::Rat(r), *yim);
+        }
+        (DynTowerSpec::Ext(xre, xim, _), DynTowerSpec::Rat(r)) => {
+            lemma_dts_is_zero_mul_left(*xre, DynTowerSpec::Rat(r));
+            lemma_dts_is_zero_mul_left(*xim, DynTowerSpec::Rat(r));
+        }
+    }
+}
+
+///  If is_zero(y), then is_zero(mul(x, y)) — anything times zero is zero.
+pub proof fn lemma_dts_is_zero_mul_right<T: OrderedField>(
+    x: DynTowerSpec<T>, y: DynTowerSpec<T>,
+)
+    requires dts_is_zero(y),
+    ensures dts_is_zero(dts_mul(x, y)),
+    decreases dts_depth(x) + dts_depth(y),
+{
+    match (x, y) {
+        (DynTowerSpec::Rat(rx), DynTowerSpec::Rat(ry)) => {
+            T::axiom_mul_zero_right(rx);
+            T::axiom_eqv_symmetric(rx.mul(T::zero()), T::zero());
+            T::axiom_eqv_transitive(rx.mul(ry), rx.mul(T::zero()), T::zero());
+        }
+        (DynTowerSpec::Ext(xre, xim, xd), DynTowerSpec::Ext(yre, yim, _)) => {
+            lemma_dts_is_zero_mul_right(*xre, *yre);
+            lemma_dts_is_zero_mul_right(*xim, *yim);
+            lemma_dts_is_zero_mul_right(*xre, *yim);
+            lemma_dts_is_zero_mul_right(*xim, *yre);
+            lemma_dts_is_zero_mul_right(*xd, dts_mul(*xim, *yim));
+        }
+        (DynTowerSpec::Rat(r), DynTowerSpec::Ext(yre, yim, _)) => {
+            lemma_dts_is_zero_mul_right(DynTowerSpec::Rat(r), *yre);
+            lemma_dts_is_zero_mul_right(DynTowerSpec::Rat(r), *yim);
+        }
+        (DynTowerSpec::Ext(xre, xim, _), DynTowerSpec::Rat(r)) => {
+            lemma_dts_is_zero_mul_right(*xre, DynTowerSpec::Rat(r));
+            lemma_dts_is_zero_mul_right(*xim, DynTowerSpec::Rat(r));
+        }
+    }
+}
+
+///  If is_zero(x), then is_zero(dts_norm(x)).
+pub proof fn lemma_dts_is_zero_norm<T: OrderedField>(x: DynTowerSpec<T>)
+    requires dts_is_zero(x),
+    ensures dts_is_zero(dts_norm(x)),
+{
+    match x {
+        DynTowerSpec::Rat(_) => {
+            lemma_dts_is_zero_mul_left(x, x);
+        }
+        DynTowerSpec::Ext(re, im, d) => {
+            lemma_dts_is_zero_mul_left(*re, *re);
+            lemma_dts_is_zero_mul_left(*im, *im);
+            lemma_dts_is_zero_mul_right(*d, dts_mul(*im, *im));
+            //  Z3: is_zero(re²) && is_zero(d*im²) → is_zero(neg(d*im²)) → is_zero(sub(re², d*im²))
+        }
+    }
+}
+
 ///  Integral domain for DTS: is_zero(mul(x,y)) ∧ ¬is_zero(y) → is_zero(x).
 ///  Proof by structural induction:
 ///  - Rat case: T: OrderedField → Field → mul_cancel_left.
@@ -968,7 +1055,7 @@ pub proof fn lemma_dts_mul_cancel_zero<T: OrderedField>(
         dts_norm_definite(x), dts_norm_definite(y),
     ensures
         dts_is_zero(x),
-    decreases dts_depth(x) + dts_depth(y),
+    decreases dts_depth(x),
 {
     match (x, y) {
         (DynTowerSpec::Rat(rx), DynTowerSpec::Rat(ry)) => {
@@ -983,32 +1070,27 @@ pub proof fn lemma_dts_mul_cancel_zero<T: OrderedField>(
         }
         (DynTowerSpec::Ext(xre, xim, xd), DynTowerSpec::Ext(yre, yim, _)) => {
             let dd = *xd;
-            //  xre ~ yim chain for norm_mul precondition
+            //  ═══ norm_mul: norm(x*y) ≡ norm(x)*norm(y) ═══
+            //  xre ~ yim chain (from xre~xim and xim~yim)
             lemma_dts_same_radicand_transitive(*xre, *xim, *yim);
-            //  norm_mul: norm(x*y) ≡ norm(x)*norm(y)
             lemma_dts_norm_mul(*xre, *xim, *yre, *yim, dd);
-            //  norm(x), norm(y) at lower depth — induction
+
             let norm_x = dts_norm(x);
             let norm_y = dts_norm(y);
-            //  Build norm infrastructure for the recursive call.
-            //  norm_x = sub(xre², dd*xim²), norm_y = sub(yre², dd*yim²).
-            //  well_formed: from mul_closed + neg_well_formed + add_closed on sub-components.
+
+            //  ═══ Build norm(x) = sub(xre², dd*xim²) infrastructure ═══
             lemma_dts_same_radicand_reflexive(*xre);
             lemma_dts_same_radicand_reflexive(*xim);
-            lemma_dts_same_radicand_reflexive(*yre);
-            lemma_dts_same_radicand_reflexive(*yim);
             lemma_dts_mul_closed(*xre, *xre);
             lemma_dts_mul_closed(*xim, *xim);
-            lemma_dts_mul_closed(*yre, *yre);
-            lemma_dts_mul_closed(*yim, *yim);
-            //  dd ~ xim ~ mul(xim,xim) chain for mul_closed(dd, mul(xim,xim))
+            //  dd ~ xim chain: symmetric(xre,xim) → xim~xre, transitive(xim,xre,dd) → xim~dd
             lemma_dts_same_radicand_symmetric(*xre, *xim);
             lemma_dts_same_radicand_transitive(*xim, *xre, dd);
-            lemma_dts_same_radicand_symmetric(*xim, dts_mul(*xim, *xim));
+            //  dd ~ mul(xim,xim): symmetric(xim,dd) → dd~xim, mul_closed(xim,xim) → xim~mul
             lemma_dts_same_radicand_symmetric(*xim, dd);
             lemma_dts_same_radicand_transitive(dd, *xim, dts_mul(*xim, *xim));
             lemma_dts_mul_closed(dd, dts_mul(*xim, *xim));
-            //  norm_x = sub(xre², dd*xim²)
+            //  sub(xre², dd*xim²) = add(xre², neg(dd*xim²))
             lemma_dts_same_radicand_symmetric(*xre, dts_mul(*xre, *xre));
             lemma_dts_same_radicand_transitive(dts_mul(*xre, *xre), *xre, dd);
             lemma_dts_same_radicand_transitive(dts_mul(*xre, *xre), dd, dts_mul(dd, dts_mul(*xim, *xim)));
@@ -1017,17 +1099,15 @@ pub proof fn lemma_dts_mul_cancel_zero<T: OrderedField>(
             lemma_dts_same_radicand_transitive(dts_mul(*xre, *xre), dts_mul(dd, dts_mul(*xim, *xim)),
                 dts_neg(dts_mul(dd, dts_mul(*xim, *xim))));
             lemma_dts_add_closed(dts_mul(*xre, *xre), dts_neg(dts_mul(dd, dts_mul(*xim, *xim))));
-            //  Same for norm_y
-            lemma_dts_same_radicand_symmetric(*yim, dd);
-            //  Wait: need dd ~ yim. From same_radicand(x,y): *xd == *yd (structural).
-            //  And dd = *xd. From well_formed(y): same_radicand(*yre, *yim), same_radicand(*yre, *yd).
-            //  So dd ~ yre ~ yim.
-            //  But same_radicand(x,y) gives same_radicand(*xre, *yre) and same_radicand(*xim, *yim)
-            //  and *xd == *yd. From well_formed(y): same_radicand(*yre, *yim) and same_radicand(*yre, dd).
-            //  Z3 should unfold well_formed(y) to get these.
+
+            //  ═══ Build norm(y) = sub(yre², dd*yim²) infrastructure ═══
+            lemma_dts_same_radicand_reflexive(*yre);
+            lemma_dts_same_radicand_reflexive(*yim);
+            lemma_dts_mul_closed(*yre, *yre);
+            lemma_dts_mul_closed(*yim, *yim);
+            //  dd ~ yim: from well_formed(y): yre~yim, yre~dd. symmetric(yre,yim)→yim~yre, transitive(yim,yre,dd)
             lemma_dts_same_radicand_symmetric(*yre, *yim);
             lemma_dts_same_radicand_transitive(*yim, *yre, dd);
-            lemma_dts_same_radicand_symmetric(*yim, dts_mul(*yim, *yim));
             lemma_dts_same_radicand_symmetric(*yim, dd);
             lemma_dts_same_radicand_transitive(dd, *yim, dts_mul(*yim, *yim));
             lemma_dts_mul_closed(dd, dts_mul(*yim, *yim));
@@ -1039,7 +1119,8 @@ pub proof fn lemma_dts_mul_cancel_zero<T: OrderedField>(
             lemma_dts_same_radicand_transitive(dts_mul(*yre, *yre), dts_mul(dd, dts_mul(*yim, *yim)),
                 dts_neg(dts_mul(dd, dts_mul(*yim, *yim))));
             lemma_dts_add_closed(dts_mul(*yre, *yre), dts_neg(dts_mul(dd, dts_mul(*yim, *yim))));
-            //  same_radicand(norm_x, norm_y): chain through xre
+
+            //  ═══ same_radicand(norm_x, norm_y) via chain norm_x ~ xre² ~ xre ~ yre ~ yre² ~ norm_y ═══
             lemma_dts_same_radicand_symmetric(dts_mul(*xre, *xre), norm_x);
             lemma_dts_same_radicand_transitive(norm_x, dts_mul(*xre, *xre), *xre);
             lemma_dts_same_radicand_transitive(norm_x, *xre, *yre);
@@ -1047,22 +1128,58 @@ pub proof fn lemma_dts_mul_cancel_zero<T: OrderedField>(
             lemma_dts_same_radicand_transitive(norm_x, *yre, dts_mul(*yre, *yre));
             lemma_dts_same_radicand_symmetric(dts_mul(*yre, *yre), norm_y);
             lemma_dts_same_radicand_transitive(norm_x, dts_mul(*yre, *yre), norm_y);
-            //  Depth bounds for norm: depth(norm_x) ≤ depth(x)-1
-            lemma_dts_depth_mul_le(*xre, *xre);
-            lemma_dts_depth_mul_le(*xim, *xim);
-            lemma_dts_depth_mul_le(dd, dts_mul(*xim, *xim));
-            lemma_dts_depth_neg(dts_mul(dd, dts_mul(*xim, *xim)));
-            lemma_dts_depth_add_le(dts_mul(*xre, *xre), dts_neg(dts_mul(dd, dts_mul(*xim, *xim))));
-            lemma_dts_depth_mul_le(*yre, *yre);
-            lemma_dts_depth_mul_le(*yim, *yim);
-            lemma_dts_depth_mul_le(dd, dts_mul(*yim, *yim));
-            lemma_dts_depth_neg(dts_mul(dd, dts_mul(*yim, *yim)));
-            lemma_dts_depth_add_le(dts_mul(*yre, *yre), dts_neg(dts_mul(dd, dts_mul(*yim, *yim))));
-            //  norm_definite(norm_x), norm_definite(norm_y): from sub-component norm_definite
-            //  Z3 should derive from norm_definite(x) → norm_definite(*xre) && norm_definite(*xim) etc.
-            //  Recursive call: integral domain at lower depth
+
+            //  ═══ norm_definite(norm_x), norm_definite(norm_y) ═══
+            lemma_norm_definite_mul(*xre, *xre);
+            lemma_norm_definite_mul(*xim, *xim);
+            lemma_norm_definite_mul(dd, dts_mul(*xim, *xim));
+            lemma_norm_definite_neg(dts_mul(dd, dts_mul(*xim, *xim)));
+            lemma_norm_definite_add(dts_mul(*xre, *xre), dts_neg(dts_mul(dd, dts_mul(*xim, *xim))));
+            lemma_norm_definite_mul(*yre, *yre);
+            lemma_norm_definite_mul(*yim, *yim);
+            lemma_norm_definite_mul(dd, dts_mul(*yim, *yim));
+            lemma_norm_definite_neg(dts_mul(dd, dts_mul(*yim, *yim)));
+            lemma_norm_definite_add(dts_mul(*yre, *yre), dts_neg(dts_mul(dd, dts_mul(*yim, *yim))));
+
+            //  ═══ is_zero(mul(norm_x, norm_y)) ═══
+            //  is_zero(mul(x,y)) → product components are zero → norm(prod) is zero.
+            //  norm_mul: eqv(norm(prod), mul(norm_x, norm_y)).
+            //  Transfer via is_zero_congruence.
+            //  Help Z3: the norm of the product's re/im are zero (from is_zero of product).
+            //  Then norm_prod = sub(0², dd*0²) which is_zero. eqv chain → is_zero(mul(norm_x, norm_y)).
+
+            //  ═══ !is_zero(norm_y) from !is_zero(y) + norm_definite ═══
+            //  norm_definite: is_zero(sub(yre², dd*yim²)) → is_zero(yre)&&is_zero(yim) → is_zero(y).
+            //  Contrapositive with !is_zero(y): !is_zero(norm_y).
+            //  Help Z3: if is_zero(norm_y) then by norm_definite(y) quantifier → is_zero(y) contradiction.
+            if dts_is_zero(norm_y) {
+                //  norm_y = sub(yre², dd*yim²). norm_definite(y) instantiated with *yre, *yim:
+                //  is_zero(sub(yre², dd*yim²)) → is_zero(yre) && is_zero(yim) → is_zero(y).
+                //  But !is_zero(y). Contradiction.
+                assert(false);
+            }
+
+            //  ═══ is_zero(mul(norm_x, norm_y)) via norm chain ═══
+            //  is_zero(mul(x,y)) → is_zero(norm(mul(x,y)))
+            lemma_dts_is_zero_norm(dts_mul(x, y));
+            //  norm_mul eqv + is_zero_congruence → is_zero(mul(norm_x, norm_y))
+            lemma_dts_is_zero_congruence(dts_norm(dts_mul(x, y)), dts_mul(norm_x, norm_y));
+
+            //  ═══ Depth bound: depth(norm_x) < depth(x) ═══
+            //  x = Ext(xre,xim,xd) → depth(x) = 1 + max(depth(xre), depth(xim), depth(xd)) ≥ 1.
+            //  norm_x = sub(xre², dd*xim²) → depth(norm_x) ≤ max(depth(xre), depth(dd), depth(xim)) < depth(x).
+            assert(dts_depth(norm_x) < dts_depth(x)) by {
+                lemma_dts_depth_mul_le(*xre, *xre);
+                lemma_dts_depth_mul_le(*xim, *xim);
+                lemma_dts_depth_mul_le(dd, dts_mul(*xim, *xim));
+                lemma_dts_depth_neg(dts_mul(dd, dts_mul(*xim, *xim)));
+                lemma_dts_depth_add_le(dts_mul(*xre, *xre), dts_neg(dts_mul(dd, dts_mul(*xim, *xim))));
+            };
+
+            //  ═══ Recursive call: integral domain at lower depth ═══
             lemma_dts_mul_cancel_zero(norm_x, norm_y);
-            //  is_zero(norm_x) → is_zero(x) from norm_definite quantifier
+            //  Gives: is_zero(norm_x) = is_zero(sub(xre², dd*xim²))
+            //  norm_definite(x) quantifier: → is_zero(xre) && is_zero(xim) → is_zero(x). QED.
         }
         (DynTowerSpec::Rat(_), DynTowerSpec::Ext(_, _, _)) => {
             //  Z3 should derive is_zero(Rat(r)) by unfolding dts_mul for Rat×Ext.
