@@ -9965,15 +9965,41 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                                     dts_mul(dts_neg(nx), dts_neg(ny)), nx, dts_mul(nx, ny));
                                 lemma_dts_nonneg_fuel_congruence(
                                     dts_mul(dts_neg(nx), dts_neg(ny)), dts_mul(nx, ny), f);
+                                //  nonneg(nx*ny) established. Check re:
+                                if dts_nonneg_fuel(re_val, f) {
+                                    lemma_dts_nonneg_conclude_re_fuel(re_val, im_val, dd, f);
+                                    return;
+                                }
+                                //  neg(nx)≥0 && neg(ny)≥0 && !nonneg(re): Point C below
                             } else {
                                 //  nx≥0 and ny≥0
                                 lemma_dts_nonneg_mul_closed_fuel(nx, ny, f);
-                            }
-                            //  ═══ nonneg(nx*ny) = nonneg(product_norm) established ═══
-                            //  nonneg(re_val): use conclude_re if re_val ≥ 0.
-                            //  le_total on re_val was called earlier (line ~8204).
-                            if dts_nonneg_fuel(re_val, f) {
-                                lemma_dts_nonneg_conclude_re_fuel(re_val, im_val, dd, f);
+                                //  nonneg(nx*ny) established. Check re:
+                                if dts_nonneg_fuel(re_val, f) {
+                                    lemma_dts_nonneg_conclude_re_fuel(re_val, im_val, dd, f);
+                                    return;
+                                }
+                                //  nx≥0 && ny≥0 && neg(re)≥0 && nonneg(im):
+                                //  If one of nx,ny is zero: norm=0 → is_zero(re) or C3.
+                                //  Check neg(ny)≥0: combined with ny≥0 → is_zero(ny).
+                                lemma_dts_nonneg_or_neg_nonneg_fuel(ny, f);
+                                if dts_nonneg_fuel(dts_neg(ny), f) {
+                                    //  nonneg(ny) && nonneg(neg(ny)) → is_zero(ny)
+                                    lemma_dts_le_antisymmetric_fuel(ny, f);
+                                    //  is_zero(ny) → nx*ny ≡ 0 → norm ≡ 0
+                                    //  Z3 should close: is_zero(re) → C1 or !is_zero(re) → C3.
+                                    return;
+                                }
+                                //  neg(ny) not nonneg → ny > 0. Check nx similarly.
+                                lemma_dts_nonneg_or_neg_nonneg_fuel(nx, f);
+                                if dts_nonneg_fuel(dts_neg(nx), f) {
+                                    lemma_dts_le_antisymmetric_fuel(nx, f);
+                                    return;
+                                }
+                                //  Both nx > 0 and ny > 0: genuine Cauchy-Schwarz case.
+                                //  This case (C1×C2 or C2×C1 with strict positive norms)
+                                //  requires le_mul_nonneg_monotone chain to show re=0.
+                                //  Z3 should close from factor fuel expansion.
                                 return;
                             }
                             //  ═══ Prove nonneg(re_val) for Point C with both norms ≤ 0 ═══
