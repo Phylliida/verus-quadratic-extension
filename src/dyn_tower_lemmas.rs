@@ -1601,6 +1601,9 @@ proof fn lemma_cauchy_schwarz_is_zero_re<T: OrderedField>(
         dts_nonneg_fuel(dts_sub(dts_mul(a2, a2), dts_mul(dd, dts_mul(b2, b2))), f),
         //  neg(re_val) ≥ 0
         dts_nonneg_fuel(dts_neg(dts_add(dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2)))), f),
+        //  nonneg of a1, a2 (from factor C1/C2 conditions with nx>0)
+        dts_nonneg_fuel(a1, f),
+        dts_nonneg_fuel(a2, f),
     ensures
         dts_is_zero(dts_add(dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2)))),
     decreases f, 4nat,
@@ -1799,8 +1802,14 @@ proof fn lemma_cauchy_schwarz_is_zero_re<T: OrderedField>(
     //  neg(db1b2)² ≡ db1b2² via neg_mul_neg
     lemma_dts_same_radicand_reflexive(db1b2);
     lemma_dts_neg_mul_neg(db1b2, db1b2);
-    //  nonneg(a1a2) from factor C1/C2 sign conditions
+    //  nonneg(a1a2) from nonneg(a1) + nonneg(a2) preconditions
     lemma_dts_nonneg_mul_closed_fuel(a1, a2, f);
+    //  re_val infrastructure for le_antisymmetric
+    lemma_dts_nonneg_radicands_mul(a1, a2);
+    lemma_norm_definite_mul(a1, a2);
+    lemma_dts_nonneg_radicands_add(a1a2, db1b2);
+    lemma_norm_definite_add(a1a2, db1b2);
+    lemma_dts_depth_add_le(a1a2, db1b2);
     //  Dispatch on sign of db1b2
     lemma_dts_nonneg_or_neg_nonneg_fuel(db1b2, f);
     if dts_nonneg_fuel(db1b2, f) {
