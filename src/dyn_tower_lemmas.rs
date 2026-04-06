@@ -1657,16 +1657,16 @@ proof fn lemma_cauchy_schwarz_is_zero_re<T: OrderedField>(
     lemma_norm_definite_mul(b2, b2);
     lemma_norm_definite_mul(dd, dts_mul(b1, b1));
     lemma_norm_definite_mul(dd, dts_mul(b2, b2));
-    //  same_radicand(dd*b1², a1²) for le_mul
+    //  same_radicand(dd*b1², a1²) for le_mul: a1² ~ a1 ~ dd ~ dd*b1²
     lemma_dts_same_radicand_symmetric(a1, dts_mul(a1, a1));
     lemma_dts_same_radicand_transitive(dts_mul(a1, a1), a1, dd);
     lemma_dts_same_radicand_transitive(dts_mul(a1, a1), dd, dts_mul(dd, dts_mul(b1, b1)));
     lemma_dts_same_radicand_symmetric(dts_mul(a1, a1), dts_mul(dd, dts_mul(b1, b1)));
-    //  same_radicand(dd*b1², a2²)
+    //  same_radicand(a1², a2²) for le_mul: a1² ~ a1 ~ a2 ~ a2²
+    lemma_dts_same_radicand_transitive(dts_mul(a1, a1), a1, a2);
+    lemma_dts_same_radicand_transitive(dts_mul(a1, a1), a2, dts_mul(a2, a2));
+    //  same_radicand(dd*b1², a2²) for le_mul step 2 (via dd)
     lemma_dts_same_radicand_symmetric(dd, dts_mul(dd, dts_mul(b1, b1)));
-    lemma_dts_same_radicand_symmetric(a1, a2);
-    lemma_dts_same_radicand_transitive(a2, a1, dd);
-    lemma_dts_same_radicand_symmetric(a2, dts_mul(a2, a2));
     lemma_dts_same_radicand_transitive(dts_mul(dd, dts_mul(b1, b1)), dd, a2);
     lemma_dts_same_radicand_transitive(dts_mul(dd, dts_mul(b1, b1)), a2, dts_mul(a2, a2));
     //  Depth bounds for le_mul args
