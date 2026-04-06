@@ -11367,14 +11367,38 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                             if dts_nonneg_fuel(b2, f) {
                             //  neg(b1) ≥ 0 and b2 ≥ 0: neg(b1)*b2 ≥ 0 → transfer to b1*neg_b2
                             lemma_dts_nonneg_mul_closed_fuel(dts_neg(b1), b2, f);
+                            //  → nonneg(mul(neg(b1), b2))
+                            //  Need eqv(mul(neg(b1), b2), mul(b1, neg_b2)) for congruence transfer.
+                            //  neg_mul_neg(b1, neg_b2): eqv(mul(neg(b1), neg(neg_b2)), mul(b1, neg_b2))
+                            //  But neg(neg_b2) = neg(neg(b2)) ≠ b2 syntactically.
+                            //  Bridge: neg_involution(b2) → eqv(neg(neg(b2)), b2)
+                            //  → mul_congruence_right(b2, neg(neg(b2))) on neg(b1)
+                            //  → eqv(mul(neg(b1), b2), mul(neg(b1), neg(neg(b2))))
+                            //  → then chain with neg_mul_neg result.
+                            lemma_dts_neg_involution(b2);
+                            //  eqv(neg(neg(b2)), b2) → symmetric → eqv(b2, neg(neg(b2)))
+                            lemma_dts_eqv_symmetric(dts_neg(dts_neg(b2)), b2);
+                            //  same_radicand(b2, neg(neg(b2))) for mul_congruence_right
+                            lemma_dts_same_radicand_neg(b2);
+                            lemma_dts_same_radicand_neg(dts_neg(b2));
+                            lemma_dts_same_radicand_transitive(b2, dts_neg(b2), dts_neg(dts_neg(b2)));
+                            //  mul_congruence_right(b2, neg(neg(b2)), neg(b1))
+                            //  → eqv(mul(neg(b1), b2), mul(neg(b1), neg(neg(b2))))
+                            lemma_dts_mul_congruence_right(b2, dts_neg(dts_neg(b2)), dts_neg(b1));
+                            //  neg_mul_neg(b1, neg_b2): eqv(mul(neg(b1), neg(neg_b2)), mul(b1, neg_b2))
                             lemma_dts_neg_mul_neg(b1, neg_b2);
+                            //  Chain: mul(neg(b1), b2) ≡ mul(neg(b1), neg(neg(b2))) ≡ mul(b1, neg_b2)
+                            lemma_dts_eqv_transitive(
+                                dts_mul(dts_neg(b1), b2),
+                                dts_mul(dts_neg(b1), dts_neg(dts_neg(b2))),
+                                dts_mul(b1, neg_b2));
+                            //  same_radicand for nonneg_fuel_congruence
                             lemma_dts_mul_closed(dts_neg(b1), b2);
                             lemma_dts_mul_closed(b1, neg_b2);
                             lemma_dts_same_radicand_symmetric(dts_neg(b1), dts_mul(dts_neg(b1), b2));
                             lemma_dts_same_radicand_transitive(dts_mul(dts_neg(b1), b2), dts_neg(b1), b1);
                             lemma_dts_same_radicand_symmetric(b1, dts_mul(b1, neg_b2));
                             lemma_dts_same_radicand_transitive(dts_mul(dts_neg(b1), b2), b1, dts_mul(b1, neg_b2));
-                            lemma_dts_neg_involution(b2);
                             lemma_dts_nonneg_fuel_congruence(dts_mul(dts_neg(b1), b2), dts_mul(b1, neg_b2), f);
                             }
                             //  else: neg(b1)≥0, neg(b2)≥0 (C2×C2 case) — fall through to norm infrastructure
@@ -11491,6 +11515,10 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                                 //  nonneg(a1, f) and nonneg(a2, f): C3 needs nonneg(neg(nx/ny))
                                 //  which is ruled out by the branch above. So C1/C2 → nonneg(a).
                                 lemma_dts_nonneg_component_from_ext_fuel(a1, b1, dd, f);
+                                //  a2 ~ dd and a2 ~ b2 for the helper's preconditions
+                                lemma_dts_same_radicand_symmetric(a1, a2);
+                                lemma_dts_same_radicand_transitive(a2, a1, dd);
+                                lemma_dts_same_radicand_transitive(a2, a1, b2);
                                 lemma_dts_nonneg_component_from_ext_fuel(a2, b2, dd, f);
                                 lemma_cauchy_schwarz_is_zero_re(a1, b1, a2, b2, dd, f);
                                 //  C1: nonneg(re_val) from nonneg_fuel_zero + nonneg(im_val)
@@ -11544,10 +11572,13 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                             lemma_dts_depth_neg(a2);
                             lemma_dts_nonneg_or_neg_nonneg_fuel(a1, f);
                             lemma_dts_nonneg_or_neg_nonneg_fuel(a2, f);
-                            //  nonneg(neg(a1)) and nonneg(neg(a2)): from C3 (both norms ≤ 0).
-                            //  Z3 scoped assert: clean context for the disjunction resolution.
-                            assert(dts_nonneg_fuel(dts_neg(a1), f)) by {};
-                            assert(dts_nonneg_fuel(dts_neg(a2), f)) by {};
+                            //  Dispatch on a1/a2 signs. C1 factors can have neg(norm) ≥ 0
+                            //  with nonneg(a), so can't assume neg(a) ≥ 0 in all cases.
+                            if dts_nonneg_fuel(a1, f) && dts_nonneg_fuel(a2, f) {
+                                //  Both a nonneg: a1*a2 ≥ 0 directly
+                                lemma_dts_nonneg_mul_closed_fuel(a1, a2, f);
+                            } else if !dts_nonneg_fuel(a1, f) && !dts_nonneg_fuel(a2, f) {
+                                //  Both neg(a) nonneg: neg(a1)*neg(a2) ≥ 0 → a1*a2 ≥ 0
                             lemma_dts_nonneg_mul_closed_fuel(dts_neg(a1), dts_neg(a2), f);
                             //  neg(a1)*neg(a2) ≡ a1*a2 by neg_mul_neg
                             lemma_dts_neg_mul_neg(a1, a2);
@@ -11563,6 +11594,10 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                                 dts_mul(dts_neg(a1), dts_neg(a2)), a1, dts_mul(a1, a2));
                             lemma_dts_nonneg_fuel_congruence(
                                 dts_mul(dts_neg(a1), dts_neg(a2)), dts_mul(a1, a2), f);
+                            }
+                            //  nonneg(a1*a2) established for both-nonneg and both-neg cases.
+                            //  Mixed case: a1*a2 not nonneg → fall through (no early return).
+                            if dts_nonneg_fuel(dts_mul(a1, a2), f) {
                             //  Step 2: nonneg(dd*(b1*b2))
                             lemma_dts_nonneg_mul_closed_fuel(b1, b2, f);
                             lemma_dts_mul_closed(b1, b2);
@@ -11590,6 +11625,8 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                             //  re_val = a1*a2 + dd*(b1*b2) by definition
                             lemma_dts_nonneg_conclude_re_fuel(re_val, im_val, dd, f);
                             return;
+                            }
+                            //  Mixed a signs: a1*a2 not nonneg. Fall through to later code.
                         }
                     lemma_dts_nonneg_fuel_stabilize(dd, f);
                     lemma_dts_nonneg_mul_closed_fuel(dd, dts_mul(b1, neg_b2), f);
