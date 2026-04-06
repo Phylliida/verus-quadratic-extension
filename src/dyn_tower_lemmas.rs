@@ -1965,6 +1965,12 @@ proof fn lemma_cauchy_neg_db1b2_case<T: OrderedField>(
     lemma_dts_same_radicand_symmetric(dd, db2_sq);
     lemma_dts_same_radicand_transitive(db2_sq, dd, db1_sq);
     lemma_dts_mul_closed(db2_sq, db1_sq);
+    //  b1_sq ~ dd ~ db2_sq for mul_associative in Part E
+    lemma_dts_same_radicand_symmetric(b1, b1_sq);
+    lemma_dts_same_radicand_transitive(b1_sq, b1, dd);
+    lemma_dts_same_radicand_transitive(b1_sq, dd, db2_sq);
+    //  b1_sq ~ dd for mul_commutative(b1_sq, dd) in Part E
+    lemma_dts_same_radicand_symmetric(b1_sq, dd);
 
     //  ═══ Part E: Congruence to sub(a1a2², neg(db1b2)²) ═══
     //  E1: eqv(a1_sq*a2_sq, a1a2²) from square_mul
