@@ -1799,12 +1799,21 @@ proof fn lemma_cauchy_schwarz_is_zero_re<T: OrderedField>(
     //  neg(db1b2)² ≡ db1b2² via neg_mul_neg
     lemma_dts_same_radicand_reflexive(db1b2);
     lemma_dts_neg_mul_neg(db1b2, db1b2);
-    lemma_dts_square_le_implies_le_fuel(dts_neg(db1b2), a1a2, f);
-    //  Result: nonneg(sub(a1a2, neg(db1b2))).
-    //  sub(a1a2, neg(db1b2)) = add(a1a2, neg(neg(db1b2))) ≡ add(a1a2, db1b2) = re_val.
-    //  nonneg_fuel_congruence → nonneg(re_val).
-    //  le_antisymmetric: nonneg(re_val) + nonneg(neg(re_val)) → is_zero(re_val).
-    lemma_dts_le_antisymmetric_fuel(re_val, f);
+    //  nonneg(a1a2) from factor C1/C2 sign conditions
+    lemma_dts_nonneg_mul_closed_fuel(a1, a2, f);
+    //  Dispatch on sign of db1b2
+    lemma_dts_nonneg_or_neg_nonneg_fuel(db1b2, f);
+    if dts_nonneg_fuel(db1b2, f) {
+        //  db1b2 ≥ 0: re_val = a1a2 + db1b2 ≥ 0 (both nonneg).
+        //  Combined with neg(re_val) ≥ 0: le_antisymmetric → is_zero(re_val).
+        lemma_dts_nonneg_add_closed_fuel(a1a2, db1b2, f);
+        lemma_dts_le_antisymmetric_fuel(re_val, f);
+    } else {
+        //  neg(db1b2) ≥ 0: call square_le_implies_le(neg(db1b2), a1a2, f).
+        //  Gives nonneg(sub(a1a2, neg(db1b2))) ≡ nonneg(re_val).
+        lemma_dts_square_le_implies_le_fuel(dts_neg(db1b2), a1a2, f);
+        lemma_dts_le_antisymmetric_fuel(re_val, f);
+    }
 }
 
 ///  Combined conclude_im via norm_mul transfer.
