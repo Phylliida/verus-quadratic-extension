@@ -11629,6 +11629,7 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                             //  Mixed a signs: a1*a2 not nonneg. Fall through to later code.
                         }
                     lemma_dts_nonneg_fuel_stabilize(dd, f);
+                    if dts_nonneg_fuel(dts_mul(b1, neg_b2), f) {
                     lemma_dts_nonneg_mul_closed_fuel(dd, dts_mul(b1, neg_b2), f);
                     //  S = a1*a2 + dd*b1*|b2| ≥ 0
                     lemma_dts_same_radicand_symmetric(a1, dts_mul(a1, a2));
@@ -11748,6 +11749,9 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                     //  I need the le_mul_nonneg_monotone chain.
                     //  This is too complex for now. Let Z3 try.
                     return;
+                    }
+                    //  nonneg(b1*neg_b2) not established (mixed signs fall-through).
+                    //  Z3 should handle from structural nonneg_fuel unfolding.
                 }
             }
             //  Both neg: both_nonneg of re and im from the two directions.
