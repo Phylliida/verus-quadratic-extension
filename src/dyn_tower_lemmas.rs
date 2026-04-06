@@ -11626,7 +11626,18 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                             lemma_dts_nonneg_conclude_re_fuel(re_val, im_val, dd, f);
                             return;
                             }
-                            //  Mixed a signs: a1*a2 not nonneg. Fall through to later code.
+                            //  Mixed a signs: a1*a2 not nonneg.
+                            //  But norm_product ≥ 0 (from nonneg(nx*ny)).
+                            //  Re-check nonneg(re_val) — Cauchy-Schwarz for mixed signs
+                            //  ensures re_val ≥ 0 (dd*b1*b2 ≥ |a1*a2|).
+                            //  Z3 should derive from nonneg_fuel structural expansion.
+                            lemma_dts_nonneg_or_neg_nonneg_fuel(re_val, f);
+                            if dts_nonneg_fuel(re_val, f) {
+                                lemma_dts_nonneg_conclude_re_fuel(re_val, im_val, dd, f);
+                                return;
+                            }
+                            //  neg(re) ≥ 0 with norm > 0: unreachable (Cauchy-Schwarz).
+                            //  Z3 should close from nonneg_fuel + norm_mul facts.
                         }
                     lemma_dts_nonneg_fuel_stabilize(dd, f);
                     if dts_nonneg_fuel(dts_mul(b1, neg_b2), f) {
@@ -11670,6 +11681,16 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                         //  a1*a2 ≡ neg(a1)*a2 or a1*neg(a2) via neg_mul_neg
                         //  nonneg(a1*a2) via congruence from the neg product
                         lemma_dts_mul_closed(a1, a2);
+                    }
+                    if !dts_nonneg_fuel(dts_mul(a1, a2), f) {
+                        //  Mixed a signs: a1*a2 not nonneg. Use conclude_re with norm ≥ 0.
+                        lemma_dts_nonneg_or_neg_nonneg_fuel(re_val, f);
+                        if dts_nonneg_fuel(re_val, f) {
+                            lemma_dts_nonneg_conclude_re_fuel(re_val, im_val, dd, f);
+                            return;
+                        }
+                        //  neg(re) ≥ 0 with norm ≥ 0: Z3 should close.
+                        return;
                     }
                     lemma_dts_nonneg_add_closed_fuel(
                         dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, neg_b2)), f);
@@ -11751,17 +11772,18 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                     return;
                     }
                     //  nonneg(b1*neg_b2) not established (mixed signs fall-through).
-                    //  Z3 should handle from structural nonneg_fuel unfolding.
+                    //  Use conclude_re: nonneg(nx*ny) = nonneg(norm_product) already
+                    //  established from the neg_mul chain above. Just need nonneg(re_val).
+                    lemma_dts_nonneg_or_neg_nonneg_fuel(re_val, f);
+                    if dts_nonneg_fuel(re_val, f) {
+                        lemma_dts_nonneg_conclude_re_fuel(re_val, im_val, dd, f);
+                        return;
+                    }
+                    //  neg(re_val) ≥ 0: conclude_im needs neg(norm) ≥ 0, but norm ≥ 0.
+                    //  This case should be unreachable via Cauchy-Schwarz for mixed a signs.
+                    //  For now: Z3 should derive from structural nonneg_fuel.
                 }
             }
-            //  Both neg: both_nonneg of re and im from the two directions.
-            //  le_antisymmetric should close: product is zero.
-            //  Actually: if neg(re)≥0 and neg(im)≥0 and !is_zero(re) and !is_zero(im):
-            //  neg(product) is C1 nonneg. But product has no valid C1/C2/C3 case.
-            //  This means nonneg_fuel(product) = false... but we're PROVING it true.
-            //  The resolution: this case CAN'T arise. Z3 should see from nonneg_fuel
-            //  unfolding that is_zero(re) or is_zero(im) must hold.
-            //  If either is zero: handled by the is_zero shortcuts above.
             //  Z3 should close this path as unreachable.
     }
 }
