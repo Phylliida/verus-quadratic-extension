@@ -950,31 +950,110 @@ proof fn lemma_transfer_neg_norm<T: OrderedField>(
     lemma_dts_nonneg_fuel_congruence(neg_nxny, neg_norm, f);
 }
 
-///  If is_zero(x), then is_zero(mul(x, y)) — zero times anything is zero.
-///  Structural induction on depth of both arguments.
-pub proof fn lemma_dts_is_zero_mul_left<T: OrderedField>(
+///  If is_zero(x) and is_zero(y), then is_zero(add(x, y)).
+pub proof fn lemma_dts_is_zero_add<T: OrderedField>(
     x: DynTowerSpec<T>, y: DynTowerSpec<T>,
 )
-    requires dts_is_zero(x),
-    ensures dts_is_zero(dts_mul(x, y)),
-    decreases dts_depth(x) + dts_depth(y),
+    requires dts_is_zero(x), dts_is_zero(y),
+    ensures dts_is_zero(dts_add(x, y)),
+    decreases x, y,
 {
     match (x, y) {
         (DynTowerSpec::Rat(rx), DynTowerSpec::Rat(ry)) => {
-            //  Rat×Rat: mul(Rat(rx), Rat(ry)) = Rat(rx*ry). rx ≡ 0 → rx*ry ≡ 0.
-            T::axiom_mul_zero_right(ry);
-            T::axiom_eqv_symmetric(ry.mul(T::zero()), T::zero());
+            //  rx ≡ 0 → rx+ry ≡ 0+ry. And 0+ry ≡ ry ≡ 0.
+            T::axiom_add_congruence_left(rx, T::zero(), ry);
+            verus_algebra::lemmas::additive_group_lemmas::lemma_add_zero_left::<T>(ry);
+            T::axiom_eqv_transitive(rx.add(ry), T::zero().add(ry), ry);
+            T::axiom_eqv_transitive(rx.add(ry), ry, T::zero());
+        }
+        (DynTowerSpec::Ext(xre, xim, _), DynTowerSpec::Ext(yre, yim, _)) => {
+            lemma_dts_is_zero_add(*xre, *yre);
+            lemma_dts_is_zero_add(*xim, *yim);
+        }
+        (DynTowerSpec::Rat(r), DynTowerSpec::Ext(yre, yim, _)) => {
+            //  add(Rat, Ext) = Ext(add(Rat, *yre), *yim, d). is_zero(Rat) → add chain.
+            lemma_dts_is_zero_add(DynTowerSpec::Rat(r), *yre);
+        }
+        (DynTowerSpec::Ext(xre, xim, _), DynTowerSpec::Rat(r)) => {
+            lemma_dts_is_zero_add(*xre, DynTowerSpec::Rat(r));
+        }
+    }
+}
+
+///  If is_zero(x), then is_zero(neg(x)).
+pub proof fn lemma_dts_is_zero_neg<T: OrderedField>(x: DynTowerSpec<T>)
+    requires dts_is_zero(x),
+    ensures dts_is_zero(dts_neg(x)),
+    decreases x,
+{
+    match x {
+        DynTowerSpec::Rat(r) => {
+            T::axiom_neg_congruence(r, T::zero());
+            verus_algebra::lemmas::additive_group_lemmas::lemma_neg_zero::<T>();
+            T::axiom_eqv_transitive(r.neg(), T::zero().neg(), T::zero());
+        }
+        DynTowerSpec::Ext(re, im, _) => {
+            lemma_dts_is_zero_neg(*re);
+            lemma_dts_is_zero_neg(*im);
+        }
+    }
+}
+
+///  If is_zero(x), then is_zero(mul(x, y)) — zero times anything is zero.
+///  Uses max(depth) decreases measure. For d*(xim*yim): commutativity trick.
+pub proof fn lemma_dts_is_zero_mul_left<T: OrderedField>(
+    x: DynTowerSpec<T>, y: DynTowerSpec<T>,
+)
+    requires
+        dts_is_zero(x),
+        dts_well_formed(x), dts_well_formed(y),
+        dts_same_radicand(x, y),
+    ensures dts_is_zero(dts_mul(x, y)),
+    decreases (if dts_depth(x) >= dts_depth(y) { dts_depth(x) } else { dts_depth(y) }),
+{
+    match (x, y) {
+        (DynTowerSpec::Rat(rx), DynTowerSpec::Rat(ry)) => {
+            //  rx ≡ 0 → rx*ry ≡ 0*ry ≡ 0 via T's Ring axioms
+            T::axiom_mul_congruence_left(rx, T::zero(), ry);
+            verus_algebra::lemmas::ring_lemmas::lemma_mul_zero_left::<T>(ry);
             T::axiom_eqv_transitive(rx.mul(ry), T::zero().mul(ry), T::zero());
         }
         (DynTowerSpec::Ext(xre, xim, xd), DynTowerSpec::Ext(yre, yim, _)) => {
-            //  Products of zero components
+            //  Cross same_radicand: xre~yim via xre~xim~yim, xim~yre via xim~yim~yre
+            lemma_dts_same_radicand_transitive(*xre, *xim, *yim);
+            lemma_dts_same_radicand_symmetric(*yre, *yim);
+            lemma_dts_same_radicand_transitive(*xim, *yim, *yre);
+            //  Products of zero sub-components (all decrease in max-depth)
             lemma_dts_is_zero_mul_left(*xre, *yre);
             lemma_dts_is_zero_mul_left(*xim, *yim);
             lemma_dts_is_zero_mul_left(*xre, *yim);
             lemma_dts_is_zero_mul_left(*xim, *yre);
-            //  d*(xim*yim): xim*yim is_zero, d might not be. Use is_zero_mul_right.
-            lemma_dts_is_zero_mul_right(*xd, dts_mul(*xim, *yim));
-            //  Z3 unfolds: add of two is_zero values → is_zero. For both re and im components.
+            //  d*(xim*yim): xim*yim is_zero. Use left(mul(xim,yim), xd) + commutativity.
+            //  same_radicand chain: xd ~ xre ~ xim ~ mul(xim,yim)
+            lemma_dts_mul_closed(*xim, *yim);
+            lemma_dts_same_radicand_symmetric(*xre, *xim);
+            lemma_dts_same_radicand_transitive(*xim, *xre, *xd);
+            lemma_dts_same_radicand_symmetric(*xim, dts_mul(*xim, *yim));
+            lemma_dts_same_radicand_transitive(dts_mul(*xim, *yim), *xim, *xd);
+            //  Depth bound for termination: max(depth(mul(xim,yim)), depth(xd)) < max(depth(x), depth(y))
+            lemma_dts_depth_mul_le(*xim, *yim);
+            //  is_zero(mul(mul(xim,yim), xd))
+            lemma_dts_is_zero_mul_left(dts_mul(*xim, *yim), *xd);
+            //  Commute: eqv(mul(xd, mul(xim,yim)), mul(mul(xim,yim), xd))
+            lemma_dts_same_radicand_symmetric(dts_mul(*xim, *yim), *xd);
+            lemma_dts_mul_commutative(*xd, dts_mul(*xim, *yim));
+            //  Transfer is_zero via eqv
+            lemma_dts_eqv_symmetric(dts_mul(*xd, dts_mul(*xim, *yim)),
+                dts_mul(dts_mul(*xim, *yim), *xd));
+            lemma_dts_is_zero_congruence(
+                dts_mul(dts_mul(*xim, *yim), *xd),
+                dts_mul(*xd, dts_mul(*xim, *yim)));
+            //  Product re = add(xre*yre, xd*xim*yim) — both is_zero → add is_zero
+            lemma_dts_is_zero_add(
+                dts_mul(*xre, *yre), dts_mul(*xd, dts_mul(*xim, *yim)));
+            //  Product im = add(xre*yim, xim*yre) — both is_zero → add is_zero
+            lemma_dts_is_zero_add(
+                dts_mul(*xre, *yim), dts_mul(*xim, *yre));
         }
         (DynTowerSpec::Rat(r), DynTowerSpec::Ext(yre, yim, _)) => {
             lemma_dts_is_zero_mul_left(DynTowerSpec::Rat(r), *yre);
@@ -987,52 +1066,56 @@ pub proof fn lemma_dts_is_zero_mul_left<T: OrderedField>(
     }
 }
 
-///  If is_zero(y), then is_zero(mul(x, y)) — anything times zero is zero.
+///  If is_zero(y), then is_zero(mul(x, y)). Derived from left + commutativity.
 pub proof fn lemma_dts_is_zero_mul_right<T: OrderedField>(
     x: DynTowerSpec<T>, y: DynTowerSpec<T>,
 )
-    requires dts_is_zero(y),
+    requires
+        dts_is_zero(y),
+        dts_well_formed(x), dts_well_formed(y),
+        dts_same_radicand(x, y),
     ensures dts_is_zero(dts_mul(x, y)),
-    decreases dts_depth(x) + dts_depth(y),
 {
-    match (x, y) {
-        (DynTowerSpec::Rat(rx), DynTowerSpec::Rat(ry)) => {
-            T::axiom_mul_zero_right(rx);
-            T::axiom_eqv_symmetric(rx.mul(T::zero()), T::zero());
-            T::axiom_eqv_transitive(rx.mul(ry), rx.mul(T::zero()), T::zero());
-        }
-        (DynTowerSpec::Ext(xre, xim, xd), DynTowerSpec::Ext(yre, yim, _)) => {
-            lemma_dts_is_zero_mul_right(*xre, *yre);
-            lemma_dts_is_zero_mul_right(*xim, *yim);
-            lemma_dts_is_zero_mul_right(*xre, *yim);
-            lemma_dts_is_zero_mul_right(*xim, *yre);
-            lemma_dts_is_zero_mul_right(*xd, dts_mul(*xim, *yim));
-        }
-        (DynTowerSpec::Rat(r), DynTowerSpec::Ext(yre, yim, _)) => {
-            lemma_dts_is_zero_mul_right(DynTowerSpec::Rat(r), *yre);
-            lemma_dts_is_zero_mul_right(DynTowerSpec::Rat(r), *yim);
-        }
-        (DynTowerSpec::Ext(xre, xim, _), DynTowerSpec::Rat(r)) => {
-            lemma_dts_is_zero_mul_right(*xre, DynTowerSpec::Rat(r));
-            lemma_dts_is_zero_mul_right(*xim, DynTowerSpec::Rat(r));
-        }
-    }
+    //  is_zero_mul_left(y, x) → is_zero(mul(y, x))
+    lemma_dts_same_radicand_symmetric(x, y);
+    lemma_dts_is_zero_mul_left(y, x);
+    //  Commute + transfer: mul(x,y) eqv mul(y,x), is_zero(mul(y,x)) → is_zero(mul(x,y))
+    lemma_dts_mul_commutative(x, y);
+    lemma_dts_eqv_symmetric(dts_mul(x, y), dts_mul(y, x));
+    lemma_dts_is_zero_congruence(dts_mul(y, x), dts_mul(x, y));
 }
 
 ///  If is_zero(x), then is_zero(dts_norm(x)).
 pub proof fn lemma_dts_is_zero_norm<T: OrderedField>(x: DynTowerSpec<T>)
-    requires dts_is_zero(x),
+    requires
+        dts_is_zero(x),
+        dts_well_formed(x),
     ensures dts_is_zero(dts_norm(x)),
 {
     match x {
         DynTowerSpec::Rat(_) => {
+            lemma_dts_same_radicand_reflexive(x);
             lemma_dts_is_zero_mul_left(x, x);
         }
         DynTowerSpec::Ext(re, im, d) => {
+            //  norm = sub(re², d*im²)
+            lemma_dts_same_radicand_reflexive(*re);
             lemma_dts_is_zero_mul_left(*re, *re);
+            lemma_dts_same_radicand_reflexive(*im);
             lemma_dts_is_zero_mul_left(*im, *im);
+            //  d*im²: im² is_zero, use is_zero_mul_right(d, im²)
+            lemma_dts_mul_closed(*im, *im);
+            lemma_dts_same_radicand_symmetric(*re, *im);
+            lemma_dts_same_radicand_transitive(*im, *re, *d);
+            lemma_dts_same_radicand_symmetric(*im, *d);
+            lemma_dts_same_radicand_symmetric(*im, dts_mul(*im, *im));
+            lemma_dts_same_radicand_transitive(*d, *im, dts_mul(*im, *im));
             lemma_dts_is_zero_mul_right(*d, dts_mul(*im, *im));
-            //  Z3: is_zero(re²) && is_zero(d*im²) → is_zero(neg(d*im²)) → is_zero(sub(re², d*im²))
+            //  sub(re², d*im²) = add(re², neg(d*im²))
+            lemma_dts_is_zero_neg(dts_mul(*d, dts_mul(*im, *im)));
+            lemma_dts_is_zero_add(
+                dts_mul(*re, *re),
+                dts_neg(dts_mul(*d, dts_mul(*im, *im))));
         }
     }
 }
@@ -1160,6 +1243,8 @@ pub proof fn lemma_dts_mul_cancel_zero<T: OrderedField>(
             }
 
             //  ═══ is_zero(mul(norm_x, norm_y)) via norm chain ═══
+            //  well_formed(mul(x,y)) for is_zero_norm precondition
+            lemma_dts_mul_closed(x, y);
             //  is_zero(mul(x,y)) → is_zero(norm(mul(x,y)))
             lemma_dts_is_zero_norm(dts_mul(x, y));
             //  norm_mul eqv + is_zero_congruence → is_zero(mul(norm_x, norm_y))
