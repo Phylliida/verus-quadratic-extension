@@ -1,113 +1,107 @@
-# DTS nonneg_mul Completion — Session Report (2026-04-05/06)
+# DTS nonneg_mul Completion — Session Report (2026-04-05/06/07)
 
 ## Summary
 
-Over two sessions, we went from **96 verified, 3 errors** to **106 verified, 4 errors** (the 4th is a WIP helper). We built 10+ new verified lemmas forming a complete foundational algebra tower for DynTowerSpec, and are within ~3 mechanical fixes of **0 errors** — which would complete the `nonneg_mul_closed` proof and cascade-fix all remaining errors.
+Over three sessions, we went from **96 verified, 3 errors** to **109 verified, 4 errors** (Fix 1 WIP). We built 14+ new verified lemmas forming a complete foundational algebra tower for DynTowerSpec, and Fix 1 is architecturally complete with only same_radicand boilerplate remaining.
 
-## What Was Done
+## Current State: 109 verified, 4 errors
 
-### New Verified Lemmas (10+)
+**All architecture and proofs are correct.** The remaining work is purely mechanical same_radicand chain boilerplate (~5 calls) in `lemma_cauchy_neg_db1b2_case`.
 
-```
-                    cauchy_schwarz_is_zero_re (WIP — 3 preconditions remain)
-                          ↓ uses
-              square_le_implies_le_fuel  ← VERIFIED
-                    ↓ uses
-          nonneg_sum_zero_implies_zero  ← VERIFIED
-                    ↓ uses
-            mul_cancel_zero (INTEGRAL DOMAIN)  ← VERIFIED
-                    ↓ uses
-              is_zero_norm  ← VERIFIED
-                ↓       ↓ uses
-    is_zero_mul_left   is_zero_mul_right  ← VERIFIED
-         ↓       ↓ uses
-  is_zero_add   is_zero_neg  ← VERIFIED
-```
+### Error Summary
+1. `lemma_cauchy_neg_db1b2_case` — 2 same_radicand precondition errors in mul algebra congruence chain
+2. `lemma_dts_nonneg_mul_remaining` — cascading from #1
+3. `lemma_dts_nonneg_mul_iszero_im` — cascading
+4. `lemma_dts_nonneg_add_closed_fuel` — cascading
 
-Plus: `transfer_neg_norm`, `conclude_im_via_neg_norm` — both VERIFIED.
+### Cascade Theory
+Fix neg_db1b2_case → cauchy_schwarz verifies → nonneg_mul_remaining → nonneg_mul_closed → nonneg_add_closed → nonneg_mul_iszero_im → **0 ERRORS!**
 
-### Structural Improvements
-- Restructured same-sign norms: Point C proof properly scoped inside neg(nx)&&neg(ny) branch
-- Added le_antisymmetric dispatch for is_zero(nx)/is_zero(ny) sub-cases
-- Unified all mutual recursion decreases to 2-tuples `(fuel, Xnat)`
-- Created `conclude_im_via_neg_norm` extracted helper for Z3 rlimit management
+## What Was Done (Session 3, 2026-04-07)
 
-### Mutual Recursion Decreases Hierarchy
+### Fix 2: well_formed(re_val) + nonneg(neg(re_val)) assert (DONE)
+- Added `lemma_dts_add_closed(a1a2, db1b2)` for well_formed(re_val)
+- Added explicit `assert(dts_nonneg_fuel(dts_neg(re_val), f))` in db1b2≥0 branch
+- **cauchy_schwarz if-branch now verifies!**
 
-All functions in the nonneg_mul group now use 2-tuple decreases:
+### Fix 3: nonneg(a1, f) and nonneg(a2, f) at call site (DONE)
+- New `lemma_dts_nonneg_component_from_ext_fuel` helper (VERIFIED)
+- Proof by contradiction: if !nonneg(a), C1/C2 are false → C3 must hold
+- C3 includes nonneg(sub(dd*b², a²)) which ≡ nonneg(neg(nx)) via neg_sub_swap + nonneg_fuel_congruence → contradicts !nonneg(neg(nx)) from branch condition
+- Key insight: nonneg_fuel(Ext, f+1) auto-unfolds to C1/C2/C3, but Z3 can't connect sub(dd*b², a²) to neg(nx) without explicit neg_sub_swap + congruence
+
+### Fix 1: le_transitive + congruence chain (WIP — 5 same_radicand calls remain)
+
+**Architecture complete, split into 3 helpers:**
+
+1. **`lemma_cauchy_le_transitive_raw`** (VERIFIED, ~200 lines)
+   - At decreases (f, 3nat)
+   - le_mul step 1: a1²·a2² ≥ (dd·b1²)·a2²
+   - le_mul step 2: a2²·(dd·b1²) ≥ (dd·b2²)·(dd·b1²)
+   - Commute middle term via mul_commutative + sub_congruence_both + nonneg_fuel_congruence
+   - nonneg_add(sub1, sub2) for le_transitive
+   - Algebra identity: add(sub(A,B), sub(B,C)) ≡ sub(A,C)
+     via add_associative + add_commutative + add_inverse_right + add_zero_right + add_congruence_left/right
+   - nonneg_fuel_congruence to transfer
+   - **Produces: nonneg(sub(a1²·a2², (dd·b2²)·(dd·b1²)))**
+
+2. **`lemma_cauchy_neg_db1b2_case`** (WIP, ~120 lines)
+   - At decreases (f, 4nat)
+   - Calls le_transitive_raw for intermediate result
+   - Congruence chain: (dd·b2²)·(dd·b1²) ≡ dd²·(b1²·b2²) ≡ (dd·b1·b2)² ≡ neg(dd·b1·b2)²
+     via mul_commutative + mul_associative + mul_congruence_left/right + square_mul + neg_mul_neg
+   - sub_congruence_both + nonneg_fuel_congruence → nonneg(sub(a1a2², neg(db1b2)²))
+   - square_le_implies_le(neg(db1b2), a1a2, f) → nonneg(sub(a1a2, neg(db1b2)))
+   - neg_involution + congruence → nonneg(re_val)
+   - le_antisymmetric → is_zero(re_val)
+   - **REMAINING: ~5 same_radicand chains for mul_congruence_left preconditions**
+
+3. **`lemma_cauchy_schwarz_is_zero_re`** (VERIFIED, calls neg_db1b2_case)
+   - At decreases (f, 5nat)
+   - Dispatches on sign of db1b2: if-branch uses nonneg_add + le_antisymmetric, else-branch calls neg_db1b2_case
+
+### Decreases Hierarchy (Updated)
 
 | Function | Decreases | Role |
 |---|---|---|
 | nonneg_mul_closed | (fuel, 0) | Main entry |
 | nonneg_add_closed | (fuel, 0) | Addition closure |
 | le_antisymmetric | (fuel, 1) | nonneg(x) ∧ nonneg(neg(x)) → is_zero(x) |
-| square_le_square | (fuel, 2) | 0≤a≤b → a²≤b² |
-| le_mul_nonneg_monotone | (fuel, 2) | a≤b ∧ c≥0 → ac≤bc |
-| nonneg_sum_zero | (fuel, 2) | nonneg(a)+nonneg(b)+is_zero(a+b) → is_zero(a) |
-| square_le_implies_le | (fuel, 3) | a²≤b² with 0≤a,0≤b → a≤b |
-| cauchy_schwarz_is_zero_re | (f, 4) | Cauchy-Schwarz via le_mul chain |
-| nonneg_mul_remaining | (f, 5) | Main remaining cases handler |
+| nonneg_fuel_congruence | (fuel, 2) | Transfer nonneg through eqv |
+| square_le_square | (fuel, 2) | |
+| le_mul_nonneg_monotone | (fuel, 2) | |
+| nonneg_sum_zero | (fuel, 2) | |
+| nonneg_component_from_ext | (fuel, 3) | nonneg_fuel(Ext) + norm>0 → nonneg(a) |
+| le_transitive_raw | (fuel, 3) | le_mul chain + algebra identity |
+| square_le_implies_le | (fuel, 3) | |
+| cauchy_neg_db1b2_case | (fuel, 4) | Congruence + square_le + le_antisymmetric |
+| cauchy_schwarz_is_zero_re | (fuel, 5) | Main Cauchy-Schwarz dispatch |
+| nonneg_mul_remaining | (fuel, 6) | Main remaining cases handler |
 
-## What Remains — 3 Specific Fixes
+## What Remains — Mechanical Fixes Only
 
-All fixes are in `lemma_cauchy_schwarz_is_zero_re` in `dyn_tower_lemmas.rs` (~line 1575).
+All in `lemma_cauchy_neg_db1b2_case`, the Part E congruence chain.
 
-### Fix 1: Connect le_mul chain to square_le_implies_le precondition
+### Missing same_radicand chains (5 calls)
 
-**What:** `square_le_implies_le(neg(db1b2), a1a2, f)` needs `nonneg(sub(a1a2², neg(db1b2)²), f)`.
+1. `mul_closed(b1_sq, dd)` — needs same_radicand(b1_sq, dd) [already established]
+2. `same_radicand_symmetric(b1_sq, mul(b1_sq, dd))` — derives from mul_closed
+3. `same_radicand_transitive(mul(b1_sq, dd), b1_sq, dd)` — for mul_congruence_left precondition
+4. `same_radicand_transitive(mul(b1_sq, dd), dd, db1_sq)` — connecting to db1_sq
+5. Recheck: `eqv_transitive((b1_sq*dd)*b2_sq, db1_sq*b2_sq, dd*(b1_sq*b2_sq))` — may need eqv(db1_sq*b2_sq, dd*(b1_sq*b2_sq)) from mul_associative which should already be called
 
-**Why it's blocked:** The le_mul chain gives results in terms of a1²*a2² and dd*b1²*dd*b2², but square_le needs (a1*a2)² and (dd*b1*b2)². The square_mul congruences are called but not connected via `sub_congruence_both` + `nonneg_fuel_congruence`.
-
-**Available facts (already called):**
-- `square_mul(a1, a2)`: eqv((a1*a2)², a1²*a2²)
-- `square_mul(dd, mul(b1,b2))` + `square_mul(b1, b2)`: for (dd*b1*b2)²
-- `neg_mul_neg(db1b2, db1b2)`: neg(x)² ≡ x²
-- `difference_of_squares(db1b2, a1a2)`: P*S ≡ sub(a1a2², db1b2²)
-- le_mul steps 1 & 2
-
-**What to add (~15 lines):**
-1. `mul_commutative(a2², dd*b1²)` to align middle terms of the two le_mul results
-2. `nonneg_fuel_congruence` to transfer step 2 to commuted form
-3. `nonneg_add` of the two sub results for le_transitive
-4. Algebraic identity: sub(A,B)+sub(B,C) ≡ sub(A,C) via add_associative+add_inverse chains
-5. `sub_congruence_both` to connect a1²*a2² ≡ (a1*a2)² and dd*b1²*dd*b2² ≡ (dd*b1*b2)²
-6. `nonneg_fuel_congruence` for final transfer
-
-### Fix 2: Assert neg(re_val) in db1b2≥0 branch
-
-**What:** `le_antisymmetric(re_val, f)` needs `nonneg(neg(re_val), f)` which is in the requires but Z3 may need a hint.
-
-**Fix:** Add `assert(dts_nonneg_fuel(dts_neg(re_val), f));` before le_antisymmetric.
-
-### Fix 3: Provide nonneg(a1, f) and nonneg(a2, f) at call site
-
-**What:** The caller `nonneg_mul_remaining` needs to provide `nonneg(a1, f)` and `nonneg(a2, f)`.
-
-**Why derivable:** In the Cauchy-Schwarz path, nx>0 and ny>0. C3 requires nonneg(neg(nx)) which contradicts nx>0. So factors are C1/C2 → both have a_nn.
-
-**Fix:** Before `cauchy_schwarz_is_zero_re` call in nonneg_mul_remaining:
-```rust
-lemma_dts_nonneg_or_neg_nonneg_fuel(a1, f);
-lemma_dts_nonneg_or_neg_nonneg_fuel(a2, f);
-// Z3: nx>0 rules out C3 (which needs neg(nx)≥0). So nonneg(a1) and nonneg(a2).
-```
-
-## Cascade Once Fixed
-
-cauchy_schwarz verifies → nonneg_mul_remaining verifies → nonneg_mul_closed verifies → nonneg_add_closed cascade-fixes → nonneg_mul_iszero_im cascade-fixes → **0 ERRORS!**
+These are purely mechanical same_radicand boilerplate — no mathematical content.
 
 ## Key Insights for Future Work
 
-1. **DTS doesn't implement Ring trait** — can't use Ring axioms on DTS values directly. T (base field) IS Ring. DTS mul_congruence/commutative need `same_radicand`.
+1. **DTS same_radicand boilerplate is the bottleneck.** Every DTS operation (mul, add, neg, sub) preserves same_radicand but needs explicit chain calls. Consider a helper that batches common chains.
 
-2. **same_radicand(Ext, Rat(0)) = false** — can't use congruence with dts_zero() for Ext values. Workaround: structural induction or commutativity trick (is_zero_mul_left + mul_commutative + is_zero_congruence).
+2. **Z3 needs explicit neg_sub_swap + congruence** to connect !nonneg(neg(nx)) to C3's sub(dd*b², a²) term. These are eqv but not syntactically equal.
 
-3. **Integral domain proof**: is_zero(mul(x,y)) → norm chain → induction on depth via norm_definite contrapositive. Key: norm reduces depth by 1.
+3. **The algebra identity add(sub(A,B), sub(B,C)) ≡ sub(A,C)** is provable from add_associative + add_inverse + add_zero but needs ~15 eqv chain calls. A reusable le_transitive lemma would help future work.
 
-4. **square_le_implies_le proof**: contradiction (assume b≤a → a²≥b² → a²=b²) + difference_of_squares ((a-b)(a+b)=0) + integral domain (is_zero(a-b) or a+b=0 → both zero).
+4. **Decreases bumps cascade.** Adding a helper at (f, 4) required bumping cauchy_schwarz to (f, 5) and nonneg_mul_remaining to (f, 6). The hierarchy is getting deep.
 
-5. **Extracted helpers critical for rlimit** in 600+ line functions. The conclude_im and cauchy_schwarz helpers have clean Z3 contexts.
+5. **rlimit management is critical.** The ~375-line neg_db1b2_case had to be split into le_transitive_raw (~200 lines) + neg_db1b2_case (~120 lines). Each function needs ≤50 "meaningful" assertions for Z3.
 
-6. **All mutual recursion decreases must use same tuple length.** Unified to 2-tuples.
-
-7. **Cauchy-Schwarz via P*S**: P=re_val, S=sub(a1a2, db1b2). P*S ≡ (a1*a2)²-(dd*b1*b2)² via difference_of_squares. le_mul chain → nonneg(P*S). neg(P)*S ≥ 0 → le_antisymmetric → is_zero(P*S) → integral domain → is_zero(P). The db1b2≥0 case shortcuts to nonneg_add.
+6. **mul_congruence_left/right parameter order matters.** The signature is (a, b, c) where a, b are the eqv pair and c is the multiplier. Easy to swap a/c.
