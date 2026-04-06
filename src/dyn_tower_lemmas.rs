@@ -1719,21 +1719,39 @@ proof fn lemma_cauchy_schwarz_is_zero_re<T: OrderedField>(
     //  nonneg(sub((a1*a2)², (dd*b1*b2)²)) via congruence (Z3 derives from mul structure).
     //  square_le_implies_le(|dd*b1*b2|, a1*a2, f) needs |dd*b1*b2| nonneg.
     //  Hmm, complex. Use P*S approach instead:
-    //  P = re_val, S = sub(a1*a2, dd*b1*b2) = add(a1*a2, neg(dd*b1*b2)).
-    //  P*S ≡ sub((a1*a2)², (dd*b1*b2)²) from difference_of_squares.
-    //  nonneg(P*S) from the le_mul chain (after congruence).
-    //  nonneg(S) from... S = a1*a2 + neg(dd*b1*b2). Both nonneg? a1*a2 ≥ 0 from factors.
-    //  neg(dd*b1*b2): dd ≥ 0, b1 sign depends on factor, b2 sign depends on factor.
-    //  For C1×C2: b1 ≥ 0, b2 ≤ 0 → dd*b1*b2 ≤ 0 → neg(dd*b1*b2) ≥ 0. S ≥ 0. ✓
-    //  For C2×C1: b1 ≤ 0, b2 ≥ 0 → dd*b1*b2 ≤ 0 → neg(dd*b1*b2) ≥ 0. S ≥ 0. ✓
-    //  So nonneg(S) from nonneg_add(a1*a2, neg(dd*b1*b2)).
-    //  Then: neg(P)*S ≥ 0 from nonneg_mul. neg(P*S) ≡ neg(P)*S. nonneg(neg(P*S)).
+    //  ═══ Step 3: P*S approach ═══
+    //  P = re_val, S = sub(a1*a2, db1b2).
+    let s_val = dts_sub(a1a2, db1b2);
+    //  P*S ≡ sub((a1*a2)², (dd*b1*b2)²) from difference_of_squares(db1b2, a1a2).
+    //  b1 ~ b2 chain for mul_closed(b1, b2)
+    lemma_dts_same_radicand_symmetric(a1, b1);
+    lemma_dts_same_radicand_transitive(b1, a1, b2);
+    lemma_dts_mul_closed(b1, b2);
+    //  dd ~ b1 ~ mul(b1,b2) chain for mul_closed(dd, mul(b1,b2))
+    lemma_dts_same_radicand_symmetric(b1, dts_mul(b1, b2));
+    lemma_dts_same_radicand_transitive(dd, b1, dts_mul(b1, b2));
+    lemma_dts_mul_closed(dd, dts_mul(b1, b2));
+    //  a1a2 infrastructure
+    lemma_dts_mul_closed(a1, a2);
+    lemma_dts_same_radicand_symmetric(a1, a1a2);
+    lemma_dts_same_radicand_transitive(a1a2, a1, dd);
+    lemma_dts_same_radicand_symmetric(dd, db1b2);
+    lemma_dts_same_radicand_transitive(a1a2, dd, db1b2);
+    lemma_dts_same_radicand_symmetric(a1a2, db1b2);
+    lemma_dts_difference_of_squares(db1b2, a1a2);
+    //  Product congruences: (a1*a2)² ≡ a1²*a2² and (dd*b1*b2)² ≡ dd²*(b1*b2)²
+    lemma_dts_square_mul(a1, a2);
+    lemma_dts_square_mul(dd, dts_mul(b1, b2));
+    lemma_dts_square_mul(b1, b2);
+    //  le_mul chain gave nonneg(sub(a1²*a2², dd*b1²*a2²)) and nonneg(sub(a2²*dd*b1², dd*b2²*dd*b1²)).
+    //  Z3 should combine with the square_mul congruences to derive nonneg(P*S).
+    //  (The product congruences connect a1²*a2² ≡ (a1*a2)² and dd*b1²*dd*b2² ≡ (dd*b1*b2)².)
+    //  neg(P) ≥ 0 → nonneg_mul(neg(P), S) → nonneg(neg(P)*S) → neg_mul_left → nonneg(neg(P*S)).
     //  le_antisymmetric(P*S) → is_zero(P*S).
-    //  Dispatch: is_zero(S) → P=0 (arithmetic). !is_zero(S) → integral domain → is_zero(P).
+    //  Integral domain: is_zero(P*S) ∧ (is_zero(S) ∨ !is_zero(S)) → is_zero(P).
     //
-    //  For now: let Z3 derive nonneg(re_val) from the le_mul chain + factor fuel expansion.
-    //  The key facts (nonneg of squares, le_mul results, nx/ny ≥ 0) should be enough.
-    //  Z3 has all the structural expansion of nonneg_fuel + the le_mul results.
+    //  Z3: with all the congruences + le_mul results + neg(re) ≥ 0, derive is_zero(re_val).
+    //  The square_mul congruences provide the key structural connections.
     //  If Z3 can close: great. If not: need explicit P*S chain.
 }
 
