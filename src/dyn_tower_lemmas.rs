@@ -1799,25 +1799,31 @@ proof fn lemma_cauchy_neg_db1b2_case<T: OrderedField>(
     lemma_dts_add_closed(dts_mul(a1_sq, a2_sq), dts_neg(dts_mul(a2_sq, db1_sq)));
     lemma_dts_nonneg_radicands_mul(a1_sq, a2_sq);
     lemma_dts_nonneg_radicands_mul(a2_sq, db1_sq);
+    lemma_dts_same_radicand_transitive(db2_sq, dd, db1_sq);  //  db2_sq ~ db1_sq
+    lemma_dts_mul_closed(db2_sq, db1_sq);
     lemma_dts_nonneg_radicands_mul(db2_sq, db1_sq);
     lemma_dts_nonneg_radicands_neg(dts_mul(a2_sq, db1_sq));
     lemma_dts_nonneg_radicands_add(dts_mul(a1_sq, a2_sq), dts_neg(dts_mul(a2_sq, db1_sq)));
+    lemma_dts_neg_well_formed(dts_mul(db2_sq, db1_sq));
+    lemma_dts_same_radicand_neg(dts_mul(db2_sq, db1_sq));
+    lemma_dts_same_radicand_symmetric(db2_sq, db1_sq);  //  db1_sq ~ db2_sq
+    lemma_dts_same_radicand_symmetric(db2_sq, dts_mul(db2_sq, db1_sq));
+    lemma_dts_same_radicand_transitive(db1_sq, db2_sq, dts_mul(db2_sq, db1_sq));  //  db1_sq ~ mul(db2_sq, db1_sq)
+    lemma_dts_same_radicand_symmetric(db1_sq, dts_mul(db2_sq, db1_sq));
+    lemma_dts_same_radicand_symmetric(a2_sq, dts_mul(a2_sq, db1_sq));
+    lemma_dts_same_radicand_transitive(dts_mul(a2_sq, db1_sq), a2_sq, db1_sq);  //  mul(a2_sq, db1_sq) ~ db1_sq
+    lemma_dts_same_radicand_transitive(dts_mul(a2_sq, db1_sq), db1_sq, dts_mul(db2_sq, db1_sq));
+    lemma_dts_same_radicand_transitive(dts_mul(a2_sq, db1_sq), dts_mul(db2_sq, db1_sq),
+        dts_neg(dts_mul(db2_sq, db1_sq)));
     lemma_dts_nonneg_radicands_neg(dts_mul(db2_sq, db1_sq));
     lemma_dts_nonneg_radicands_add(dts_mul(a2_sq, db1_sq), dts_neg(dts_mul(db2_sq, db1_sq)));
     lemma_norm_definite_mul(a1_sq, a2_sq);
     lemma_norm_definite_mul(a2_sq, db1_sq);
-    lemma_dts_same_radicand_transitive(db2_sq, dd, db1_sq);  //  db2_sq ~ db1_sq
     lemma_norm_definite_mul(db2_sq, db1_sq);
     lemma_norm_definite_neg(dts_mul(a2_sq, db1_sq));
     lemma_norm_definite_add(dts_mul(a1_sq, a2_sq), dts_neg(dts_mul(a2_sq, db1_sq)));
     lemma_norm_definite_neg(dts_mul(db2_sq, db1_sq));
     lemma_norm_definite_add(dts_mul(a2_sq, db1_sq), dts_neg(dts_mul(db2_sq, db1_sq)));
-    lemma_dts_neg_well_formed(dts_mul(db2_sq, db1_sq));
-    lemma_dts_same_radicand_neg(dts_mul(db2_sq, db1_sq));
-    lemma_dts_same_radicand_symmetric(db1_sq, dts_mul(db2_sq, db1_sq));
-    lemma_dts_same_radicand_transitive(dts_mul(a2_sq, db1_sq), db1_sq, dts_mul(db2_sq, db1_sq));
-    lemma_dts_same_radicand_transitive(dts_mul(a2_sq, db1_sq), dts_mul(db2_sq, db1_sq),
-        dts_neg(dts_mul(db2_sq, db1_sq)));
     lemma_dts_add_closed(dts_mul(a2_sq, db1_sq), dts_neg(dts_mul(db2_sq, db1_sq)));
     //  same_radicand(sub1, sub2)
     lemma_dts_same_radicand_symmetric(dts_mul(a1_sq, a2_sq), sub1);
