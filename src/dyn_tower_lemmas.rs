@@ -1573,6 +1573,80 @@ pub proof fn lemma_dts_square_le_implies_le_fuel<T: OrderedField>(
     }
 }
 
+///  Derives nonneg(a, f) from nonneg_fuel(Ext(a, b, dd), f+1) when norm > 0.
+///  When nx = sub(a², dd*b²) is strictly positive (nonneg(nx) ∧ ¬nonneg(neg(nx))),
+///  the C3 case is impossible, so the factor is C1/C2 → nonneg(a).
+///  The proof: if ¬nonneg(a), then C1/C2 are false, so C3 must hold.
+///  C3 includes a2_le_b2d = nonneg(sub(dd*b², a²)) which ≡ nonneg(neg(nx))
+///  via neg_sub_swap + congruence → contradiction with ¬nonneg(neg(nx)).
+proof fn lemma_dts_nonneg_component_from_ext_fuel<T: OrderedField>(
+    a: DynTowerSpec<T>, b: DynTowerSpec<T>, dd: DynTowerSpec<T>, f: nat,
+)
+    requires
+        f >= dts_depth(a) + 1, f >= dts_depth(b) + 1, f >= dts_depth(dd) + 1,
+        dts_well_formed(a), dts_well_formed(b), dts_well_formed(dd),
+        dts_same_radicand(a, b), dts_same_radicand(a, dd),
+        dts_nonneg_fuel(DynTowerSpec::Ext(Box::new(a), Box::new(b), Box::new(dd)), (f + 1) as nat),
+        //  norm = sub(a², dd*b²) is strictly positive
+        dts_nonneg_fuel(dts_sub(dts_mul(a, a), dts_mul(dd, dts_mul(b, b))), f),
+        !dts_nonneg_fuel(dts_neg(dts_sub(dts_mul(a, a), dts_mul(dd, dts_mul(b, b)))), f),
+    ensures
+        dts_nonneg_fuel(a, f),
+    decreases f, 3nat,
+{
+    if !dts_nonneg_fuel(a, f) {
+        //  C1 and C2 both need nonneg(a, f), so they're false.
+        //  C3 must hold → a2_le_b2d = nonneg(sub(dd*b², a²), f).
+        let a_sq = dts_mul(a, a);
+        let db_sq = dts_mul(dd, dts_mul(b, b));
+        //  Z3 unfolds nonneg_fuel(Ext, f+1) → C3 is the only option → sub(db_sq, a_sq) nonneg
+        assert(dts_nonneg_fuel(dts_sub(db_sq, a_sq), f));
+        //  neg_sub_swap: neg(sub(a_sq, db_sq)) ≡ sub(db_sq, a_sq)
+        lemma_dts_neg_sub_swap(a_sq, db_sq);
+        //  eqv_symmetric: eqv(sub(db_sq, a_sq), neg(sub(a_sq, db_sq)))
+        lemma_dts_eqv_symmetric(dts_neg(dts_sub(a_sq, db_sq)), dts_sub(db_sq, a_sq));
+        //  same_radicand chain for congruence transfer
+        lemma_dts_same_radicand_reflexive(a);
+        lemma_dts_same_radicand_reflexive(b);
+        lemma_dts_mul_closed(a, a);
+        lemma_dts_mul_closed(b, b);
+        lemma_dts_same_radicand_symmetric(a, b);
+        lemma_dts_same_radicand_transitive(b, a, dd);
+        lemma_dts_same_radicand_symmetric(b, dd);
+        lemma_dts_same_radicand_transitive(dd, b, dts_mul(b, b));
+        lemma_dts_mul_closed(dd, dts_mul(b, b));
+        //  a_sq ~ db_sq chain: a_sq ~ a ~ dd ~ db_sq
+        lemma_dts_same_radicand_symmetric(a, a_sq);
+        lemma_dts_same_radicand_transitive(a_sq, a, dd);
+        lemma_dts_same_radicand_symmetric(dd, db_sq);
+        lemma_dts_same_radicand_transitive(a_sq, dd, db_sq);
+        //  sub(db_sq, a_sq) ~ db_sq (from add_closed)
+        lemma_dts_neg_well_formed(a_sq);
+        lemma_dts_same_radicand_neg(a_sq);
+        lemma_dts_same_radicand_symmetric(a_sq, dts_neg(a_sq));
+        lemma_dts_same_radicand_symmetric(a_sq, db_sq);
+        lemma_dts_same_radicand_transitive(db_sq, a_sq, dts_neg(a_sq));
+        lemma_dts_add_closed(db_sq, dts_neg(a_sq));
+        //  sub(a_sq, db_sq) ~ a_sq (from add_closed)
+        lemma_dts_neg_well_formed(db_sq);
+        lemma_dts_same_radicand_neg(db_sq);
+        lemma_dts_same_radicand_transitive(a_sq, db_sq, dts_neg(db_sq));
+        lemma_dts_add_closed(a_sq, dts_neg(db_sq));
+        //  neg(sub(a_sq, db_sq)) ~ sub(a_sq, db_sq) (from same_radicand_neg)
+        lemma_dts_same_radicand_neg(dts_sub(a_sq, db_sq));
+        //  Chain: sub(db_sq, a_sq) ~ db_sq ~ a_sq ~ sub(a_sq, db_sq) ~ neg(sub(a_sq, db_sq))
+        lemma_dts_same_radicand_symmetric(db_sq, dts_sub(db_sq, a_sq));
+        lemma_dts_same_radicand_transitive(dts_sub(db_sq, a_sq), db_sq, a_sq);
+        lemma_dts_same_radicand_symmetric(a_sq, dts_sub(a_sq, db_sq));
+        lemma_dts_same_radicand_transitive(dts_sub(db_sq, a_sq), a_sq, dts_sub(a_sq, db_sq));
+        lemma_dts_same_radicand_transitive(dts_sub(db_sq, a_sq), dts_sub(a_sq, db_sq),
+            dts_neg(dts_sub(a_sq, db_sq)));
+        //  nonneg_fuel_congruence: sub(db_sq, a_sq) → neg(sub(a_sq, db_sq)) = neg(nx)
+        lemma_dts_nonneg_fuel_congruence(dts_sub(db_sq, a_sq), dts_neg(dts_sub(a_sq, db_sq)), f);
+        //  nonneg_fuel(neg(nx), f) is now true → contradicts requires !nonneg_fuel(neg(nx), f)
+    }
+}
+
 ///  Cauchy-Schwarz conclusion: nonneg(re_val) from nx≥0, ny≥0, and factor signs.
 ///  Uses P*S approach: P=re_val, S=a1*a2-dd*b1*b2.
 ///  P*S ≡ (a1*a2)²-(dd*b1*b2)² via difference_of_squares.
@@ -1810,12 +1884,14 @@ proof fn lemma_cauchy_schwarz_is_zero_re<T: OrderedField>(
     lemma_dts_nonneg_radicands_add(a1a2, db1b2);
     lemma_norm_definite_add(a1a2, db1b2);
     lemma_dts_depth_add_le(a1a2, db1b2);
+    lemma_dts_add_closed(a1a2, db1b2);  //  well_formed(re_val)
     //  Dispatch on sign of db1b2
     lemma_dts_nonneg_or_neg_nonneg_fuel(db1b2, f);
     if dts_nonneg_fuel(db1b2, f) {
         //  db1b2 ≥ 0: re_val = a1a2 + db1b2 ≥ 0 (both nonneg).
         //  Combined with neg(re_val) ≥ 0: le_antisymmetric → is_zero(re_val).
         lemma_dts_nonneg_add_closed_fuel(a1a2, db1b2, f);
+        assert(dts_nonneg_fuel(dts_neg(re_val), f));  //  from requires
         lemma_dts_le_antisymmetric_fuel(re_val, f);
     } else {
         //  neg(db1b2) ≥ 0: call square_le_implies_le(neg(db1b2), a1a2, f).
@@ -10891,6 +10967,10 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                                 //  nonneg(im_val), and all the factor nonneg_fuel:
                                 //  try structural expansion for this specific sub-case.
                                 //  Cauchy-Schwarz: is_zero(re_val) from nx>0, ny>0, neg(re)≥0
+                                //  nonneg(a1, f) and nonneg(a2, f): C3 needs nonneg(neg(nx/ny))
+                                //  which is ruled out by the branch above. So C1/C2 → nonneg(a).
+                                lemma_dts_nonneg_component_from_ext_fuel(a1, b1, dd, f);
+                                lemma_dts_nonneg_component_from_ext_fuel(a2, b2, dd, f);
                                 lemma_cauchy_schwarz_is_zero_re(a1, b1, a2, b2, dd, f);
                                 //  C1: nonneg(re_val) from nonneg_fuel_zero + nonneg(im_val)
                                 lemma_dts_is_zero_implies_eqv_zero(re_val);
