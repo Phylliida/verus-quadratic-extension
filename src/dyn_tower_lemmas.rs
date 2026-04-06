@@ -1603,7 +1603,7 @@ proof fn lemma_cauchy_schwarz_is_zero_re<T: OrderedField>(
         dts_nonneg_fuel(dts_neg(dts_add(dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2)))), f),
     ensures
         dts_is_zero(dts_add(dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2)))),
-    decreases f, 3nat,
+    decreases f, 4nat,
 {
     let re_val = dts_add(dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2)));
     let a1a2 = dts_mul(a1, a2);
@@ -1797,6 +1797,7 @@ proof fn lemma_cauchy_schwarz_is_zero_re<T: OrderedField>(
     lemma_dts_depth_mul_le(b1, b2);
     lemma_dts_depth_mul_le(dd, dts_mul(b1, b2));
     //  neg(db1b2)² ≡ db1b2² via neg_mul_neg
+    lemma_dts_same_radicand_reflexive(db1b2);
     lemma_dts_neg_mul_neg(db1b2, db1b2);
     lemma_dts_square_le_implies_le_fuel(dts_neg(db1b2), a1a2, f);
     //  Result: nonneg(sub(a1a2, neg(db1b2))).
@@ -10438,7 +10439,7 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                 Box::new(dts_add(dts_mul(a1, b2), dts_mul(b1, a2))),
                 Box::new(dd)),
             (f + 1) as nat),
-    decreases f, 4nat,
+    decreases f, 5nat,
 {
             let a1_nn = dts_nonneg_fuel(a1, f);
             let a2_nn = dts_nonneg_fuel(a2, f);
