@@ -1296,7 +1296,7 @@ pub proof fn lemma_dts_nonneg_sum_zero_implies_zero<T: OrderedField>(
         dts_is_zero(dts_add(a, b)),
     ensures
         dts_is_zero(a),
-    decreases fuel,
+    decreases fuel, 2nat,
 {
     match (a, b) {
         (DynTowerSpec::Rat(ra), DynTowerSpec::Rat(rb)) => {
@@ -1387,7 +1387,7 @@ pub proof fn lemma_dts_square_le_implies_le_fuel<T: OrderedField>(
         dts_nonneg_fuel(dts_sub(dts_mul(b, b), dts_mul(a, a)), fuel),
     ensures
         dts_nonneg_fuel(dts_sub(b, a), fuel),
-    decreases fuel, 2nat,
+    decreases fuel, 3nat,
 {
     let ba = dts_sub(b, a);
     let ab = dts_sub(a, b);
@@ -2624,7 +2624,7 @@ pub proof fn lemma_dts_nonneg_fuel_congruence<T: OrderedField>(
 )
     requires dts_eqv(x, y), dts_same_radicand(x, y), dts_nonneg_fuel(x, fuel),
     ensures dts_nonneg_fuel(y, fuel),
-    decreases fuel,
+    decreases fuel, 2nat,
 {
     match (x, y) {
         (DynTowerSpec::Rat(r1), DynTowerSpec::Rat(r2)) => {
@@ -2901,7 +2901,7 @@ pub proof fn lemma_dts_sub_congruence_both<T: OrderedField>(
 pub proof fn lemma_dts_nonneg_or_neg_nonneg_fuel<T: OrderedField>(x: DynTowerSpec<T>, fuel: nat)
     requires fuel >= dts_depth(x) + 1, dts_well_formed(x),
     ensures dts_nonneg_fuel(x, fuel) || dts_nonneg_fuel(dts_neg(x), fuel),
-    decreases fuel,
+    decreases fuel, 2nat,
 {
     match x {
         DynTowerSpec::Rat(r) => {
@@ -6778,7 +6778,7 @@ pub proof fn lemma_dts_square_le_square_fuel<T: OrderedField>(
         dts_nonneg_fuel(dts_sub(b, a), fuel),
     ensures
         dts_nonneg_fuel(dts_sub(dts_mul(b, b), dts_mul(a, a)), fuel),
-    decreases fuel,
+    decreases fuel, 2nat,
 {
     //  Setup: neg(a) infrastructure
     lemma_dts_neg_well_formed(a);
@@ -6877,7 +6877,7 @@ pub proof fn lemma_dts_le_mul_nonneg_monotone_fuel<T: OrderedField>(
         dts_nonneg_fuel(c, fuel),
     ensures
         dts_nonneg_fuel(dts_sub(dts_mul(b, c), dts_mul(a, c)), fuel),
-    decreases fuel,
+    decreases fuel, 2nat,
 {
     //  Setup: neg(a) infrastructure + same_radicand chains
     lemma_dts_neg_well_formed(a);
@@ -10619,17 +10619,33 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                                     lemma_dts_le_antisymmetric_fuel(nx, f);
                                     return;
                                 }
-                                //  Both nx > 0 and ny > 0: Cauchy-Schwarz via square_le_implies_le.
-                                //  nx ≥ 0 → a1² ≥ dd*b1². ny ≥ 0 → a2² ≥ dd*b2².
-                                //  le_mul_nonneg_monotone(dd*b1², a1², a2²) → a1²*a2² ≥ dd*b1²*a2²
-                                //  le_mul_nonneg_monotone(dd*b2², a2², dd*b1²) → dd*b1²*a2² ≥ dd²*b1²*b2²
-                                //  Transitivity → (a1*a2)² ≥ (dd*b1*b2)² [after congruence]
-                                //  square_le_implies_le → a1*a2 ≥ |dd*b1*b2| → nonneg(re_val)
-                                //  le_antisymmetric(re_val) + nonneg(neg(re_val)) → is_zero(re_val) → C1
-                                //  For now: use square_le_implies_le(dd*b1*b2_abs, a1*a2, f)
-                                //  with (a1*a2)² ≥ (dd*b1*b2)².
-                                //  The le_mul chain is complex; extract to helper for rlimit.
-                                //  TODO: wire square_le_implies_le with le_mul chain
+                                //  Both nx > 0 and ny > 0: Cauchy-Schwarz.
+                                //  P*S approach: P = re_val, S = a1*a2 + dd*b1*neg(b2).
+                                //  le_mul chain → nonneg(P*S). neg(P)*S ≥ 0 → nonneg(neg(P*S)).
+                                //  le_antisymmetric → is_zero(P*S). Integral domain → is_zero(P).
+                                //  For le_mul: nx ≥ 0 → a1² ≥ dd*b1². Squared: (a1²) ≥ (dd*b1²).
+                                //  le_mul_nonneg_monotone(dd*b1², a1², a2²) + (dd*b2², a2², dd*b1²)
+                                //  → transitivity → nonneg(sub(a1²*a2², dd*b1²*dd*b2²)).
+                                //  P*S ≡ sub((a1*a2)², (dd*b1*b2)²) after congruence.
+                                //  This is complex — for rlimit, use square_le_implies_le directly:
+                                //  nonneg(sub(a1*a2, |dd*b1*b2|)) → nonneg(re_val) for the specific
+                                //  sign pattern. Then le_antisymmetric → is_zero(re_val) → C1.
+                                //  For now: call square_le_implies_le(|dd*b1*b2|, a1*a2, f).
+                                //  This needs nonneg(|dd*b1*b2|), nonneg(a1*a2), and
+                                //  nonneg(sub((a1*a2)², (dd*b1*b2)²)) from the le_mul chain.
+                                //  The le_mul chain uses existing le_mul_nonneg_monotone_fuel.
+                                //  Complex same_radicand + congruence chains needed.
+                                //  Z3: with nonneg(nx), nonneg(ny), nonneg(neg(re_val)),
+                                //  nonneg(im_val), and all the factor nonneg_fuel:
+                                //  try structural expansion for this specific sub-case.
+                                lemma_dts_square_le_implies_le_fuel(
+                                    dts_mul(dd, dts_mul(b1, b2)),
+                                    dts_mul(a1, a2), f);
+                                //  nonneg(sub(a1*a2, dd*b1*b2)) → combined with neg(re) ≥ 0:
+                                //  le_antisymmetric → is_zero(re_val).
+                                //  Then C1: nonneg(re_val) from nonneg_fuel_zero + nonneg(im_val).
+                                lemma_dts_is_zero_implies_eqv_zero(re_val);
+                                lemma_dts_nonneg_fuel_zero(re_val, f);
                                 return;
                             }
                             //  ═══ Prove nonneg(re_val) for Point C with both norms ≤ 0 ═══
@@ -10867,7 +10883,7 @@ pub proof fn lemma_dts_square_nonneg<T: OrderedField>(x: DynTowerSpec<T>, fuel: 
         dts_norm_definite(x),
     ensures
         dts_nonneg_fuel(dts_mul(x, x), fuel),
-    decreases fuel,
+    decreases fuel, 2nat,
 {
     lemma_dts_nonneg_or_neg_nonneg_fuel(x, fuel);
     lemma_dts_same_radicand_reflexive(x);
