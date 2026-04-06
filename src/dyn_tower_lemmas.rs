@@ -1743,16 +1743,67 @@ proof fn lemma_cauchy_schwarz_is_zero_re<T: OrderedField>(
     lemma_dts_square_mul(a1, a2);
     lemma_dts_square_mul(dd, dts_mul(b1, b2));
     lemma_dts_square_mul(b1, b2);
-    //  le_mul chain gave nonneg(sub(a1²*a2², dd*b1²*a2²)) and nonneg(sub(a2²*dd*b1², dd*b2²*dd*b1²)).
-    //  Z3 should combine with the square_mul congruences to derive nonneg(P*S).
-    //  (The product congruences connect a1²*a2² ≡ (a1*a2)² and dd*b1²*dd*b2² ≡ (dd*b1*b2)².)
-    //  neg(P) ≥ 0 → nonneg_mul(neg(P), S) → nonneg(neg(P)*S) → neg_mul_left → nonneg(neg(P*S)).
-    //  le_antisymmetric(P*S) → is_zero(P*S).
-    //  Integral domain: is_zero(P*S) ∧ (is_zero(S) ∨ !is_zero(S)) → is_zero(P).
+    //  ═══ Step 4: Conclusion via le_antisymmetric on re_val ═══
+    //  From le_mul + square_mul: Z3 has facts about a1²*a2² ≥ dd*b1²*a2² and
+    //  the square_mul congruences. Combined with neg(re_val) ≥ 0:
+    //  Z3 should derive is_zero(re_val) from the nonneg_fuel structural expansion
+    //  + the le_mul bounds + the square_mul eqv connections.
     //
-    //  Z3: with all the congruences + le_mul results + neg(re) ≥ 0, derive is_zero(re_val).
-    //  The square_mul congruences provide the key structural connections.
-    //  If Z3 can close: great. If not: need explicit P*S chain.
+    //  Help Z3: establish nonneg(re_val) via the P*S route.
+    //  P = re_val = add(a1a2, db1b2). S = sub(a1a2, db1b2).
+    //  neg(P)*S ≥ 0 from nonneg_mul(neg(re_val), s_val).
+    //  neg(P)*S ≡ neg(P*S) from neg_mul_left.
+    //  P*S ≡ sub(a1a2², db1b2²) from difference_of_squares.
+    //  nonneg(P*S) from the le_mul chain + congruences.
+    //  le_antisymmetric(P*S) → is_zero(P*S).
+    //  is_zero(P*S) ≡ is_zero(re_val * s_val).
+    //  Integral domain: is_zero(re_val) or is_zero(s_val).
+    //  Either way: le_antisymmetric on re_val (nonneg from nonneg_fuel_zero + neg(re) from branch).
+    //
+    //  Explicit chain: nonneg(neg(re_val)*s_val) from nonneg_mul.
+    //  This requires nonneg(s_val). Z3 should derive from the factor nonneg_fuel expansion
+    //  + the le_mul bounds: s_val = sub(a1a2, db1b2) and the Cauchy-Schwarz gives a1a2 ≥ |db1b2|.
+    //
+    //  Actually: just call le_antisymmetric(re_val) with nonneg(re_val) + nonneg(neg(re_val)).
+    //  For nonneg(re_val): Z3 should derive from the le_mul chain + square_mul congruences
+    //  + the nonneg_fuel structural expansion of the factors.
+    //  The le_mul results + square_mul eqv give enough info for Z3 to derive
+    //  (a1*a2)² ≥ (dd*b1*b2)² which forces re_val ≥ 0 in the C1×C2/C2×C1 factor case.
+    //
+    //  Call square_le_implies_le(neg(db1b2), a1a2, f):
+    //  neg(db1b2) ≥ 0 (Z3 derives from factor C1/C2 sign info).
+    //  a1a2 ≥ 0 (from nonneg factors).
+    //  sub(a1a2², neg(db1b2)²) ≡ sub(a1a2², db1b2²) since neg(x)²≡x².
+    //  nonneg of this from the le_mul chain + square_mul congruences.
+    //  Result: nonneg(sub(a1a2, neg(db1b2))) ≡ nonneg(add(a1a2, db1b2)) = nonneg(re_val).
+    lemma_dts_neg_well_formed(db1b2);
+    lemma_dts_same_radicand_neg(db1b2);
+    lemma_dts_same_radicand_symmetric(db1b2, dts_neg(db1b2));
+    lemma_dts_same_radicand_transitive(dts_neg(db1b2), db1b2, a1a2);
+    lemma_dts_nonneg_radicands_mul(b1, b2);
+    lemma_dts_nonneg_radicands_mul(dd, dts_mul(b1, b2));
+    lemma_norm_definite_mul(b1, b2);
+    lemma_norm_definite_mul(dd, dts_mul(b1, b2));
+    lemma_dts_nonneg_radicands_neg(db1b2);
+    lemma_norm_definite_neg(db1b2);
+    lemma_dts_nonneg_radicands_mul(a1, a2);
+    lemma_norm_definite_mul(a1, a2);
+    lemma_dts_nonneg_radicands_mul(b1, b2);
+    lemma_norm_definite_mul(b1, b2);
+    lemma_dts_nonneg_radicands_mul(dd, dts_mul(b1, b2));
+    lemma_norm_definite_mul(dd, dts_mul(b1, b2));
+    lemma_dts_depth_neg(db1b2);
+    lemma_dts_depth_mul_le(a1, a2);
+    lemma_dts_depth_mul_le(b1, b2);
+    lemma_dts_depth_mul_le(dd, dts_mul(b1, b2));
+    //  neg(db1b2)² ≡ db1b2² via neg_mul_neg
+    lemma_dts_neg_mul_neg(db1b2, db1b2);
+    lemma_dts_square_le_implies_le_fuel(dts_neg(db1b2), a1a2, f);
+    //  Result: nonneg(sub(a1a2, neg(db1b2))).
+    //  sub(a1a2, neg(db1b2)) = add(a1a2, neg(neg(db1b2))) ≡ add(a1a2, db1b2) = re_val.
+    //  nonneg_fuel_congruence → nonneg(re_val).
+    //  le_antisymmetric: nonneg(re_val) + nonneg(neg(re_val)) → is_zero(re_val).
+    lemma_dts_le_antisymmetric_fuel(re_val, f);
 }
 
 ///  Combined conclude_im via norm_mul transfer.
