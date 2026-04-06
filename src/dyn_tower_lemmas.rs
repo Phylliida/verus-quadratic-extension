@@ -11102,11 +11102,17 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
             if dts_is_zero(re_val) {
                 lemma_dts_is_zero_implies_eqv_zero(re_val);
                 lemma_dts_nonneg_fuel_zero(re_val, f);
-                //  Z3: nonneg(re) established. For C1 need nonneg(im) too.
-                //  le_total on im gives sign info; combined with factor nonneg at f+1
-                //  Z3 should derive nonneg(im) from the structural expansion.
+                //  nonneg(re) established. For C1, need nonneg(im) too.
                 lemma_dts_nonneg_or_neg_nonneg_fuel(im_val, f);
-                return;
+                if dts_nonneg_fuel(im_val, f) {
+                    //  C1: nonneg(re) + nonneg(im)
+                    return;
+                }
+                //  nonneg(neg(im_val)) with !is_zero(im_val) (from requires)
+                //  Product Ext(0, im, dd) with neg(im) ≥ 0 and im ≠ 0.
+                //  Use conclude_im path: need nonneg(neg(norm_product)) where
+                //  norm_product ≡ norm(x)*norm(y) via norm_mul (already called).
+                //  Fall through to the norm infrastructure below.
             }
             //  Compute norm factors
             let nx = dts_sub(dts_mul(a1, a1), dts_mul(dd, dts_mul(b1, b1)));
@@ -11138,11 +11144,9 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
             lemma_dts_mul_closed(dd, dts_mul(b1, b2));
             lemma_dts_mul_closed(a1, b2);
             lemma_dts_mul_closed(b1, a2);
-            //  re≥0: use conclude_re
-            if dts_nonneg_fuel(re_val, f) {
-                lemma_dts_nonneg_conclude_re_fuel(re_val, im_val, dd, f);
-                return;
-            }
+            //  NOTE: re≥0 early exit removed — conclude_re needs nonneg(norm)
+            //  which is established later via the norm infrastructure.
+            //  The re≥0 case is handled after norm setup via conclude_re calls below.
             //  im≥0, neg(re)≥0: use conclude_im (needs neg_norm ≥ 0).
             //  neg_norm ≡ neg(nx*ny) via norm_mul.
             //  From factor norms: establish nonneg(neg(nx*ny)).
