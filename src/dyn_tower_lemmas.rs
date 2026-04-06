@@ -1665,6 +1665,11 @@ proof fn lemma_cauchy_schwarz_is_zero_re<T: OrderedField>(
     //  same_radicand(a1², a2²) for le_mul: a1² ~ a1 ~ a2 ~ a2²
     lemma_dts_same_radicand_transitive(dts_mul(a1, a1), a1, a2);
     lemma_dts_same_radicand_transitive(dts_mul(a1, a1), a2, dts_mul(a2, a2));
+    //  same_radicand(a2, a1) for the a2~dd chain
+    lemma_dts_same_radicand_symmetric(a1, a2);
+    //  same_radicand(a2, dd) then (dd, a2) for chains below
+    lemma_dts_same_radicand_transitive(a2, a1, dd);
+    lemma_dts_same_radicand_symmetric(a2, dd);
     //  same_radicand(dd*b1², a2²) for le_mul step 2 (via dd)
     lemma_dts_same_radicand_symmetric(dd, dts_mul(dd, dts_mul(b1, b1)));
     lemma_dts_same_radicand_transitive(dts_mul(dd, dts_mul(b1, b1)), dd, a2);
@@ -1681,12 +1686,16 @@ proof fn lemma_cauchy_schwarz_is_zero_re<T: OrderedField>(
         dts_mul(dd, dts_mul(b1, b1)), dts_mul(a1, a1), dts_mul(a2, a2), f);
     //  → nonneg(sub(a1²*a2², dd*b1²*a2²))
     //  Step 2: nonneg(dd*b1²) for the second le_mul
+    lemma_dts_square_nonneg(b1, f);
     lemma_dts_nonneg_fuel_stabilize(dd, f);
     lemma_dts_nonneg_mul_closed_fuel(dd, dts_mul(b1, b1), f);
+    //  same_radicand(dd, a2²) for chains: dd ~ a2 ~ a2²
+    lemma_dts_same_radicand_transitive(dd, a2, dts_mul(a2, a2));
     //  same_radicand(dd*b2², dd*b1²) for le_mul step 2
     lemma_dts_same_radicand_symmetric(dd, dts_mul(dd, dts_mul(b1, b1)));
     lemma_dts_same_radicand_symmetric(dd, dts_mul(dd, dts_mul(b2, b2)));
     lemma_dts_same_radicand_transitive(dts_mul(dd, dts_mul(b2, b2)), dd, dts_mul(a2, a2));
+    lemma_dts_same_radicand_symmetric(dts_mul(dd, dts_mul(b1, b1)), dts_mul(a2, a2));
     lemma_dts_same_radicand_transitive(dts_mul(dd, dts_mul(b2, b2)), dts_mul(a2, a2), dts_mul(dd, dts_mul(b1, b1)));
     //  Wait: need same_radicand(a2², dd*b1²) which was established above via transitive.
     //  same_radicand(dd*b2², a2²) for the le_mul:
