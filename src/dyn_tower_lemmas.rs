@@ -10619,10 +10619,17 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                                     lemma_dts_le_antisymmetric_fuel(nx, f);
                                     return;
                                 }
-                                //  Both nx > 0 and ny > 0: genuine Cauchy-Schwarz case.
-                                //  This case (C1×C2 or C2×C1 with strict positive norms)
-                                //  requires le_mul_nonneg_monotone chain to show re=0.
-                                //  Z3 should close from factor fuel expansion.
+                                //  Both nx > 0 and ny > 0: Cauchy-Schwarz via square_le_implies_le.
+                                //  nx ≥ 0 → a1² ≥ dd*b1². ny ≥ 0 → a2² ≥ dd*b2².
+                                //  le_mul_nonneg_monotone(dd*b1², a1², a2²) → a1²*a2² ≥ dd*b1²*a2²
+                                //  le_mul_nonneg_monotone(dd*b2², a2², dd*b1²) → dd*b1²*a2² ≥ dd²*b1²*b2²
+                                //  Transitivity → (a1*a2)² ≥ (dd*b1*b2)² [after congruence]
+                                //  square_le_implies_le → a1*a2 ≥ |dd*b1*b2| → nonneg(re_val)
+                                //  le_antisymmetric(re_val) + nonneg(neg(re_val)) → is_zero(re_val) → C1
+                                //  For now: use square_le_implies_le(dd*b1*b2_abs, a1*a2, f)
+                                //  with (a1*a2)² ≥ (dd*b1*b2)².
+                                //  The le_mul chain is complex; extract to helper for rlimit.
+                                //  TODO: wire square_le_implies_le with le_mul chain
                                 return;
                             }
                             //  ═══ Prove nonneg(re_val) for Point C with both norms ≤ 0 ═══
