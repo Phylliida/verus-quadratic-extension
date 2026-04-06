@@ -1647,11 +1647,9 @@ proof fn lemma_dts_nonneg_component_from_ext_fuel<T: OrderedField>(
     }
 }
 
-///  Handles the neg(db1b2) ≥ 0 case of Cauchy-Schwarz.
-///  le_transitive chain: a1²·a2² ≥ (dd·b1²)·a2² ≥ (dd·b2²)·(dd·b1²)
-///  Then congruence: (dd·b2²)·(dd·b1²) ≡ (dd·b1·b2)² ≡ neg(dd·b1·b2)²
-///  square_le_implies_le → a1·a2 ≥ neg(dd·b1·b2) → nonneg(re_val) → is_zero(re_val).
-proof fn lemma_cauchy_neg_db1b2_case<T: OrderedField>(
+///  Le-transitive raw: from le_mul chain results, derives
+///  nonneg(sub(a1²*a2², (dd*b2²)*(dd*b1²))) via nonneg_add + algebra identity.
+proof fn lemma_cauchy_le_transitive_raw<T: OrderedField>(
     a1: DynTowerSpec<T>, a2: DynTowerSpec<T>,
     b1: DynTowerSpec<T>, b2: DynTowerSpec<T>,
     dd: DynTowerSpec<T>, f: nat,
@@ -1668,18 +1666,14 @@ proof fn lemma_cauchy_neg_db1b2_case<T: OrderedField>(
         dts_norm_definite(a1), dts_norm_definite(a2),
         dts_norm_definite(b1), dts_norm_definite(b2), dts_norm_definite(dd),
         dts_nonneg(dd),
-        //  nx ≥ 0 and ny ≥ 0
         dts_nonneg_fuel(dts_sub(dts_mul(a1, a1), dts_mul(dd, dts_mul(b1, b1))), f),
         dts_nonneg_fuel(dts_sub(dts_mul(a2, a2), dts_mul(dd, dts_mul(b2, b2))), f),
-        //  neg(re_val) ≥ 0
-        dts_nonneg_fuel(dts_neg(dts_add(dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2)))), f),
-        //  nonneg(a1), nonneg(a2)
         dts_nonneg_fuel(a1, f),
         dts_nonneg_fuel(a2, f),
-        //  neg(db1b2) ≥ 0
-        dts_nonneg_fuel(dts_neg(dts_mul(dd, dts_mul(b1, b2))), f),
     ensures
-        dts_is_zero(dts_add(dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2)))),
+        dts_nonneg_fuel(dts_sub(
+            dts_mul(dts_mul(a1, a1), dts_mul(a2, a2)),
+            dts_mul(dts_mul(dd, dts_mul(b2, b2)), dts_mul(dd, dts_mul(b1, b1)))), f),
     decreases f, 3nat,
 {
     //  Shorthands
@@ -1889,6 +1883,88 @@ proof fn lemma_cauchy_neg_db1b2_case<T: OrderedField>(
     lemma_dts_nonneg_fuel_congruence(dts_add(sub1, sub2),
         dts_sub(dts_mul(a1_sq, a2_sq), dts_mul(db2_sq, db1_sq)), f);
     //  → nonneg(sub(a1_sq*a2_sq, db2_sq*db1_sq))
+}
+
+///  Handles the neg(db1b2) ≥ 0 case of Cauchy-Schwarz.
+///  Calls le_transitive_raw for the intermediate result, then congruences
+///  + square_le_implies_le + le_antisymmetric → is_zero(re_val).
+proof fn lemma_cauchy_neg_db1b2_case<T: OrderedField>(
+    a1: DynTowerSpec<T>, a2: DynTowerSpec<T>,
+    b1: DynTowerSpec<T>, b2: DynTowerSpec<T>,
+    dd: DynTowerSpec<T>, f: nat,
+)
+    requires
+        f >= dts_depth(a1) + 1, f >= dts_depth(a2) + 1,
+        f >= dts_depth(b1) + 1, f >= dts_depth(b2) + 1, f >= dts_depth(dd) + 1,
+        dts_well_formed(a1), dts_well_formed(a2), dts_well_formed(b1),
+        dts_well_formed(b2), dts_well_formed(dd),
+        dts_same_radicand(a1, b1), dts_same_radicand(a1, a2),
+        dts_same_radicand(a1, b2), dts_same_radicand(a1, dd),
+        dts_nonneg_radicands(a1), dts_nonneg_radicands(a2),
+        dts_nonneg_radicands(b1), dts_nonneg_radicands(b2), dts_nonneg_radicands(dd),
+        dts_norm_definite(a1), dts_norm_definite(a2),
+        dts_norm_definite(b1), dts_norm_definite(b2), dts_norm_definite(dd),
+        dts_nonneg(dd),
+        dts_nonneg_fuel(dts_sub(dts_mul(a1, a1), dts_mul(dd, dts_mul(b1, b1))), f),
+        dts_nonneg_fuel(dts_sub(dts_mul(a2, a2), dts_mul(dd, dts_mul(b2, b2))), f),
+        dts_nonneg_fuel(dts_neg(dts_add(dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2)))), f),
+        dts_nonneg_fuel(a1, f),
+        dts_nonneg_fuel(a2, f),
+        dts_nonneg_fuel(dts_neg(dts_mul(dd, dts_mul(b1, b2))), f),
+    ensures
+        dts_is_zero(dts_add(dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2)))),
+    decreases f, 4nat,
+{
+    let a1_sq = dts_mul(a1, a1);
+    let a2_sq = dts_mul(a2, a2);
+    let b1_sq = dts_mul(b1, b1);
+    let b2_sq = dts_mul(b2, b2);
+    let db1_sq = dts_mul(dd, b1_sq);
+    let db2_sq = dts_mul(dd, b2_sq);
+    let a1a2 = dts_mul(a1, a2);
+    let b1b2 = dts_mul(b1, b2);
+    let db1b2 = dts_mul(dd, b1b2);
+    let re_val = dts_add(a1a2, db1b2);
+
+    //  ═══ Get le_transitive result from helper ═══
+    lemma_cauchy_le_transitive_raw(a1, a2, b1, b2, dd, f);
+    //  → nonneg(sub(a1_sq*a2_sq, db2_sq*db1_sq))
+
+    //  ═══ Same-radicand infrastructure for congruence ═══
+    lemma_dts_same_radicand_reflexive(a1);
+    lemma_dts_same_radicand_reflexive(a2);
+    lemma_dts_same_radicand_reflexive(b1);
+    lemma_dts_same_radicand_reflexive(b2);
+    lemma_dts_same_radicand_reflexive(dd);
+    lemma_dts_mul_closed(a1, a1);
+    lemma_dts_mul_closed(a2, a2);
+    lemma_dts_mul_closed(b1, b1);
+    lemma_dts_mul_closed(b2, b2);
+    lemma_dts_same_radicand_symmetric(a1, dd);
+    lemma_dts_same_radicand_symmetric(a1, b1);
+    lemma_dts_same_radicand_transitive(b1, a1, dd);
+    lemma_dts_same_radicand_symmetric(b1, dd);
+    lemma_dts_same_radicand_symmetric(b1, b1_sq);
+    lemma_dts_same_radicand_transitive(dd, b1, b1_sq);
+    lemma_dts_mul_closed(dd, b1_sq);
+    lemma_dts_same_radicand_symmetric(a1, b2);
+    lemma_dts_same_radicand_transitive(b2, a1, dd);
+    lemma_dts_same_radicand_symmetric(b2, dd);
+    lemma_dts_same_radicand_symmetric(b2, b2_sq);
+    lemma_dts_same_radicand_transitive(dd, b2, b2_sq);
+    lemma_dts_mul_closed(dd, b2_sq);
+    lemma_dts_same_radicand_symmetric(a1, a1_sq);
+    lemma_dts_same_radicand_transitive(a1_sq, a1, dd);
+    lemma_dts_same_radicand_symmetric(dd, db1_sq);
+    lemma_dts_same_radicand_transitive(a1_sq, dd, db1_sq);
+    lemma_dts_same_radicand_symmetric(a1, a2);
+    lemma_dts_same_radicand_transitive(a1_sq, a1, a2);
+    lemma_dts_same_radicand_symmetric(a2, a2_sq);
+    lemma_dts_same_radicand_transitive(a1_sq, a2, a2_sq);
+    lemma_dts_mul_closed(a1_sq, a2_sq);
+    lemma_dts_same_radicand_symmetric(dd, db2_sq);
+    lemma_dts_same_radicand_transitive(db2_sq, dd, db1_sq);
+    lemma_dts_mul_closed(db2_sq, db1_sq);
 
     //  ═══ Part E: Congruence to sub(a1a2², neg(db1b2)²) ═══
     //  E1: eqv(a1_sq*a2_sq, a1a2²) from square_mul
@@ -1912,14 +1988,21 @@ proof fn lemma_cauchy_neg_db1b2_case<T: OrderedField>(
     //  mul_congruence_right: dd²*(b1b2)² ≡ dd²*(b1_sq*b2_sq)
     lemma_dts_mul_closed(dd, dd);
     lemma_dts_same_radicand_symmetric(dd, dts_mul(dd, dd));
+    lemma_dts_same_radicand_reflexive(b1b2);
+    lemma_dts_mul_closed(b1b2, b1b2);
     lemma_dts_same_radicand_symmetric(b1b2, dts_mul(b1b2, b1b2));
     lemma_dts_same_radicand_transitive(dts_mul(b1b2, b1b2), b1b2, b1);
     lemma_dts_same_radicand_transitive(dts_mul(b1b2, b1b2), b1, b1_sq);
+    //  b1_sq ~ b2_sq chain for mul_closed
+    lemma_dts_same_radicand_symmetric(b1, b1_sq);
+    lemma_dts_same_radicand_transitive(b1_sq, b1, a1);
+    lemma_dts_same_radicand_transitive(b1_sq, a1, b2);
+    lemma_dts_same_radicand_transitive(b1_sq, b2, b2_sq);
     lemma_dts_mul_closed(b1_sq, b2_sq);
     lemma_dts_same_radicand_symmetric(b1_sq, dts_mul(b1_sq, b2_sq));
     lemma_dts_same_radicand_transitive(dts_mul(b1b2, b1b2), b1_sq, dts_mul(b1_sq, b2_sq));
-    lemma_dts_mul_congruence_right(dts_mul(dd, dd),
-        dts_mul(b1b2, b1b2), dts_mul(b1_sq, b2_sq));
+    lemma_dts_mul_congruence_right(dts_mul(b1b2, b1b2), dts_mul(b1_sq, b2_sq),
+        dts_mul(dd, dd));
     //  Chain: db1b2² ≡ dd²*(b1b2)² ≡ dd²*(b1_sq*b2_sq)
     lemma_dts_eqv_transitive(dts_mul(db1b2, db1b2),
         dts_mul(dts_mul(dd, dd), dts_mul(b1b2, b1b2)),
@@ -2086,7 +2169,7 @@ proof fn lemma_cauchy_schwarz_is_zero_re<T: OrderedField>(
         dts_nonneg_fuel(a2, f),
     ensures
         dts_is_zero(dts_add(dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2)))),
-    decreases f, 4nat,
+    decreases f, 5nat,
 {
     let re_val = dts_add(dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2)));
     let a1a2 = dts_mul(a1, a2);
@@ -10938,7 +11021,7 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                 Box::new(dts_add(dts_mul(a1, b2), dts_mul(b1, a2))),
                 Box::new(dd)),
             (f + 1) as nat),
-    decreases f, 5nat,
+    decreases f, 6nat,
 {
             let a1_nn = dts_nonneg_fuel(a1, f);
             let a2_nn = dts_nonneg_fuel(a2, f);
