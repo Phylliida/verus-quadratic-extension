@@ -1406,9 +1406,21 @@ pub proof fn lemma_dts_square_le_implies_le_fuel<T: OrderedField>(
     lemma_dts_same_radicand_symmetric(b, dts_mul(b, b));
     lemma_dts_same_radicand_symmetric(a, b);
     lemma_dts_same_radicand_transitive(dts_mul(b, b), b, a);
-    lemma_dts_nonneg_fuel_congruence(dts_neg(b2a2), a2b2, fuel);
-    //  le_antisymmetric: is_zero(b²-a²)
-    lemma_dts_le_antisymmetric_fuel(dts_sub(dts_mul(b, b), dts_mul(a, a)), fuel);
+    //  Need nonneg(neg(b2a2)) for le_antisymmetric. Have nonneg(a2b2) from square_le_square.
+    //  Transfer: nonneg_fuel_congruence(a2b2, neg(b2a2)) using eqv + same_radicand.
+    //  eqv(a2b2, neg(b2a2)) from symmetric of neg_sub_swap(b², a²)
+    lemma_dts_eqv_symmetric(dts_neg(b2a2), a2b2);
+    //  same_radicand(a2b2, neg(b2a2)): chain a2b2 ~ a² ~ a ~ b ~ b² ~ b2a2 ~ neg(b2a2)
+    lemma_dts_same_radicand_symmetric(dts_mul(a, a), a2b2);
+    lemma_dts_same_radicand_transitive(a2b2, dts_mul(a, a), a);
+    lemma_dts_same_radicand_transitive(a2b2, a, b);
+    lemma_dts_same_radicand_transitive(a2b2, b, dts_mul(b, b));
+    lemma_dts_same_radicand_symmetric(dts_mul(b, b), b2a2);
+    lemma_dts_same_radicand_transitive(a2b2, dts_mul(b, b), b2a2);
+    lemma_dts_same_radicand_transitive(a2b2, b2a2, dts_neg(b2a2));
+    lemma_dts_nonneg_fuel_congruence(a2b2, dts_neg(b2a2), fuel);
+    //  le_antisymmetric: nonneg(b2a2) ∧ nonneg(neg(b2a2)) → is_zero(b2a2)
+    lemma_dts_le_antisymmetric_fuel(b2a2, fuel);
     //  Difference of squares: b²-a² ≡ (b-a)(b+a)
     lemma_dts_difference_of_squares(a, b);
     //  is_zero_congruence: is_zero((b-a)(b+a))
@@ -1423,27 +1435,39 @@ pub proof fn lemma_dts_square_le_implies_le_fuel<T: OrderedField>(
         //  b-a ≡ 0 → nonneg from nonneg_fuel_zero.
         //  Z3 should derive: is_zero(b+a) with nonneg(a), nonneg(b)
         //  → is_zero(a) && is_zero(b) → is_zero(b-a) → nonneg(b-a).
+        //  is_zero(a+b) with nonneg(a), nonneg(b) → is_zero(a) and is_zero(b) → is_zero(b-a)
+        //  Help Z3: is_zero(add(b,a)) → is_zero(a) by structural unfolding of nonneg.
+        //  For Rat: a+b=0 and a≥0, b≥0 → a=0 (T arithmetic).
+        //  For Ext: Z3 unfolds nonneg_fuel and is_zero to derive.
+        //  is_zero(sum=add(b,a)) with nonneg(a), nonneg(b):
+        //  Use nonneg_add to get nonneg(add(a,b)), then commutative → eqv to sum ≡ 0.
+        //  le_antisymmetric(add(a,b)) → is_zero(add(a,b)) → is_zero(a), is_zero(b).
+        //  Then is_zero(ba) → nonneg.
+        lemma_dts_nonneg_add_closed_fuel(a, b, fuel);
+        lemma_dts_add_commutative(a, b);
         lemma_dts_is_zero_implies_eqv_zero(sum);
+        lemma_dts_eqv_transitive(dts_add(a, b), sum, dts_zero());
+        lemma_dts_eqv_zero_implies_is_zero(dts_add(a, b));
+        //  is_zero(add(a,b)) → at each level: a_comp + b_comp = 0 with nonneg → zero
+        //  Z3: structural unfolding gives is_zero(a) and is_zero(b).
+        //  Then is_zero(neg(a)) and is_zero(add(b, neg(a))) = is_zero(ba).
+        lemma_dts_is_zero_neg(a);
+        lemma_dts_is_zero_add(b, dts_neg(a));
         lemma_dts_is_zero_implies_eqv_zero(ba);
         lemma_dts_nonneg_fuel_zero(ba, fuel);
     } else {
         //  !is_zero(b+a): integral domain → is_zero(b-a)
         lemma_dts_add_closed(b, a);
-        lemma_dts_mul_closed(ba, sum);
-        lemma_dts_same_radicand_symmetric(b, ba);
-        lemma_dts_same_radicand_transitive(ba, b, a);
-        lemma_dts_same_radicand_symmetric(a, b);
-        lemma_dts_same_radicand_transitive(ba, a, sum);
-        //  wait, sum = add(b, a). same_radicand(ba, sum) via ba ~ b ~ a ~ sum.
-        lemma_dts_same_radicand_symmetric(a, sum);
-        lemma_dts_same_radicand_transitive(ba, a, sum);
-        //  Hmm, that doesn't work. Let me chain: ba ~ b, b ~ a ~ sum.
-        //  ba = sub(b, a) = add(b, neg(a)). add_closed(b, neg(a)) gives same_radicand(b, ba).
-        //  So ba ~ b. And sum = add(b, a). add_closed(b, a) gives same_radicand(b, sum).
-        //  Transitive(ba, b, sum) → ba ~ sum? Need same_radicand(ba, b) from symmetric.
+        //  same_radicand(ba, sum): ba ~ b (from add_closed(b,neg(a))), b ~ sum (from add_closed(b,a))
         lemma_dts_same_radicand_symmetric(b, ba);
         lemma_dts_same_radicand_symmetric(b, sum);
         lemma_dts_same_radicand_transitive(ba, b, sum);
+        //  mul_closed + norm_definite for mul_cancel_zero
+        lemma_dts_mul_closed(ba, sum);
+        lemma_dts_nonneg_radicands_add(b, dts_neg(a));
+        lemma_dts_nonneg_radicands_add(b, a);
+        lemma_norm_definite_add(b, dts_neg(a));
+        lemma_norm_definite_add(b, a);
         lemma_dts_mul_cancel_zero(ba, sum);
         lemma_dts_is_zero_implies_eqv_zero(ba);
         lemma_dts_nonneg_fuel_zero(ba, fuel);
