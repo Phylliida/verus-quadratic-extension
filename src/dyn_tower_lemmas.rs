@@ -1316,17 +1316,53 @@ pub proof fn lemma_dts_nonneg_sum_zero_implies_zero<T: OrderedField>(
             T::axiom_eqv_symmetric(T::zero(), ra);
         }
         _ => {
-            //  Ext and cross-depth cases.
-            //  Strategy: show nonneg(neg(a)) from nonneg(b) + is_zero(add(a,b)).
-            //  From is_zero(add(a,b)): neg(add(a,b)) is_zero. And neg(add(a,b)) ≡ add(neg(a), neg(b))
-            //  via neg_add. So is_zero(add(neg(a), neg(b))). But this doesn't give nonneg(neg(a)).
-            //  Alternative: use nonneg_add(a, b, fuel) → nonneg(add(a,b)).
-            //  is_zero(add(a,b)) → nonneg(neg(add(a,b))) [from is_zero → neg_is_zero → nonneg_fuel_zero].
-            //  le_antisymmetric(add(a,b)): nonneg(add(a,b)) + nonneg(neg(add(a,b))) → is_zero(add(a,b)).
-            //  We already HAVE is_zero(add(a,b)). So this is circular.
-            //  Direct approach: recurse on sub-components at fuel-1.
-            //  For now: let Z3 try structural unfolding on the match arms.
-            //  If Z3 can't: we'll need explicit C1/C2/C3 dispatch.
+            //  Prove eqv(b, neg(a)) from is_zero(add(a, b)):
+            //  Chain: b ≡ add(add(neg(a),a), b) ≡ add(neg(a), add(a,b)) ≡ add(neg(a), 0) ≡ neg(a)
+            lemma_dts_is_zero_implies_eqv_zero(dts_add(a, b));
+            //  add(neg(a), add(a,b)) ≡ add(neg(a), 0) ≡ neg(a)
+            lemma_dts_add_congruence_right(dts_neg(a), dts_add(a, b), dts_zero());
+            lemma_dts_add_zero_right(dts_neg(a));
+            lemma_dts_eqv_transitive(
+                dts_add(dts_neg(a), dts_add(a, b)),
+                dts_add(dts_neg(a), dts_zero()),
+                dts_neg(a));
+            //  add(add(neg(a), a), b) ≡ add(neg(a), add(a, b)) [assoc]
+            lemma_dts_add_associative(dts_neg(a), a, b);
+            //  add(neg(a), a) ≡ 0
+            lemma_dts_add_commutative(a, dts_neg(a));
+            lemma_dts_add_inverse_right(a);
+            lemma_dts_eqv_symmetric(dts_add(a, dts_neg(a)), dts_add(dts_neg(a), a));
+            lemma_dts_eqv_transitive(
+                dts_add(dts_neg(a), a), dts_add(a, dts_neg(a)), dts_zero());
+            //  add(add(neg(a),a), b) ≡ add(0, b)
+            lemma_dts_add_congruence_left(dts_add(dts_neg(a), a), dts_zero(), b);
+            //  add(0, b) ≡ b
+            lemma_dts_add_commutative(dts_zero(), b);
+            lemma_dts_add_zero_right(b);
+            lemma_dts_eqv_transitive(dts_add(dts_zero(), b), dts_add(b, dts_zero()), b);
+            //  Chain: add(add(neg(a),a), b) ≡ add(0, b) ≡ b
+            lemma_dts_eqv_transitive(
+                dts_add(dts_add(dts_neg(a), a), b),
+                dts_add(dts_zero(), b), b);
+            //  b ≡ add(add(neg(a),a),b) [reverse of above]
+            lemma_dts_eqv_symmetric(
+                dts_add(dts_add(dts_neg(a), a), b), b);
+            //  add(add(neg(a),a),b) ≡ add(neg(a),add(a,b)) [from assoc]
+            //  Chain: b ≡ add(add(neg(a),a),b) ≡ add(neg(a),add(a,b)) ≡ neg(a)
+            lemma_dts_eqv_transitive(b,
+                dts_add(dts_add(dts_neg(a), a), b),
+                dts_add(dts_neg(a), dts_add(a, b)));
+            lemma_dts_eqv_transitive(b,
+                dts_add(dts_neg(a), dts_add(a, b)),
+                dts_neg(a));
+            //  Transfer nonneg: nonneg(b) → nonneg(neg(a)) via eqv + same_radicand
+            lemma_dts_neg_well_formed(a);
+            lemma_dts_same_radicand_neg(a);
+            lemma_dts_same_radicand_symmetric(a, b);
+            lemma_dts_same_radicand_transitive(b, a, dts_neg(a));
+            lemma_dts_nonneg_fuel_congruence(b, dts_neg(a), fuel);
+            //  le_antisymmetric: nonneg(a) + nonneg(neg(a)) → is_zero(a)
+            lemma_dts_le_antisymmetric_fuel(a, fuel);
         }
     }
 }
