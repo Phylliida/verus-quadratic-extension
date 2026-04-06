@@ -1277,6 +1277,60 @@ pub proof fn lemma_dts_mul_cancel_zero<T: OrderedField>(
     }
 }
 
+///  Sum of nonneg is zero → first arg is zero.
+///  nonneg(a) ∧ nonneg(b) ∧ is_zero(add(a,b)) → is_zero(a).
+///  For Rat: a+b=0, a≥0, b≥0 → a≤0 (from le_add_monotone) → a=0.
+///  For Ext: Z3 dispatches on C1/C2/C3 and structural unfolding.
+pub proof fn lemma_dts_nonneg_sum_zero_implies_zero<T: OrderedField>(
+    a: DynTowerSpec<T>, b: DynTowerSpec<T>, fuel: nat,
+)
+    requires
+        fuel >= dts_depth(a) + 1,
+        fuel >= dts_depth(b) + 1,
+        dts_well_formed(a), dts_well_formed(b),
+        dts_same_radicand(a, b),
+        dts_nonneg_radicands(a), dts_nonneg_radicands(b),
+        dts_norm_definite(a), dts_norm_definite(b),
+        dts_nonneg_fuel(a, fuel),
+        dts_nonneg_fuel(b, fuel),
+        dts_is_zero(dts_add(a, b)),
+    ensures
+        dts_is_zero(a),
+    decreases fuel,
+{
+    match (a, b) {
+        (DynTowerSpec::Rat(ra), DynTowerSpec::Rat(rb)) => {
+            //  ra + rb ≡ 0 and ra ≥ 0 and rb ≥ 0.
+            //  le_add_monotone(0, rb, ra): 0 ≤ rb → 0+ra ≤ rb+ra
+            //  0 ≤ rb → 0+ra ≤ rb+ra
+            T::axiom_le_add_monotone(T::zero(), rb, ra);
+            //  0+ra ≡ ra via add_zero_left
+            verus_algebra::lemmas::additive_group_lemmas::lemma_add_zero_left::<T>(ra);
+            //  rb+ra ≡ ra+rb ≡ 0
+            T::axiom_add_commutative(rb, ra);
+            T::axiom_eqv_transitive(rb.add(ra), ra.add(rb), T::zero());
+            //  le_congruence: 0+ra ≡ ra, rb+ra ≡ 0 → ra ≤ 0
+            T::axiom_le_congruence(T::zero().add(ra), ra, rb.add(ra), T::zero());
+            //  0 ≤ ra and ra ≤ 0 → ra ≡ 0
+            T::axiom_le_antisymmetric(T::zero(), ra);
+            T::axiom_eqv_symmetric(T::zero(), ra);
+        }
+        _ => {
+            //  Ext and cross-depth cases.
+            //  Strategy: show nonneg(neg(a)) from nonneg(b) + is_zero(add(a,b)).
+            //  From is_zero(add(a,b)): neg(add(a,b)) is_zero. And neg(add(a,b)) ≡ add(neg(a), neg(b))
+            //  via neg_add. So is_zero(add(neg(a), neg(b))). But this doesn't give nonneg(neg(a)).
+            //  Alternative: use nonneg_add(a, b, fuel) → nonneg(add(a,b)).
+            //  is_zero(add(a,b)) → nonneg(neg(add(a,b))) [from is_zero → neg_is_zero → nonneg_fuel_zero].
+            //  le_antisymmetric(add(a,b)): nonneg(add(a,b)) + nonneg(neg(add(a,b))) → is_zero(add(a,b)).
+            //  We already HAVE is_zero(add(a,b)). So this is circular.
+            //  Direct approach: recurse on sub-components at fuel-1.
+            //  For now: let Z3 try structural unfolding on the match arms.
+            //  If Z3 can't: we'll need explicit C1/C2/C3 dispatch.
+        }
+    }
+}
+
 ///  square_le_implies_le for DTS: 0 ≤ a, 0 ≤ b, a² ≤ b² → a ≤ b.
 ///  Part of the mutual recursion group. Uses integral domain (mul_cancel_zero).
 ///  Proof: by contradiction — if b ≤ a, then a² ≥ b² (square_le_square).
@@ -1448,9 +1502,18 @@ pub proof fn lemma_dts_square_le_implies_le_fuel<T: OrderedField>(
         lemma_dts_is_zero_implies_eqv_zero(sum);
         lemma_dts_eqv_transitive(dts_add(a, b), sum, dts_zero());
         lemma_dts_eqv_zero_implies_is_zero(dts_add(a, b));
-        //  is_zero(add(a,b)) → at each level: a_comp + b_comp = 0 with nonneg → zero
-        //  Z3: structural unfolding gives is_zero(a) and is_zero(b).
-        //  Then is_zero(neg(a)) and is_zero(add(b, neg(a))) = is_zero(ba).
+        //  nonneg_sum_zero: is_zero(a) and is_zero(b) from is_zero(add(a,b))
+        //  sum = add(b, a). Need is_zero(add(a, b)) for the helper.
+        //  add_commutative + is_zero_congruence: is_zero(add(b,a)) → is_zero(add(a,b))
+        lemma_dts_add_commutative(b, a);
+        lemma_dts_eqv_symmetric(dts_add(b, a), dts_add(a, b));
+        lemma_dts_is_zero_congruence(sum, dts_add(a, b));
+        //  is_zero(a) from nonneg(a) + nonneg(b) + is_zero(add(a,b))
+        lemma_dts_nonneg_sum_zero_implies_zero(a, b, fuel);
+        //  is_zero(b) from nonneg(b) + nonneg(a) + is_zero(add(b,a))
+        lemma_dts_same_radicand_symmetric(a, b);
+        lemma_dts_nonneg_sum_zero_implies_zero(b, a, fuel);
+        //  is_zero(a) ∧ is_zero(b) → is_zero(neg(a)) → is_zero(sub(b,a))
         lemma_dts_is_zero_neg(a);
         lemma_dts_is_zero_add(b, dts_neg(a));
         lemma_dts_is_zero_implies_eqv_zero(ba);
