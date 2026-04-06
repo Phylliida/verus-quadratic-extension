@@ -11363,8 +11363,9 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                         //  In this branch: !b1_nn || !neg_b2_nn.
                         lemma_dts_nonneg_or_neg_nonneg_fuel(b2, f);
                         if !dts_nonneg_fuel(b1, f) {
-                            //  neg(b1) ≥ 0 and b2: le_total(b2).
-                            //  If b2≥0: neg(b1)*b2 ≥ 0. If neg(b2)≥0 = neg_b2≥0: contradiction with else branch? No, this is the inner else for b1*neg_b2.
+                            //  neg(b1) ≥ 0. Check b2 sign for nonneg_mul precondition.
+                            if dts_nonneg_fuel(b2, f) {
+                            //  neg(b1) ≥ 0 and b2 ≥ 0: neg(b1)*b2 ≥ 0 → transfer to b1*neg_b2
                             lemma_dts_nonneg_mul_closed_fuel(dts_neg(b1), b2, f);
                             lemma_dts_neg_mul_neg(b1, neg_b2);
                             lemma_dts_mul_closed(dts_neg(b1), b2);
@@ -11375,6 +11376,8 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                             lemma_dts_same_radicand_transitive(dts_mul(dts_neg(b1), b2), b1, dts_mul(b1, neg_b2));
                             lemma_dts_neg_involution(b2);
                             lemma_dts_nonneg_fuel_congruence(dts_mul(dts_neg(b1), b2), dts_mul(b1, neg_b2), f);
+                            }
+                            //  else: neg(b1)≥0, neg(b2)≥0 (C2×C2 case) — fall through to norm infrastructure
                         } else {
                             //  b1≥0 and !neg_b2_nn → b2≥0 (from le_total on neg_b2).
                             //  b1≥0 and b2≥0: b1*b2≥0 and b1*neg_b2≤0. Use neg_mul_right: b1*neg(b2)=neg(b1*b2). nonneg(b1*b2).
@@ -11541,8 +11544,10 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                             lemma_dts_depth_neg(a2);
                             lemma_dts_nonneg_or_neg_nonneg_fuel(a1, f);
                             lemma_dts_nonneg_or_neg_nonneg_fuel(a2, f);
-                            //  !a1_nn → nonneg(neg(a1)), !a2_nn → nonneg(neg(a2))
-                            //  (a1_nn would mean C1×C1 handled earlier)
+                            //  nonneg(neg(a1)) and nonneg(neg(a2)): from C3 (both norms ≤ 0).
+                            //  Z3 scoped assert: clean context for the disjunction resolution.
+                            assert(dts_nonneg_fuel(dts_neg(a1), f)) by {};
+                            assert(dts_nonneg_fuel(dts_neg(a2), f)) by {};
                             lemma_dts_nonneg_mul_closed_fuel(dts_neg(a1), dts_neg(a2), f);
                             //  neg(a1)*neg(a2) ≡ a1*a2 by neg_mul_neg
                             lemma_dts_neg_mul_neg(a1, a2);
