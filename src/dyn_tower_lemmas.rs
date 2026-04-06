@@ -1965,12 +1965,12 @@ proof fn lemma_cauchy_neg_db1b2_case<T: OrderedField>(
     lemma_dts_same_radicand_symmetric(dd, db2_sq);
     lemma_dts_same_radicand_transitive(db2_sq, dd, db1_sq);
     lemma_dts_mul_closed(db2_sq, db1_sq);
-    //  b1_sq ~ dd ~ db2_sq for mul_associative in Part E
+    //  b1_sq ~ dd ~ db2_sq chains for Part E mul algebra
     lemma_dts_same_radicand_symmetric(b1, b1_sq);
     lemma_dts_same_radicand_transitive(b1_sq, b1, dd);
     lemma_dts_same_radicand_transitive(b1_sq, dd, db2_sq);
-    //  b1_sq ~ dd for mul_commutative(b1_sq, dd) in Part E
-    lemma_dts_same_radicand_symmetric(b1_sq, dd);
+    lemma_dts_same_radicand_symmetric(b1_sq, dd);  //  dd ~ b1_sq for mul_associative
+    lemma_dts_mul_closed(b1_sq, dd);  //  well_formed(mul(b1_sq, dd)) + same_radicand(b1_sq, mul(b1_sq, dd))
 
     //  ═══ Part E: Congruence to sub(a1a2², neg(db1b2)²) ═══
     //  E1: eqv(a1_sq*a2_sq, a1a2²) from square_mul
@@ -2018,7 +2018,7 @@ proof fn lemma_cauchy_neg_db1b2_case<T: OrderedField>(
     lemma_dts_same_radicand_transitive(db2_sq, dd, db1_sq);
     lemma_dts_mul_commutative(db2_sq, db1_sq);
     //  db1_sq*db2_sq → dd*(b1_sq*db2_sq) [associative]
-    lemma_dts_same_radicand_symmetric(db1_sq, db2_sq);
+    lemma_dts_same_radicand_symmetric(db2_sq, db1_sq);  //  db1_sq ~ db2_sq
     lemma_dts_mul_associative(dd, b1_sq, db2_sq);
     lemma_dts_eqv_symmetric(dts_mul(dd, dts_mul(b1_sq, db2_sq)), dts_mul(db1_sq, db2_sq));
     lemma_dts_eqv_transitive(dts_mul(db2_sq, db1_sq), dts_mul(db1_sq, db2_sq),
@@ -2031,19 +2031,30 @@ proof fn lemma_cauchy_neg_db1b2_case<T: OrderedField>(
     lemma_dts_eqv_symmetric(dts_mul(b1_sq, dts_mul(dd, b2_sq)), dts_mul(dts_mul(b1_sq, dd), b2_sq));
     lemma_dts_same_radicand_symmetric(b1_sq, dd);
     lemma_dts_mul_commutative(b1_sq, dd);
-    lemma_dts_same_radicand_symmetric(dts_mul(b1_sq, dd), b1_sq);
+    //  mul(b1_sq, dd) ~ b1_sq ~ dd ~ db1_sq for mul_congruence_left
+    lemma_dts_same_radicand_symmetric(b1_sq, dts_mul(b1_sq, dd));  //  mul(b1_sq,dd) ~ b1_sq
     lemma_dts_same_radicand_transitive(dts_mul(b1_sq, dd), b1_sq, dd);
     lemma_dts_same_radicand_transitive(dts_mul(b1_sq, dd), dd, db1_sq);
     lemma_dts_mul_congruence_left(dts_mul(b1_sq, dd), db1_sq, b2_sq);
+    //  eqv(mul(mul(b1_sq,dd), b2_sq), mul(db1_sq, b2_sq))
     lemma_dts_mul_associative(dd, b1_sq, b2_sq);
+    //  eqv(mul(dd, mul(b1_sq, b2_sq)), mul(db1_sq, b2_sq))  — need reversed
+    lemma_dts_eqv_symmetric(dts_mul(dd, dts_mul(b1_sq, b2_sq)), dts_mul(db1_sq, b2_sq));
+    //  eqv(mul(db1_sq, b2_sq), mul(dd, mul(b1_sq, b2_sq)))
     lemma_dts_eqv_transitive(dts_mul(dts_mul(b1_sq, dd), b2_sq), dts_mul(db1_sq, b2_sq),
         dts_mul(dd, dts_mul(b1_sq, b2_sq)));
     lemma_dts_eqv_transitive(dts_mul(b1_sq, db2_sq), dts_mul(dts_mul(b1_sq, dd), b2_sq),
         dts_mul(dd, dts_mul(b1_sq, b2_sq)));
     //  Propagate: dd*(b1_sq*db2_sq) → dd*(dd*(b1_sq*b2_sq))
+    lemma_dts_mul_closed(b1_sq, db2_sq);
     lemma_dts_same_radicand_symmetric(b1_sq, dts_mul(b1_sq, db2_sq));
     lemma_dts_same_radicand_transitive(dts_mul(b1_sq, db2_sq), b1_sq, dd);
     lemma_dts_same_radicand_transitive(dts_mul(b1_sq, db2_sq), dd, db1_sq);
+    //  db1_sq ~ mul(dd, mul(b1_sq, b2_sq)) for mul_congruence_right
+    lemma_dts_same_radicand_transitive(dd, b1_sq, dts_mul(b1_sq, b2_sq));
+    lemma_dts_mul_closed(dd, dts_mul(b1_sq, b2_sq));
+    lemma_dts_same_radicand_symmetric(dd, db1_sq);
+    lemma_dts_same_radicand_transitive(db1_sq, dd, dts_mul(dd, dts_mul(b1_sq, b2_sq)));
     lemma_dts_same_radicand_symmetric(db1_sq, dts_mul(dd, dts_mul(b1_sq, b2_sq)));
     lemma_dts_same_radicand_transitive(dts_mul(b1_sq, db2_sq), db1_sq,
         dts_mul(dd, dts_mul(b1_sq, b2_sq)));
