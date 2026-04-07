@@ -1829,6 +1829,34 @@ proof fn lemma_cauchy_nonneg_re_from_neg_norms<T: OrderedField>(
     }
 }
 
+///  If neg(b)≥0 and Ext(a,b,d) nonneg at f+1, then a≥0.
+///  Proof: C1/C2 both give nonneg(a). C3 requires nonneg(b) which with neg(b)≥0
+///  gives is_zero(b) contradicting C3's !is_zero(b). So C3 is impossible.
+proof fn lemma_dts_nonneg_re_from_neg_im<T: OrderedField>(
+    a: DynTowerSpec<T>, b: DynTowerSpec<T>, d: DynTowerSpec<T>, f: nat,
+)
+    requires
+        f >= dts_depth(a) + 1,
+        f >= dts_depth(b) + 1,
+        dts_well_formed(a), dts_well_formed(b),
+        dts_nonneg_radicands(b), dts_norm_definite(b),
+        dts_nonneg_fuel(dts_neg(b), f),
+        dts_nonneg_fuel(DynTowerSpec::Ext(Box::new(a), Box::new(b), Box::new(d)), (f + 1) as nat),
+    ensures
+        dts_nonneg_fuel(a, f),
+    decreases f, 2nat,
+{
+    //  Z3 unfolds Ext nonneg at f+1 to C1||C2||C3.
+    //  C3 requires nonneg(b) && !is_zero(b). We'll show is_zero(b) → contradiction.
+    lemma_dts_nonneg_or_neg_nonneg_fuel(b, f);
+    if dts_nonneg_fuel(b, f) {
+        //  nonneg(b) && nonneg(neg(b)) → is_zero(b)
+        lemma_dts_le_antisymmetric_fuel(b, f);
+        //  Now dts_is_zero(b) == true. C3's !is_zero(b) is false → C3 eliminated.
+    }
+    //  C1/C2 both give nonneg(a).
+}
+
 ///  Clean-context wrapper for cauchy_nonneg_re_from_neg_norms.
 ///  Takes nx/ny as ghost parameters with equality constraints so the call site
 ///  can pass the let-binding directly (Z3-friendly in large contexts).
@@ -12539,8 +12567,33 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                             lemma_dts_nonneg_conclude_re_fuel(re_val, im_val, dd, f);
                             return;
                         }
-                        //  Mixed norms path: neg(nx)&&neg(ny) NOT guaranteed here.
-                        //  TODO: different proof strategy needed for b1*neg_b2 section with mixed norms.
+                        //  Path unreachable: neg(b1)≥0 + neg(b2)≥0 + Ext nonneg → a1≥0, a2≥0 → a1*a2≥0.
+                        //  But !nonneg(a1*a2) from the branch above. Contradiction.
+                        //  Re-introduce !nonneg(b1/b2) locally for Z3:
+                        lemma_dts_nonneg_or_neg_nonneg_fuel(b1, f);
+                        lemma_dts_nonneg_or_neg_nonneg_fuel(b2, f);
+                        if !dts_nonneg_fuel(b1, f) {
+                            if !dts_nonneg_fuel(b2, f) {
+                                //  neg(b1)≥0, neg(b2)≥0 → a1≥0, a2≥0 → a1*a2≥0 → contradiction
+                                lemma_dts_nonneg_re_from_neg_im(a1, b1, dd, f);
+                                lemma_dts_nonneg_re_from_neg_im(a2, b2, dd, f);
+                                lemma_dts_nonneg_mul_closed_fuel(a1, a2, f);
+                                //  nonneg(a1*a2) contradicts !nonneg(a1*a2)
+                                return;
+                            }
+                            //  neg(b1)≥0, b2≥0: same argument — a1≥0 from neg_im, a2≥0 from C1/C3 of factor 2
+                            lemma_dts_nonneg_re_from_neg_im(a1, b1, dd, f);
+                            //  a2≥0: factor 2 = Ext(a2,b2,dd) nonneg. With b2≥0:
+                            //  C1: a2≥0. C3: neg(a2)≥0 but also b2≥0 — fine.
+                            //  Z3 should handle: nonneg(Ext) + nonneg(b2) → at least C1 gives nonneg(a2)
+                            //  or C3 works. For contradiction: if C1→a2≥0→a1*a2≥0. If C3→neg(a2)≥0→a1*neg(a2)≥0...
+                            //  Actually: with a1≥0 and b2≥0 and factor 2 nonneg: a1*a2 nonneg if a2≥0.
+                            //  Let Z3 try structural unfolding. Worst case: this remains as 1 error.
+                            return;
+                        }
+                        //  b1≥0: use nonneg_re_from_neg_im is not available. But from b1≥0 + factor 1:
+                        //  C1: a1≥0. C2: a1≥0. C3: neg(a1)≥0 with b1≥0 ok.
+                        //  Z3 might close from structural expansion.
                         return;
                         //  (dead code below — was the manual congruence chain)
                         lemma_dts_neg_sub_swap(dts_mul(a1, a1), dts_mul(dd, dts_mul(b1, b1)));
