@@ -12274,7 +12274,15 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                             lemma_dts_same_radicand_transitive(dts_mul(dts_neg(b1), b2), b1, dts_mul(b1, neg_b2));
                             lemma_dts_nonneg_fuel_congruence(dts_mul(dts_neg(b1), b2), dts_mul(b1, neg_b2), f);
                             }
-                            //  else: neg(b1)≥0, neg(b2)≥0 (C2×C2 case) — fall through to norm infrastructure
+                            //  Both b2-true and b2-false paths reach here. In b2-false: neg(b2)≥0.
+                            //  Establish nonneg(a1*a2) for the !b2 case while Z3 has fresh context.
+                            if !dts_nonneg_fuel(b2, f) {
+                                //  !b1 && !b2: neg(b1)≥0, neg(b2)≥0 → a1≥0, a2≥0 → a1*a2≥0
+                                lemma_dts_nonneg_re_from_neg_im(a1, b1, dd, f);
+                                lemma_dts_nonneg_re_from_neg_im(a2, b2, dd, f);
+                                lemma_dts_nonneg_mul_closed_fuel(a1, a2, f);
+                                //  nonneg(a1*a2) established for !b2 case.
+                            }
                         } else {
                             //  b1≥0 and !neg_b2_nn → b2≥0 (from le_total on neg_b2).
                             //  b1≥0 and b2≥0: b1*b2≥0 and b1*neg_b2≤0. Use neg_mul_right: b1*neg(b2)=neg(b1*b2). nonneg(b1*b2).
@@ -12572,28 +12580,12 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                         //  Re-introduce !nonneg(b1/b2) locally for Z3:
                         lemma_dts_nonneg_or_neg_nonneg_fuel(b1, f);
                         lemma_dts_nonneg_or_neg_nonneg_fuel(b2, f);
-                        if !dts_nonneg_fuel(b1, f) {
-                            if !dts_nonneg_fuel(b2, f) {
-                                //  neg(b1)≥0, neg(b2)≥0 → a1≥0, a2≥0 → a1*a2≥0 → contradiction
-                                lemma_dts_nonneg_re_from_neg_im(a1, b1, dd, f);
-                                lemma_dts_nonneg_re_from_neg_im(a2, b2, dd, f);
-                                lemma_dts_nonneg_mul_closed_fuel(a1, a2, f);
-                                //  nonneg(a1*a2) contradicts !nonneg(a1*a2)
-                                return;
-                            }
-                            //  neg(b1)≥0, b2≥0: same argument — a1≥0 from neg_im, a2≥0 from C1/C3 of factor 2
-                            lemma_dts_nonneg_re_from_neg_im(a1, b1, dd, f);
-                            //  a2≥0: factor 2 = Ext(a2,b2,dd) nonneg. With b2≥0:
-                            //  C1: a2≥0. C3: neg(a2)≥0 but also b2≥0 — fine.
-                            //  Z3 should handle: nonneg(Ext) + nonneg(b2) → at least C1 gives nonneg(a2)
-                            //  or C3 works. For contradiction: if C1→a2≥0→a1*a2≥0. If C3→neg(a2)≥0→a1*neg(a2)≥0...
-                            //  Actually: with a1≥0 and b2≥0 and factor 2 nonneg: a1*a2 nonneg if a2≥0.
-                            //  Let Z3 try structural unfolding. Worst case: this remains as 1 error.
-                            return;
-                        }
-                        //  b1≥0: use nonneg_re_from_neg_im is not available. But from b1≥0 + factor 1:
-                        //  C1: a1≥0. C2: a1≥0. C3: neg(a1)≥0 with b1≥0 ok.
-                        //  Z3 might close from structural expansion.
+                        //  neg(b1)≥0 and neg(b2)≥0 from the guard above.
+                        //  → a1≥0 and a2≥0 → nonneg(a1*a2) → contradiction with !nonneg(a1*a2).
+                        lemma_dts_nonneg_re_from_neg_im(a1, b1, dd, f);
+                        lemma_dts_nonneg_re_from_neg_im(a2, b2, dd, f);
+                        lemma_dts_nonneg_mul_closed_fuel(a1, a2, f);
+                        //  nonneg(a1*a2) contradicts !nonneg(a1*a2). Z3 derives false.
                         return;
                         //  (dead code below — was the manual congruence chain)
                         lemma_dts_neg_sub_swap(dts_mul(a1, a1), dts_mul(dd, dts_mul(b1, b1)));
