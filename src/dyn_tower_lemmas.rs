@@ -11948,6 +11948,9 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                 lemma_dts_same_radicand_transitive(im_val, a1, dd);
                 lemma_dts_same_radicand_symmetric(im_val, dts_mul(im_val, im_val));
                 lemma_dts_same_radicand_transitive(dts_mul(im_val, im_val), im_val, dd);
+                lemma_dts_same_radicand_symmetric(im_val, dd);
+                lemma_dts_same_radicand_symmetric(im_val, dts_mul(im_val, im_val));
+                lemma_dts_same_radicand_transitive(dd, im_val, dts_mul(im_val, im_val));
                 lemma_dts_mul_closed(dd, dts_mul(im_val, im_val));
                 lemma_dts_same_radicand_symmetric(dd, dts_mul(dd, dts_mul(im_val, im_val)));
                 lemma_dts_same_radicand_transitive(dts_mul(re_val, re_val), dd,
@@ -11964,6 +11967,7 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                 lemma_dts_same_radicand_transitive(norm_prod, dts_mul(re_val, re_val), re_val);
                 lemma_dts_same_radicand_transitive(norm_prod, re_val, a1);
                 //  mul(nx, ny) ~ nx ~ a1
+                lemma_dts_mul_closed(nx, ny);
                 lemma_dts_same_radicand_symmetric(nx, dts_mul(nx, ny));
                 lemma_dts_same_radicand_transitive(dts_mul(nx, ny), nx, dts_mul(a1, a1));
                 lemma_dts_same_radicand_transitive(dts_mul(nx, ny), dts_mul(a1, a1), a1);
