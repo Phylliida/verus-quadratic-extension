@@ -11622,18 +11622,25 @@ proof fn lemma_dts_nonneg_mul_iszero_im<T: OrderedField>(
                 //  OLD CODE REMOVED — was the manual le_mul chain + transitivity.
                 //  Unused bindings from old code:
                 //  (old assert_by body removed — replaced by step+combine above)
-                //  nonneg(sub(dd_b1_sq*dd_b2_sq, na2_sq*a1_sq)) established.
-                //  This is Q² ≥ P² where Q=dd*b1*b2, P=a1*a2.
-                //  With im=0 and nonneg(im_val): just need nonneg(re_val) for C1.
-                //  Z3 should derive from the Cauchy-Schwarz inequality + factor nonneg_fuel.
-                return;
+                //  nonneg(sub(dd_b1_sq*dd_b2_sq, na2_sq*a1_sq)) established = Q²≥P².
+                //  neg(nx)&&neg(ny): norms ≤ 0 → product_norm = nx*ny ≥ 0 (not neg).
+                //  Use dd_sq_product_eqv + neg_a1a2_square_le to derive nonneg(re_val).
+                //  Then conclude_re (need nonneg(norm_product) which is nonneg(nx*ny)).
+                //  Actually: use the Q²≥P² fact with square_le_implies_le.
+                //  For now: just conclude_re with nonneg(re) check.
+                lemma_dts_nonneg_or_neg_nonneg_fuel(re_val, f);
+                if dts_nonneg_fuel(re_val, f) {
+                    lemma_dts_nonneg_conclude_re_fuel(re_val, im_val, dd, f);
+                    return;
+                }
+                //  neg(re)≥0: need square_le_implies_le chain. TODO for later.
+                //  For now: fall through to is_zero approach (which works for nx≥0&&ny≥0 only).
             }
-            //  nonneg(re_val) established (or branch unreachable). Return for C1.
-            return;
         }
-        //  Transfer chain: nonneg(neg(nx*ny)) → is_zero(re_val) in scoped Z3 context.
-        assert(dts_is_zero(re_val)) by {
-        //  nonneg(neg(nx*ny)) established. Transfer to nonneg(neg(re_val²)).
+        //  Transfer chain: prove eqv(nx*ny, re²) in scoped context, then use it outside.
+        //  Split: assert_by proves just the eqv. nonneg transfer uses outer-scope facts.
+        assert(dts_eqv(dts_mul(nx, ny), dts_mul(re_val, re_val))) by {
+        //  nonneg(neg(nx*ny)) established in OUTER scope. Here prove the eqv chain.
         //  norm_mul identity: product_norm ≡ nx*ny. With im=0: product_norm = re_val²
         //  (structurally, since is_zero(im_val) → mul(im,im)=0 → dd*mul(im,im)=0 → sub(re²,0)=re²).
         //  Z3 should see: neg(nx*ny) ~ neg(re_val²) via norm_mul congruence.
@@ -11687,9 +11694,14 @@ proof fn lemma_dts_nonneg_mul_iszero_im<T: OrderedField>(
         lemma_dts_neg_well_formed(dts_mul(dd, dts_mul(im_val, im_val)));
         lemma_dts_neg_congruence(
             dts_mul(dd, dts_mul(im_val, im_val)), dts_zero());
-        //  eqv(neg(dd*im²), neg(zero)). neg(zero) = neg(Rat(0)) = Rat(0) = zero structurally.
-        //  So eqv(neg(dd*im²), zero) if neg(dts_zero()) == dts_zero().
-        assert(dts_neg(dts_zero::<T>()) == dts_zero::<T>());
+        //  eqv(neg(dd*im²), neg(zero)). Need eqv(neg(zero), zero) from neg_zero lemma.
+        verus_algebra::lemmas::additive_group_lemmas::lemma_neg_zero::<T>();
+        //  T::zero().neg().eqv(T::zero()) → dts_eqv(dts_neg(dts_zero()), dts_zero())
+        //  Chain: eqv(neg(dd*im²), neg(zero)) + eqv(neg(zero), zero) → eqv(neg(dd*im²), zero)
+        lemma_dts_eqv_transitive(
+            dts_neg(dts_mul(dd, dts_mul(im_val, im_val))),
+            dts_neg(dts_zero()),
+            dts_zero());
         //  add(re², neg(dd*im²)) ≡ add(re², zero) ≡ re²
         lemma_dts_add_congruence_right(
             dts_mul(re_val, re_val),
@@ -11730,11 +11742,39 @@ proof fn lemma_dts_nonneg_mul_iszero_im<T: OrderedField>(
             dts_mul(nx, ny),
             dts_sub(dts_mul(re_val, re_val), dts_mul(dd, dts_mul(im_val, im_val))),
             dts_mul(re_val, re_val));
+        };  //  end assert_by — eqv(nx*ny, re²) established
+        //  Now in outer scope: use eqv + nonneg(neg(nx*ny)) for the transfer.
         //  neg_congruence: eqv(nx*ny, re²) → eqv(neg(nx*ny), neg(re²))
         lemma_dts_neg_congruence(dts_mul(nx, ny), dts_mul(re_val, re_val));
+        //  sr chain for nonneg_fuel_congruence
+        lemma_dts_mul_closed(nx, ny);
+        lemma_dts_neg_well_formed(dts_mul(nx, ny));
+        lemma_dts_same_radicand_neg(dts_mul(nx, ny));
+        lemma_dts_same_radicand_symmetric(nx, dts_mul(nx, ny));
+        lemma_dts_same_radicand_transitive(dts_mul(nx, ny), nx, a1);
+        lemma_dts_same_radicand_symmetric(a1, dts_mul(a1, a2));
+        lemma_dts_add_closed(dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2)));
+        lemma_dts_same_radicand_transitive(a1, dts_mul(a1, a2), re_val);
+        lemma_dts_same_radicand_transitive(dts_mul(nx, ny), a1, re_val);
+        lemma_dts_same_radicand_reflexive(re_val);
+        lemma_dts_mul_closed(re_val, re_val);
+        lemma_dts_same_radicand_symmetric(re_val, dts_mul(re_val, re_val));
+        lemma_dts_same_radicand_transitive(dts_mul(nx, ny), re_val, dts_mul(re_val, re_val));
+        lemma_dts_neg_well_formed(dts_mul(re_val, re_val));
+        lemma_dts_same_radicand_neg(dts_mul(re_val, re_val));
+        lemma_dts_same_radicand_transitive(dts_mul(nx, ny), dts_mul(re_val, re_val),
+            dts_neg(dts_mul(re_val, re_val)));
+        lemma_dts_same_radicand_symmetric(dts_mul(nx, ny), dts_neg(dts_mul(nx, ny)));
+        lemma_dts_same_radicand_transitive(dts_neg(dts_mul(nx, ny)),
+            dts_mul(nx, ny), dts_neg(dts_mul(re_val, re_val)));
         //  Transfer nonneg(neg(nx*ny)) → nonneg(neg(re²))
         lemma_dts_nonneg_fuel_congruence(
             dts_neg(dts_mul(nx, ny)), dts_neg(dts_mul(re_val, re_val)), f);
+        //  nonneg(re²) from square_nonneg
+        lemma_dts_nonneg_radicands_mul(re_val, re_val);
+        lemma_norm_definite_mul(re_val, re_val);
+        lemma_dts_depth_mul_le(re_val, re_val);
+        lemma_dts_square_nonneg(re_val, f);
         //  both_nonneg(re²) → le_antisymmetric → is_zero(re²)
         lemma_dts_le_antisymmetric_fuel(dts_mul(re_val, re_val), f);
         //  is_zero(re²) established. Derive is_zero(re_val) via norm_definite.
@@ -11862,7 +11902,7 @@ proof fn lemma_dts_nonneg_mul_iszero_im<T: OrderedField>(
             Box::new(a1), Box::new(b1), Box::new(dd))));
         assert(dts_norm_definite(DynTowerSpec::Ext(
             Box::new(a1), Box::new(b1), Box::new(dd))));
-        };  //  end assert by — is_zero(re_val) established in scoped context.
+        //  (old assert_by end removed — code continues in outer scope)
         //  nonneg_fuel_zero(re_val) → nonneg(re_val) → C1
         lemma_dts_is_zero_implies_eqv_zero(re_val);
         lemma_dts_nonneg_fuel_zero(re_val, f);
