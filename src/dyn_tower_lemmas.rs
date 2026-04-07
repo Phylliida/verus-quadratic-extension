@@ -11687,7 +11687,10 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                             lemma_dts_nonneg_conclude_re_fuel(re_val, im_val, dd, f);
                             return;
                         }
-                        //  neg(re) ≥ 0 with norm ≥ 0: Z3 should close.
+                        //  neg(re) ≥ 0 with norm ≥ 0 (nonneg(nx*ny) from neg_mul_neg).
+                        //  Mixed a-sign Cauchy-Schwarz: dd*b1*b2 ≥ |a1*a2| via le_mul.
+                        //  This needs the le_transitive chain for the mixed case.
+                        //  TODO: implement mixed-sign Cauchy-Schwarz.
                         return;
                     }
                     lemma_dts_nonneg_add_closed_fuel(
