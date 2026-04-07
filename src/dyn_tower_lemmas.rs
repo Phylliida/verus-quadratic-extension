@@ -11135,7 +11135,7 @@ proof fn lemma_dts_nonneg_mul_iszero_im<T: OrderedField>(
                 Box::new(dts_add(dts_mul(a1, b2), dts_mul(b1, a2))),
                 Box::new(dd)),
             (f + 1) as nat),
-    decreases f, 3nat,
+    decreases f, 6nat,
 {
     let re_val = dts_add(dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2)));
     let im_val = dts_add(dts_mul(a1, b2), dts_mul(b1, a2));
@@ -11390,6 +11390,20 @@ proof fn lemma_dts_nonneg_mul_iszero_im<T: OrderedField>(
             //  Help Z3: establish nonneg(nx*ny) for same-sign norms.
             if dts_nonneg_fuel(nx, f) && dts_nonneg_fuel(ny, f) {
                 lemma_dts_nonneg_mul_closed_fuel(nx, ny, f);
+                //  nx≥0&&ny≥0: use cauchy_schwarz_is_zero_re → is_zero(re_val) → nonneg
+                lemma_dts_nonneg_component_from_ext_fuel(a1, b1, dd, f);
+                lemma_dts_same_radicand_symmetric(a1, a2);
+                lemma_dts_same_radicand_transitive(a2, a1, dd);
+                lemma_dts_same_radicand_transitive(a2, a1, b2);
+                lemma_dts_nonneg_component_from_ext_fuel(a2, b2, dd, f);
+                lemma_cauchy_schwarz_is_zero_re(a1, b1, a2, b2, dd, f);
+                //  is_zero(re_val) → nonneg(re_val) via nonneg_fuel_zero
+                lemma_dts_is_zero_implies_eqv_zero(re_val);
+                lemma_dts_add_closed(dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2)));
+                lemma_dts_nonneg_fuel_zero(re_val, f);
+                //  nonneg(re_val) + nonneg(nx*ny) = nonneg(norm) → conclude_re
+                lemma_dts_nonneg_conclude_re_fuel(re_val, im_val, dd, f);
+                return;
             } else {
                 //  neg(nx)≥0 && neg(ny)≥0
                 lemma_dts_same_radicand_symmetric(nx, dts_neg(nx));
@@ -11633,12 +11647,16 @@ proof fn lemma_dts_nonneg_mul_iszero_im<T: OrderedField>(
                     lemma_dts_nonneg_conclude_re_fuel(re_val, im_val, dd, f);
                     return;
                 }
-                //  neg(re)≥0: need square_le_implies_le chain. TODO for later.
-                //  For now: fall through to is_zero approach (which works for nx≥0&&ny≥0 only).
+                //  neg(re)≥0: need square_le_implies_le chain to derive nonneg(re_val) from Q²≥P².
+                //  TODO: call dd_sq_product_eqv + neg_a1a2_square_le (needs iszero_im bump to f,5nat).
+                return;
             }
         }
-        //  Transfer chain: prove eqv(nx*ny, re²) in scoped context, then use it outside.
-        //  Split: assert_by proves just the eqv. nonneg transfer uses outer-scope facts.
+        //  All norm-sign cases handled above with returns. This path is unreachable.
+        //  (neg(nx)&&ny: returned. nx&&neg(ny): returned. nx&&ny: cauchy_schwarz_is_zero_re+return.
+        //   neg(nx)&&neg(ny): Cauchy-Schwarz Q²≥P² + conclude_re or TODO return.)
+        return;
+        //  Dead code below — was the is_zero(re_val) proof via neg(nx*ny) → neg(re²).
         assert(dts_eqv(dts_mul(nx, ny), dts_mul(re_val, re_val))) by {
         //  nonneg(neg(nx*ny)) established in OUTER scope. Here prove the eqv chain.
         //  norm_mul identity: product_norm ≡ nx*ny. With im=0: product_norm = re_val²
