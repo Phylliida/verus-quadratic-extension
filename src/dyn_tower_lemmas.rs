@@ -1829,6 +1829,44 @@ proof fn lemma_cauchy_nonneg_re_from_neg_norms<T: OrderedField>(
     }
 }
 
+///  Clean-context wrapper for cauchy_nonneg_re_from_neg_norms.
+///  Takes nx/ny as ghost parameters with equality constraints so the call site
+///  can pass the let-binding directly (Z3-friendly in large contexts).
+///  Also takes Ext nonneg_fuel and derives nonneg(b1/b2) via le_total + C1/C3 analysis.
+proof fn lemma_cauchy_nonneg_re_dispatch<T: OrderedField>(
+    a1: DynTowerSpec<T>, a2: DynTowerSpec<T>,
+    b1: DynTowerSpec<T>, b2: DynTowerSpec<T>,
+    dd: DynTowerSpec<T>, f: nat,
+    nx: DynTowerSpec<T>, ny: DynTowerSpec<T>,
+)
+    requires
+        f >= dts_depth(a1) + 1, f >= dts_depth(a2) + 1,
+        f >= dts_depth(b1) + 1, f >= dts_depth(b2) + 1, f >= dts_depth(dd) + 1,
+        dts_well_formed(a1), dts_well_formed(a2), dts_well_formed(b1),
+        dts_well_formed(b2), dts_well_formed(dd),
+        dts_same_radicand(a1, b1), dts_same_radicand(a1, a2),
+        dts_same_radicand(a1, b2), dts_same_radicand(a1, dd),
+        dts_nonneg_radicands(a1), dts_nonneg_radicands(a2),
+        dts_nonneg_radicands(b1), dts_nonneg_radicands(b2), dts_nonneg_radicands(dd),
+        dts_norm_definite(a1), dts_norm_definite(a2),
+        dts_norm_definite(b1), dts_norm_definite(b2), dts_norm_definite(dd),
+        dts_nonneg(dd),
+        //  Ghost equality: nx/ny are sub(a², dd*b²)
+        nx == dts_sub(dts_mul(a1, a1), dts_mul(dd, dts_mul(b1, b1))),
+        ny == dts_sub(dts_mul(a2, a2), dts_mul(dd, dts_mul(b2, b2))),
+        //  Preconditions using the short nx/ny form (Z3-friendly at call site)
+        dts_nonneg_fuel(dts_neg(nx), f),
+        dts_nonneg_fuel(dts_neg(ny), f),
+        //  b1 ≥ 0, b2 ≥ 0 (re-establish with nonneg_or_neg at call site)
+        dts_nonneg_fuel(b1, f),
+        dts_nonneg_fuel(b2, f),
+    ensures
+        dts_nonneg_fuel(dts_add(dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2))), f),
+    decreases f, 6nat,
+{
+    lemma_cauchy_nonneg_re_from_neg_norms(a1, a2, b1, b2, dd, f);
+}
+
 ///  (dd*b1²)*(dd*b2²) ≡ (dd*(b1*b2))² via associativity/commutativity + square_mul.
 ///  Standalone algebra lemma — no fuel needed.
 proof fn lemma_dts_dd_sq_product_eqv<T: OrderedField>(
@@ -11856,7 +11894,7 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                 Box::new(dts_add(dts_mul(a1, b2), dts_mul(b1, a2))),
                 Box::new(dd)),
             (f + 1) as nat),
-    decreases f, 6nat,
+    decreases f, 7nat,
 {
             let a1_nn = dts_nonneg_fuel(a1, f);
             let a2_nn = dts_nonneg_fuel(a2, f);
@@ -12443,12 +12481,11 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                                 lemma_dts_nonneg_conclude_re_fuel(re_val, im_val, dd, f);
                                 return;
                             }
-                            //  neg(re) ≥ 0: use Cauchy-Schwarz for neg(norm) conditions.
-                            //  Helper does neg_sub_swap + congruence internally.
-                            lemma_dts_same_radicand_symmetric(a1, a2);
-                            lemma_dts_same_radicand_transitive(a2, a1, b2);
-                            lemma_cauchy_nonneg_re_from_neg_norms(a1, a2, b1, b2, dd, f);
-                            //  nonneg(re_val) established!
+                            //  neg(re) ≥ 0: use dispatch wrapper (clean Z3 context)
+                            //  Re-establish nonneg(b1/b2) with fresh le_total for Z3
+                            lemma_dts_nonneg_or_neg_nonneg_fuel(b1, f);
+                            lemma_dts_nonneg_or_neg_nonneg_fuel(b2, f);
+                            lemma_cauchy_nonneg_re_dispatch(a1, a2, b1, b2, dd, f, nx, ny);
                             lemma_dts_nonneg_conclude_re_fuel(re_val, im_val, dd, f);
                             return;
                         }
@@ -12502,11 +12539,8 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                             lemma_dts_nonneg_conclude_re_fuel(re_val, im_val, dd, f);
                             return;
                         }
-                        //  neg(re) case: helper does neg_sub_swap + congruence internally
-                        lemma_dts_same_radicand_symmetric(a1, a2);
-                        lemma_dts_same_radicand_transitive(a2, a1, b2);
-                        lemma_cauchy_nonneg_re_from_neg_norms(a1, a2, b1, b2, dd, f);
-                        lemma_dts_nonneg_conclude_re_fuel(re_val, im_val, dd, f);
+                        //  Mixed norms path: neg(nx)&&neg(ny) NOT guaranteed here.
+                        //  TODO: different proof strategy needed for b1*neg_b2 section with mixed norms.
                         return;
                         //  (dead code below — was the manual congruence chain)
                         lemma_dts_neg_sub_swap(dts_mul(a1, a1), dts_mul(dd, dts_mul(b1, b1)));
@@ -12597,10 +12631,10 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                         assert(dts_nonneg_fuel(dts_neg(ny), f)) by {};
                         lemma_dts_nonneg_fuel_congruence(dts_neg(ny),
                             dts_sub(dts_mul(dd, dts_mul(b2, b2)), dts_mul(a2, a2)), f);
-                        //  Now call the helper
-                        lemma_dts_same_radicand_transitive(a2, a1, b2);
-                        lemma_cauchy_nonneg_re_from_neg_norms(a1, a2, b1, b2, dd, f);
-                        //  nonneg(re_val) established!
+                        //  Use dispatch wrapper (clean Z3 context)
+                        lemma_dts_nonneg_or_neg_nonneg_fuel(b1, f);
+                        lemma_dts_nonneg_or_neg_nonneg_fuel(b2, f);
+                        lemma_cauchy_nonneg_re_dispatch(a1, a2, b1, b2, dd, f, nx, ny);
                         lemma_dts_nonneg_conclude_re_fuel(re_val, im_val, dd, f);
                         return;
                     }
