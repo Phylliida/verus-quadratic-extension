@@ -11784,7 +11784,17 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                     //  For now: Z3 should derive from structural nonneg_fuel.
                 }
             }
-            //  Z3 should close this path as unreachable.
+            //  !nonneg(im_val): neg(im) ≥ 0, !is_zero(im) (from requires).
+            //  Need C2: nonneg(re) + neg(im) + norm ≥ 0.
+            //  nonneg(re_val): check. conclude_re if nonneg.
+            if dts_nonneg_fuel(re_val, f) {
+                //  C2: nonneg(re) + neg(im) + norm ≥ 0.
+                //  conclude_re needs nonneg(norm_product).
+                //  Z3: derive from nonneg_fuel structural expansion + norm_mul.
+                lemma_dts_nonneg_conclude_re_fuel(re_val, im_val, dd, f);
+                return;
+            }
+            //  !nonneg(re) and !nonneg(im): unreachable for product of nonneg values.
     }
 }
 
