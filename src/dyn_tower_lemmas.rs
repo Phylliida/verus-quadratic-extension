@@ -13277,11 +13277,10 @@ proof fn lemma_error_b_dispatch<T: OrderedField>(
         //  nonneg_or_neg established for both norms
         dts_nonneg_fuel(nx, f) || dts_nonneg_fuel(dts_neg(nx), f),
         dts_nonneg_fuel(ny, f) || dts_nonneg_fuel(dts_neg(ny), f),
-        //  !nonneg(re_val) and !nonneg(im_val)
-        !dts_nonneg_fuel(dts_add(dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2))), f),
-        !dts_nonneg_fuel(dts_add(dts_mul(a1, b2), dts_mul(b1, a2)), f),
     ensures
-        false,  //  derives contradiction
+        //  At least one of re_val or im_val is nonneg → caller derives contradiction.
+        dts_nonneg_fuel(dts_add(dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2))), f)
+        || dts_nonneg_fuel(dts_add(dts_mul(a1, b2), dts_mul(b1, a2)), f),
     decreases f, 7nat,
 {
     if dts_nonneg_fuel(dts_neg(nx), f) && dts_nonneg_fuel(dts_neg(ny), f) {
@@ -13328,8 +13327,18 @@ proof fn lemma_error_b_dispatch<T: OrderedField>(
         lemma_dts_add_congruence_right(dts_mul(b1, a2), dts_mul(b2, a1), dts_mul(a1, b2));
         lemma_dts_add_commutative(dts_mul(b1, a2), dts_mul(a1, b2));
         lemma_dts_add_closed(dts_mul(a2, b1), dts_mul(b2, a1));
+        //  sr(b1*a2, b2*a1): b1*a2 ~ b1 ~ a1 ~ b2 ~ b2*a1
+        lemma_dts_same_radicand_symmetric(b1, dts_mul(b1, a2));
+        lemma_dts_same_radicand_transitive(dts_mul(b1, a2), b1, a1);
+        lemma_dts_same_radicand_transitive(dts_mul(b1, a2), a1, b2);
+        lemma_dts_same_radicand_symmetric(b2, dts_mul(b2, a1));
+        lemma_dts_same_radicand_transitive(dts_mul(b1, a2), b2, dts_mul(b2, a1));
         lemma_dts_add_closed(dts_mul(b1, a2), dts_mul(b2, a1));
+        //  sr(b1*a2, a1*b2): b1*a2 ~ b1 ~ a1 ~ a1*b2
+        lemma_dts_same_radicand_transitive(dts_mul(b1, a2), a1, dts_mul(a1, b2));
         lemma_dts_add_closed(dts_mul(b1, a2), dts_mul(a1, b2));
+        //  sr(a1*b2, b1*a2): symmetric of above chain
+        lemma_dts_same_radicand_symmetric(dts_mul(b1, a2), dts_mul(a1, b2));
         lemma_dts_add_closed(dts_mul(a1, b2), dts_mul(b1, a2));
         lemma_dts_eqv_transitive(dts_add(dts_mul(a2, b1), dts_mul(b2, a1)),
             dts_add(dts_mul(b1, a2), dts_mul(b2, a1)),
@@ -13339,6 +13348,12 @@ proof fn lemma_error_b_dispatch<T: OrderedField>(
             dts_add(dts_mul(a1, b2), dts_mul(b1, a2)));
         lemma_dts_same_radicand_symmetric(dts_mul(a2, b1),
             dts_add(dts_mul(a2, b1), dts_mul(b2, a1)));
+        //  sr(a2*b1, b1*a2): a2*b1 ~ a2 ~ a1 ~ b1 ~ b1*a2
+        lemma_dts_same_radicand_symmetric(a2, dts_mul(a2, b1));
+        lemma_dts_same_radicand_transitive(dts_mul(a2, b1), a2, a1);
+        lemma_dts_same_radicand_transitive(dts_mul(a2, b1), a1, b1);
+        lemma_dts_same_radicand_symmetric(b1, dts_mul(b1, a2));
+        lemma_dts_same_radicand_transitive(dts_mul(a2, b1), b1, dts_mul(b1, a2));
         lemma_dts_same_radicand_transitive(
             dts_add(dts_mul(a2, b1), dts_mul(b2, a1)),
             dts_mul(a2, b1), dts_mul(b1, a2));
@@ -13359,7 +13374,7 @@ proof fn lemma_error_b_dispatch<T: OrderedField>(
     //  Combined with !nonneg(re_val) or !nonneg(im_val) → false.
 }
 
-#[verifier::rlimit(200)]
+#[verifier::rlimit(1000)]
 proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
     a1: DynTowerSpec<T>, b1: DynTowerSpec<T>, a2: DynTowerSpec<T>, b2: DynTowerSpec<T>,
     dd: DynTowerSpec<T>, f: nat,
