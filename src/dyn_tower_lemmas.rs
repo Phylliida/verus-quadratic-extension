@@ -14614,6 +14614,45 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                     //  nonneg(a1*a2) case fully handled above (pos norms → reverse_cauchy,
                     //  neg norms → nonneg_add). Both return via conclude_re.
                 }
+                //  !nonneg(b1*neg_b2): b1 and b2 same sign.
+                //  nonneg(im_val) from handler context. Try conclude_re or conclude_im.
+                lemma_dts_nonneg_or_neg_nonneg_fuel(re_val, f);
+                if dts_nonneg_fuel(re_val, f) {
+                    lemma_dts_nonneg_conclude_re_fuel(re_val, im_val, dd, f);
+                    return;
+                }
+                //  !nonneg(re_val): neg norms must hold. Use neg_norms → nonneg(re_val).
+                lemma_dts_nonneg_or_neg_nonneg_fuel(nx, f);
+                lemma_dts_nonneg_or_neg_nonneg_fuel(ny, f);
+                lemma_dts_nonneg_or_neg_nonneg_fuel(b1, f);
+                lemma_dts_nonneg_or_neg_nonneg_fuel(b2, f);
+                if dts_nonneg_fuel(dts_neg(nx), f) && dts_nonneg_fuel(dts_neg(ny), f) {
+                    //  Neg norms: neg_norms_nonneg_re_val → nonneg(re_val) → contradiction.
+                    lemma_neg_norms_nonneg_re_val(a1, b1, a2, b2, dd, f);
+                    //  nonneg(re_val) contradicts !nonneg(re_val) → false → postcondition.
+                } else {
+                    //  Pos norms + !nonneg(b1*neg_b2):
+                    //  b1*neg_b2 < 0 means b1,b2 same sign and both nonneg (from pos norms).
+                    //  dd*b1*b2 >= 0 and a1*a2: nonneg from nonneg_re_from_nonneg_norm.
+                    //  nonneg_add → nonneg(re_val) → contradiction.
+                    lemma_dts_nonneg_re_from_nonneg_norm(a1, b1, dd, f);
+                    lemma_dts_same_radicand_symmetric(a1, a2);
+                    lemma_dts_same_radicand_transitive(a2, a1, b2);
+                    lemma_dts_same_radicand_transitive(a2, a1, dd);
+                    lemma_dts_nonneg_re_from_nonneg_norm(a2, b2, dd, f);
+                    lemma_dts_nonneg_mul_closed_fuel(a1, a2, f);
+                    lemma_dts_same_radicand_symmetric(a1, b1);
+                    lemma_dts_same_radicand_transitive(b1, a1, b2);
+                    lemma_dts_nonneg_mul_closed_fuel(b1, b2, f);
+                    lemma_dts_nonneg_fuel_stabilize(dd, f);
+                    lemma_dts_same_radicand_symmetric(b1, dts_mul(b1, b2));
+                    lemma_dts_same_radicand_transitive(dd, b1, dts_mul(b1, b2));
+                    lemma_dts_nonneg_mul_closed_fuel(dd, dts_mul(b1, b2), f);
+                    lemma_dts_nonneg_add_closed_fuel(
+                        dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2)), f);
+                    //  nonneg(re_val) contradicts !nonneg(re_val) → false → postcondition.
+                }
+                return;
             }
         }
         //  !nonneg(im) handled by early exit above; nonneg(im) handler returns in all branches.
