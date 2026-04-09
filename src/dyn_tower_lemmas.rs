@@ -10891,11 +10891,67 @@ proof fn lemma_dts_nonneg_add_remaining<T: OrderedField>(
             return;
         }
         //  C2 path: need nonneg(norm_sum) = nonneg(sub(sum_re², d*sum_im²))
-        //  Use nonneg_mul on (x * conj(y)) approach for cross-term
-        //  (or fall through to conclude_re if norm is available)
-        //  For now: establish norm infrastructure and let Z3 work.
-        //  TODO: implement norm bound proof for C2 case
-        //  Placeholder: Z3 should close if norm bound holds.
+        //  Strategy: product x*y is nonneg (nonneg_mul_closed).
+        //  Give Z3 the product, norm_mul, and component infrastructure.
+        //  Then try conclude_re.
+        let x_ext = DynTowerSpec::Ext(Box::new(a1), Box::new(b1), Box::new(dd));
+        let y_ext = DynTowerSpec::Ext(Box::new(a2), Box::new(b2), Box::new(dd));
+        lemma_dts_norm_mul(a1, b1, a2, b2, dd);
+        lemma_dts_nonneg_mul_closed_fuel(x_ext, y_ext, (f + 1) as nat);
+        //  norm(product) = N(x)*N(y) — give Z3 norm factor info
+        let nx = dts_sub(dts_mul(a1, a1), dts_mul(dd, dts_mul(b1, b1)));
+        let ny = dts_sub(dts_mul(a2, a2), dts_mul(dd, dts_mul(b2, b2)));
+        lemma_dts_nonneg_or_neg_nonneg_fuel(nx, f);
+        lemma_dts_nonneg_or_neg_nonneg_fuel(ny, f);
+        //  Infrastructure for sub-components at fuel f
+        lemma_dts_same_radicand_reflexive(a1);
+        lemma_dts_same_radicand_reflexive(a2);
+        lemma_dts_same_radicand_reflexive(b1);
+        lemma_dts_same_radicand_reflexive(b2);
+        lemma_dts_mul_closed(a1, a1);
+        lemma_dts_mul_closed(a2, a2);
+        lemma_dts_mul_closed(b1, b1);
+        lemma_dts_mul_closed(b2, b2);
+        lemma_dts_mul_closed(a1, a2);
+        lemma_dts_mul_closed(b1, b2);
+        lemma_dts_same_radicand_symmetric(b1, dts_mul(b1, b1));
+        lemma_dts_same_radicand_symmetric(b2, dts_mul(b2, b2));
+        lemma_dts_same_radicand_symmetric(b1, dts_mul(b1, b2));
+        lemma_dts_same_radicand_transitive(dd, a1, b1);
+        lemma_dts_same_radicand_transitive(dd, b1, dts_mul(b1, b1));
+        lemma_dts_mul_closed(dd, dts_mul(b1, b1));
+        lemma_dts_same_radicand_symmetric(a1, dd);
+        lemma_dts_same_radicand_transitive(dd, a1, b2);
+        lemma_dts_same_radicand_transitive(dd, b2, dts_mul(b2, b2));
+        lemma_dts_mul_closed(dd, dts_mul(b2, b2));
+        lemma_dts_same_radicand_transitive(dd, b1, dts_mul(b1, b2));
+        lemma_dts_mul_closed(dd, dts_mul(b1, b2));
+        //  Square nonneg for sum components
+        lemma_dts_square_nonneg(sum_re, f);
+        lemma_dts_square_nonneg(sum_im, f);
+        //  nonneg(dd) at fuel f
+        lemma_dts_nonneg_fuel_stabilize(dd, f);
+        //  Norm infrastructure for sum
+        lemma_dts_same_radicand_reflexive(sum_re);
+        lemma_dts_same_radicand_reflexive(sum_im);
+        lemma_dts_mul_closed(sum_re, sum_re);
+        lemma_dts_mul_closed(sum_im, sum_im);
+        lemma_dts_same_radicand_symmetric(sum_re, dd);
+        lemma_dts_same_radicand_transitive(dd, sum_re, sum_im);
+        lemma_dts_same_radicand_symmetric(sum_im, dts_mul(sum_im, sum_im));
+        lemma_dts_same_radicand_transitive(dd, sum_im, dts_mul(sum_im, sum_im));
+        lemma_dts_mul_closed(dd, dts_mul(sum_im, sum_im));
+        //  Try conclude_re with norm infrastructure
+        lemma_dts_nonneg_or_neg_nonneg_fuel(
+            dts_sub(dts_mul(sum_re, sum_re), dts_mul(dd, dts_mul(sum_im, sum_im))), f);
+        if dts_nonneg_fuel(
+            dts_sub(dts_mul(sum_re, sum_re), dts_mul(dd, dts_mul(sum_im, sum_im))), f) {
+            lemma_dts_nonneg_conclude_re_fuel(sum_re, sum_im, dd, f);
+            return;
+        }
+        //  norm < 0: try C3 path (if sum_im > 0, which it shouldn't be... contradiction)
+        //  Since sum_re ≥ 0 and sum is nonneg and norm < 0:
+        //  C3 needs im > 0. But we have !nonneg(sum_im). Z3 should close.
         return;
     }
     //  Case 3: sum_re not nonneg, sum_im nonneg → C3
