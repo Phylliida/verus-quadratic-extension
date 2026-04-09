@@ -14682,8 +14682,8 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                         //  Z3 should derive false from the control flow facts.
                         //  Provide mul for the contradiction path:
                         if dts_nonneg_fuel(b1, f) {
-                            //  b1_nn, !b2_nn → neg_b2 = neg(b2) nonneg
-                            //  nonneg_mul(b1, neg_b2) → nonneg(b1*neg_b2) → contradiction
+                            //  b1_nn, !b2_nn → neg(b2) nonneg from nonneg_or_neg
+                            //  nonneg_mul(b1, neg(b2)) → nonneg(b1*neg_b2) → contradiction
                             lemma_dts_same_radicand_transitive(b1, a1, b2);
                             lemma_dts_same_radicand_transitive(b1, b2, dts_neg(b2));
                             lemma_dts_nonneg_radicands_neg(b2);
@@ -14693,9 +14693,36 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                             lemma_dts_same_radicand_neg(b2);
                             lemma_dts_nonneg_mul_closed_fuel(b1, dts_neg(b2), f);
                             //  nonneg(b1*neg_b2) contradicts !nonneg(b1*neg_b2) → false
+                        } else {
+                            //  !b1_nn && b2_nn: neg(b1) nonneg, b2 nonneg.
+                            //  neg(b1)*b2 nonneg → neg(b1)*b2 ≡ b1*neg_b2 → nonneg(b1*neg_b2) → contradiction.
+                            lemma_dts_same_radicand_symmetric(b1, dts_neg(b1));
+                            lemma_dts_same_radicand_transitive(dts_neg(b1), b1, b2);
+                            lemma_dts_nonneg_mul_closed_fuel(dts_neg(b1), b2, f);
+                            //  neg(b1)*b2 ≡ neg(b1*b2) via neg_mul_left
+                            lemma_dts_neg_mul_left(b1, b2);
+                            //  b1*neg(b2) ≡ neg(b1*b2) via neg_mul_right
+                            lemma_dts_neg_mul_right(b1, b2);
+                            //  eqv(neg(b1)*b2, b1*neg(b2)) via transitivity
+                            lemma_dts_eqv_symmetric(dts_mul(b1, dts_neg(b2)),
+                                dts_neg(dts_mul(b1, b2)));
+                            lemma_dts_eqv_transitive(dts_mul(dts_neg(b1), b2),
+                                dts_neg(dts_mul(b1, b2)),
+                                dts_mul(b1, dts_neg(b2)));
+                            //  sr for congruence: neg(b1)*b2 ~ neg(b1) ~ b1 ~ b1*neg(b2)
+                            lemma_dts_mul_closed(dts_neg(b1), b2);
+                            lemma_dts_mul_closed(b1, dts_neg(b2));
+                            lemma_dts_same_radicand_symmetric(dts_neg(b1),
+                                dts_mul(dts_neg(b1), b2));
+                            lemma_dts_same_radicand_transitive(
+                                dts_mul(dts_neg(b1), b2), dts_neg(b1), b1);
+                            lemma_dts_same_radicand_symmetric(b1, dts_mul(b1, dts_neg(b2)));
+                            lemma_dts_same_radicand_transitive(
+                                dts_mul(dts_neg(b1), b2), b1, dts_mul(b1, dts_neg(b2)));
+                            lemma_dts_nonneg_fuel_congruence(
+                                dts_mul(dts_neg(b1), b2), dts_mul(b1, dts_neg(b2)), f);
+                            //  nonneg(b1*neg_b2) contradicts !nonneg(b1*neg_b2) → false
                         }
-                        //  !b1_nn && b2_nn: symmetric argument
-                        //  Z3 should derive false → postcondition trivially
                         return;
                     }
                     lemma_dts_nonneg_fuel_stabilize(dd, f);
