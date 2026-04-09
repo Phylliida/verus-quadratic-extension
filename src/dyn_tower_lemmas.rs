@@ -14682,16 +14682,16 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                         //  Z3 should derive false from the control flow facts.
                         //  Provide mul for the contradiction path:
                         if dts_nonneg_fuel(b1, f) {
-                            //  b1_nn, !b2_nn → neg(b2) nonneg from nonneg_or_neg
-                            //  nonneg_mul(b1, neg(b2)) → nonneg(b1*neg_b2) → contradiction
+                            //  b1_nn, !b2_nn → neg(b2) = neg_b2 nonneg from nonneg_or_neg
+                            //  nonneg_mul(b1, neg_b2) → nonneg(b1*neg_b2) → contradiction
                             lemma_dts_same_radicand_transitive(b1, a1, b2);
-                            lemma_dts_same_radicand_transitive(b1, b2, dts_neg(b2));
+                            lemma_dts_same_radicand_transitive(b1, b2, neg_b2);
                             lemma_dts_nonneg_radicands_neg(b2);
                             lemma_dts_depth_neg(b2);
                             lemma_norm_definite_neg(b2);
                             lemma_dts_neg_well_formed(b2);
                             lemma_dts_same_radicand_neg(b2);
-                            lemma_dts_nonneg_mul_closed_fuel(b1, dts_neg(b2), f);
+                            lemma_dts_nonneg_mul_closed_fuel(b1, neg_b2, f);
                             //  nonneg(b1*neg_b2) contradicts !nonneg(b1*neg_b2) → false
                             return;
                         } else {
