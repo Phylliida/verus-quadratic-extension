@@ -14693,6 +14693,7 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                             lemma_dts_same_radicand_neg(b2);
                             lemma_dts_nonneg_mul_closed_fuel(b1, dts_neg(b2), f);
                             //  nonneg(b1*neg_b2) contradicts !nonneg(b1*neg_b2) → false
+                            return;
                         } else {
                             //  !b1_nn && b2_nn: neg(b1) nonneg, b2 nonneg.
                             //  neg(b1)*b2 nonneg → neg(b1)*b2 ≡ b1*neg_b2 → nonneg(b1*neg_b2) → contradiction.
@@ -14722,8 +14723,8 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                             lemma_dts_nonneg_fuel_congruence(
                                 dts_mul(dts_neg(b1), b2), dts_mul(b1, dts_neg(b2)), f);
                             //  nonneg(b1*neg_b2) contradicts !nonneg(b1*neg_b2) → false
+                            return;
                         }
-                        return;
                     }
                     lemma_dts_nonneg_fuel_stabilize(dd, f);
                     lemma_dts_same_radicand_symmetric(b1, dts_mul(b1, b2));
