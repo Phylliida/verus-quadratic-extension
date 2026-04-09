@@ -1,180 +1,169 @@
-# DTS nonneg_mul — Status & Remaining Work (2026-04-09, session 4)
+# DTS nonneg_mul & nonneg_add — Status & Handoff (2026-04-09, sessions 4-6)
 
-## Current State: 127 verified, 1 real error + 1 cascading
+## Current State: 131 verified, 1 error
 
-Started session 4 at 126 verified, 2 errors. Created `lemma_nonneg_mul_neg_im_path` helper (+1 verified). Found and partially fixed a previously-masked fall-through in the nonneg(im) handler.
+The nonneg_mul mutual recursion group is **fully verified**. The remaining error is in `lemma_dts_nonneg_add_remaining` which has 3 unproved return paths (C2 norm bound, C3 neg_norm bound, both-neg contradiction).
 
-## What Was Done This Session
+`nonneg_add_closed_fuel` itself verifies (it trusts the helper's postcondition via mutual recursion). The 9 `axiom_non_square` errors are pre-existing and unrelated.
 
-### !nonneg(im) Path: FIXED (via clean-context helper)
+## What Was Done
 
-**Problem:** Z3 context pollution in the 800-line `nonneg_mul_remaining` function. The `!nonneg(im_val)` fact was lost after 630 lines of the nonneg(im) handler. Even simple boolean variables were lost over this distance. rlimit increases (up to 10000) didn't help — the issue is context pollution, not time.
+### nonneg_mul_remaining: VERIFIED (sessions 4-5)
 
-**Solution:** Created `lemma_nonneg_mul_neg_im_path` (~370 lines, rlimit 500, decreases (f, 8nat)). This handles the entire `!nonneg(im)` path in a clean context:
-- Pos norms (nx≥0, ny≥0): derive nonneg(re_val) via nonneg_re_from_nonneg_norm + nonneg_add/reverse_cauchy → conclude_re. Also establish nonneg(norm_product) via nonneg_mul_closed(nx2, ny2) + norm_mul congruence chain for the conclude_re precondition.
-- Neg norms (neg(nx)≥0, neg(ny)≥0): derive nonneg(re_val) via neg_norms_nonneg_re_val. Establish nonneg(norm_product) via neg_mul_neg(nx2, ny2) congruence. → conclude_re.
-- Mixed norms: call mixed_norms_nonneg_im_val → nonneg(im_val) → contradicts `!im_nonneg` from requires → false → postcondition. The swap case (neg(nx)≥0, ny≥0) includes the full 70-line congruence chain (mul_commutative + add_congruence + eqv_transitive).
+Created two clean-context helpers to bypass Z3 context pollution in the 800-line `nonneg_mul_remaining` function:
 
-**Key techniques that worked:**
-- **Direct negation requires** instead of ghost boolean params. The helper's requires includes `!dts_nonneg_fuel(dts_add(dts_mul(a1, b2), dts_mul(b1, a2)), f)` directly.
-- **Early if-check exit** before the nonneg(im) handler with `if/else` structure to avoid dead code.
-- `nonneg_mul_remaining` bumped from `decreases f, 8nat` to `(f, 9nat)`.
+1. **`lemma_nonneg_mul_neg_im_path`** (~370 lines, rlimit 500, decreases (f, 8nat)):
+   Handles the `!nonneg(im_val)` path. Dispatches on norm signs: pos norms → reverse_cauchy → conclude_re; neg norms → neg_norms_nonneg_re_val → conclude_re; mixed norms → mixed_norms_nonneg_im_val → contradiction with !nonneg(im).
 
-**What was tried but didn't work:**
-- Ghost boolean params (`im_nonneg: bool` with `im_nonneg == ...`): Z3 still loses the boolean over 630 lines.
-- Two separate if-checks (`if !im { return; } if im { ... }`): Z3 can't connect them to eliminate dead code.
-- `ensures false` on error_b_dispatch with `!re_nonneg, !im_nonneg`: can't call from nonneg(re) paths.
-- Increasing rlimit (tested up to 10000): doesn't help context pollution.
+2. **`lemma_nonneg_mul_nonneg_im_path`** (~335 lines, rlimit 500, decreases (f, 8nat)):
+   Handles the `nonneg(im_val)` path (all norm cases). Pos norms → reverse_cauchy + nonneg_mul(nx,ny) → conclude_re. Neg norms → neg_norms + neg_mul_neg → conclude_re. Mixed norms → neg_mul chain → nonneg(neg(nx*ny)) → conclude_im_via_neg_norm.
 
-### error_b_dispatch: Modified to derive nonneg_or_neg internally (Option 2)
+The parent `nonneg_mul_remaining` was reduced from ~800 lines of inline code to a simple `if !im_check { neg_im_path(); return; } else { nonneg_im_path(); return; }`.
 
-Removed the two `nonneg_or_neg` disjunction preconditions from `error_b_dispatch`. Added ~50 lines of norm infrastructure at the top of its body to derive `nonneg_or_neg(nx, f)` and `nonneg_or_neg(ny, f)` internally. This required wf/depth/sr chains for both nx and ny.
+### nonneg_add_closed_fuel: Skeleton in place (session 6)
 
-### Newly Uncovered Error: Fall-through in nonneg(im) handler
+Created `lemma_dts_nonneg_add_remaining` (~100 lines) that dispatches on component signs:
+- **Case 1 (C1)**: Both sum_re=a1+a2 and sum_im=b1+b2 nonneg → VERIFIED
+- **Case 2 (C2)**: sum_re nonneg, sum_im neg → needs norm bound (WIP)
+- **Case 3 (C3)**: sum_re neg, sum_im nonneg → needs neg_norm bound (WIP)
+- **Case 4**: Both neg → needs contradiction proof (WIP)
 
-With the `!nonneg(im)` path fixed by the helper, Z3 now reports a postcondition error in the nonneg(im) handler itself. This was previously MASKED by the error_b_dispatch failure.
+### Algebraic Building Blocks (session 6)
 
-**Root cause:** Two missing `return` paths in the nonneg(im) handler:
+1. **`lemma_dts_square_of_sum`** (~150 lines, VERIFIED):
+   Proves `(a+b)² ≡ add(add(a², b²), add(ab, ab))` via distributivity twice + 6-step additive rearrangement using associativity/commutativity.
 
-1. **nonneg(a1*a2) + nonneg(b1*neg_b2) path** (inside `if nonneg(b1*neg_b2)` block at ~line 14448): The `if !nonneg(a1*a2) { ... all return ... }` block handles the `!nonneg(a1*a2)` case. When `nonneg(a1*a2)` IS true, the code falls through with no return. **Partially fixed** with explicit Cauchy proof: pos norms → reverse_cauchy, neg norms → nonneg_im_from_neg_norm + nonneg_add → nonneg(re_val) → conclude_re.
+2. **`lemma_dts_norm_sum_decomposition`** (~140 lines, WIP):
+   Proves `N(x+y) ≡ N(x) + N(y) + 2*cross` where cross = sub(a1*a2, dd*b1*b2).
+   Uses square_of_sum + distribute dd. Missing: mul_congruence chain + sub_add_sub rearrangement.
 
-2. **!nonneg(b1*neg_b2) path** (after the `if nonneg(b1*neg_b2) { ... }` block): No code handles this case at all. **This is the remaining error.**
+## Remaining Work: nonneg_add_remaining
 
-## Remaining: !nonneg(b1*neg_b2) Path
+### Step 1: Complete `norm_sum_decomposition` (~50 lines)
 
-### The Problem
+The skeleton has the distribute calls but the congruence chain is incomplete.
 
-After the `if dts_nonneg_fuel(dts_mul(b1, neg_b2), f) { ... }` block at ~line 14448, the code falls through when `!nonneg(b1*neg_b2)`. There's no `else` clause. The code at this point needs to establish `nonneg(Ext(re_val, im_val, dd), f+1)`.
+**What needs to happen:**
+1. Fix `mul_congruence_right(dd, ...)` — either fix sr preconditions or use `mul_distributes_left` results directly
+2. Chain: dd*(b1+b2)² ≡ dd*square_of_sum_RHS ≡ add(add(dd*b1², dd*b2²), add(dd*b1*b2, dd*b1*b2))
+   via mul_congruence + distributes_left (twice)
+3. Apply sub_congruence on both (a1+a2)² and dd*(b1+b2)² results
+4. Rearrange sub(add(A,C), add(B,D)) ≡ add(sub(A,B), sub(C,D)) using the identity from `verus-geometry/src/circle_line.rs:213` (sub_add_sub 4-arg version)
+5. Further rearrange sub(add(a1²,a2²), add(dd*b1²,dd*b2²)) ≡ add(sub(a1²,dd*b1²), sub(a2²,dd*b2²)) using the same identity
 
-### Context
+**Key functions:**
+- `lemma_dts_mul_congruence_right(a, b, c)`: eqv(b,c) → eqv(mul(a,b), mul(a,c)). Requires sr(a,b).
+- `lemma_sub_add_sub(a, b, c, d)` from verus-geometry: (a-b)+(c-d) ≡ (a+c)-(b+d)
+- `lemma_dts_sub_congruence(a, b, c, d)`: eqv(a,b) ∧ eqv(c,d) → eqv(sub(a,c), sub(b,d)). (Check if this exists; otherwise build from add_congruence + neg_congruence.)
 
-At this point:
-- nonneg(im_val) from the nonneg(im) handler's else clause
-- `!nonneg(b1*neg_b2)` from the if-check
-- We're inside the else at ~line 14095 which handles "both same-sign norms" (NOT mixed norms — those returned earlier at lines 14060/14078)
-- `neg_b2 = dts_neg(b2)` defined at line 14120 — **530 lines away from the current code**
+### Step 2: Cauchy Cross-Term Lemma (~100-150 lines, new function)
 
-### Why It's Hard
+Create `lemma_dts_cauchy_cross_term` that proves the cross-term sign from norm bounds.
 
-The `neg_b2` let-binding at line 14120 is 530 lines from the code that needs it. Z3 loses `neg_b2 == dts_neg(b2)`. This means:
-- Can't establish `sr(b1, neg_b2)` (needs `sr(b2, neg_b2)` which needs the let-binding)
-- Can't establish `wf(neg_b2)`, `depth(neg_b2)`, `nonneg_radicands(neg_b2)`, `norm_definite(neg_b2)` (all derive from `dts_neg(b2)` but Z3 can't connect to `neg_b2`)
-- Can't call `nonneg_mul_closed(b1, neg_b2)` to derive the contradiction `nonneg(b1*neg_b2)` for the unreachable mixed-b-signs case
+**For positive norms (C2+C2 and similar):**
+Given nonneg(sub(a1², dd*b1²)) and nonneg(sub(a2², dd*b2²)) and nonneg(a1*a2) and nonneg(dd*b1*b2), derive nonneg(sub(a1*a2, dd*b1*b2)).
 
-### Mathematical Analysis
+**Proof approach:**
+1. `le_mul_nonneg_monotone(dd*b1², a1², a2²)`:
+   nonneg(sub(a1², dd*b1²)) ∧ nonneg(a2²) → nonneg(sub(a1²*a2², dd*b1²*a2²))
+2. `le_mul_nonneg_monotone(dd*b2², a2², dd*b1²)`:
+   nonneg(sub(a2², dd*b2²)) ∧ nonneg(dd*b1²) → nonneg(sub(a2²*dd*b1², dd*b2²*dd*b1²))
+3. `sub_add_sub` (telescoping): sub(a1²*a2², dd*b1²*a2²) + sub(dd*b1²*a2², dd²*b1²*b2²) ≡ sub(a1²*a2², dd²*b1²*b2²)
+   Note: middle terms need mul_commutative to match: dd*b1²*a2² ≡ a2²*dd*b1²
+4. Ring identities: (a1*a2)² ≡ a1²*a2² and (dd*b1*b2)² ≡ dd²*b1²*b2² (need mul_associative/commutative chains)
+5. `square_le_implies_le(dd*b1*b2, a1*a2, f)`: nonneg(a1*a2) ∧ nonneg(dd*b1*b2) ∧ (a1*a2)²≥(dd*b1*b2)² → nonneg(sub(a1*a2, dd*b1*b2))
 
-With same-sign norms (both pos or both neg) and `!nonneg(b1*neg_b2)`:
-- b1*neg_b2 < 0 means b1 and neg_b2 have different signs → b1 and b2 have the SAME sign
-- **Pos norms:** a1² ≥ dd*b1², a2² ≥ dd*b2². Cauchy: (a1*a2)² ≥ (dd*b1*b2)². Since b1*b2 ≥ 0 (same sign): dd*b1*b2 ≥ 0. With nonneg(a1*a2) from nonneg_re_from_nonneg_norm: re_val = a1*a2 + dd*b1*b2 ≥ 0 via nonneg_add. **But** establishing nonneg(b1*b2) needs case-split on b-signs, and mixed-b-signs contradiction needs `neg_b2` infrastructure.
-- **Neg norms:** dd*b1² ≥ a1², dd*b2² ≥ a2². With norm_definite: nonneg(b1), nonneg(b2). dd ≥ 0. So dd*b1*b2 ≥ 0. nonneg(a1*a2) from neg_a*neg_a or direct. re_val = a1*a2 + dd*b1*b2 ≥ 0 via nonneg_add.
+**For negative norms (C3+C3):** Symmetric: swap a and b roles.
 
-In ALL cases with same-sign norms: nonneg(re_val) holds. So nonneg(re_val) + nonneg(im_val) → C1 → nonneg(Ext). The path where `!nonneg(re_val)` is **mathematically unreachable** from this context.
+**For mixed signs (one nonneg, one neg cross-term):** If nonneg(a1*a2) and nonneg(neg(dd*b1*b2)): trivially nonneg(sub(a1*a2, dd*b1*b2)) via nonneg_add.
 
-### Proposed Fix: Clean-Context Helper
+**Existing helpers to reuse:**
+- `le_mul_nonneg_monotone_fuel` at (fuel, 2nat)
+- `square_le_implies_le_fuel` at (fuel, 3nat)
+- `sub_add_sub` (algebraic, no fuel) — telescoping version
+- `square_nonneg` (standalone)
+- `nonneg_mul_closed_fuel` at (fuel, 0nat)
 
-Create a helper `lemma_nonneg_mul_same_sign_norms` at decreases (f, 8nat) that derives `nonneg(Ext(re_val, im_val, dd))` when both norms have the same sign (not mixed).
+### Step 3: Wire into add_remaining (~50 lines per case)
 
-**Signature:**
-```rust
-proof fn lemma_nonneg_mul_same_sign_norms<T: OrderedField>(
-    a1, b1, a2, b2, dd: DynTowerSpec<T>, f: nat,
-)
-    requires
-        // Standard infrastructure (same as nonneg_mul_remaining)
-        ...
-        // Both factors nonneg at fuel f+1
-        ...
-        // NOT mixed norms (both same sign)
-        // One of: (nonneg(nx) && nonneg(ny)) || (nonneg(neg(nx)) && nonneg(neg(ny)))
-        // Can derive this internally via nonneg_or_neg + the NOT-mixed-norms constraint
-        // Actually: just require NOT mixed norms:
-        !(dts_nonneg_fuel(dts_sub(dts_mul(a1, a1), dts_mul(dd, dts_mul(b1, b1))), f)
-          && dts_nonneg_fuel(dts_neg(dts_sub(dts_mul(a2, a2), dts_mul(dd, dts_mul(b2, b2)))), f)),
-        !(dts_nonneg_fuel(dts_neg(dts_sub(dts_mul(a1, a1), dts_mul(dd, dts_mul(b1, b1)))), f)
-          && dts_nonneg_fuel(dts_sub(dts_mul(a2, a2), dts_mul(dd, dts_mul(b2, b2))), f)),
-        // nonneg(im_val)
-        dts_nonneg_fuel(dts_add(dts_mul(a1, b2), dts_mul(b1, a2)), f),
-        !dts_is_zero(dts_add(dts_mul(a1, b2), dts_mul(b1, a2))),
-    ensures
-        dts_nonneg_fuel(Ext(re_val, im_val, dd), (f+1)),
+**Case 2 (C2: sum_re nonneg, sum_im neg):**
+```
+// Call norm_sum_decomposition to get N(sum) ≡ N(x)+N(y)+2*cross
+// Establish nonneg of each term (N(x) from factor nonneg, N(y) from factor nonneg, cross from Cauchy)
+// nonneg_add three times → nonneg(N(x)+N(y)+2*cross)
+// nonneg_fuel_congruence: N(sum) ≡ sum → nonneg(N(sum))
+// conclude_re(sum_re, sum_im, dd, f)
+return;
 ```
 
-**Body approach:**
-1. Re-derive product infrastructure (~30 lines)
-2. Re-derive norm infrastructure for nx, ny (~50 lines)
-3. norm_mul identity
-4. nonneg_or_neg on nx, ny → same-sign dispatch:
-   - Pos norms: nonneg_re_from_nonneg_norm → nonneg(a1), nonneg(a2). nonneg(b1*b2) via both-nonneg or neg_mul_neg. nonneg_add → nonneg(re_val). nonneg_mul(nx, ny) → nonneg(norm_product). conclude_re.
-   - Neg norms: neg_norms_nonneg_re_val → nonneg(re_val). neg_mul_neg(nx, ny) → nonneg(norm_product). conclude_re.
-
-**Alternative simpler approach:** Don't create a new helper. Instead, modify the existing `neg_im_path` helper to NOT require `!nonneg(im)`. The pos norms and neg norms cases already establish nonneg(re_val) + nonneg(norm_product) → conclude_re (which works regardless of im sign). Only the mixed norms case uses the !nonneg(im) contradiction. For the nonneg(im) case in the caller, mixed norms don't apply (already returned at lines 14060/14078). So the mixed norms branch is unreachable — but Z3 needs to verify it anyway. With nonneg(im), mixed_norms gives nonneg(im) which is already true but doesn't help establish nonneg(Ext). Need nonneg(re) or nonneg(norm) too. So the mixed norms case would need additional handling.
-
-**Simplest approach:** At the call site, just call the existing verified helpers directly:
-```rust
-// !nonneg(b1*neg_b2) path: same-sign norms → nonneg(re_val).
-// Call the neg_im_path helper but only for pos/neg norms:
-lemma_dts_nonneg_or_neg_nonneg_fuel(re_val_local, f_local);
-if nonneg(re_val) {
-    conclude_re;
-    return;
-}
-// !nonneg(re): call neg_norms or pos_norms helper → nonneg(re) → contradiction
+**Case 3 (C3: sum_im nonneg, sum_re neg):**
+Same structure but with neg norms:
+```
+// neg(N(sum)) ≡ neg(N(x))+neg(N(y))+2*neg(cross) via neg_congruence on decomposition
+// Each term nonneg (neg norms from C3, neg_cross from Cauchy)
+// nonneg_add → nonneg(neg(N(sum)))
+// !is_zero(sum_im) from: !nonneg(sum_im) would give sum_im=0 → nonneg, contradicting !nonneg(sum_re) + sum nonneg
+// C3 conditions: nonneg(sum_im) ∧ !is_zero(sum_im) ∧ nonneg(neg(norm))
+return;
 ```
 
-But this needs re_val infrastructure (wf, depth) which Z3 loses.
+**Case 4 (both neg: contradiction):**
+Derive false from nonneg(x) ∧ nonneg(y) ∧ !nonneg(sum_re) ∧ !nonneg(sum_im).
+Approach: case-split on C1/C2/C3 of each factor. For every combination, at least one of sum_re or sum_im must be nonneg (C1/C2 have a≥0 → sum_re≥0 if both C1/C2; C3 has b>0 → sum_im>0 if both have b≥0). The only tricky case is C2+C3 with b1<0, b2>0, |b1|>b2 AND a1+a2<0. But a1≥0 from C2 and a2 might be neg from C3, so a1+a2<0 means |a2|>a1. Combined with both sum components neg, this contradicts x+y≥0 (both terms of sum negative). (~30-50 lines of case analysis)
 
-**Bottom line:** The fix requires a clean-context helper for the same-sign norms case. The helper is ~120-150 lines (norm infrastructure + pos/neg dispatch + conclude_re). Place it right before `nonneg_mul_remaining`.
+**Termination:** Remove the `nonneg_mul_closed_fuel(x_ext, y_ext, f+1)` call (termination error). All calls must be at fuel f with decreases (f, X) for X ≤ 7.
 
-## Decreases Hierarchy (Final)
+## Key Termination Constraint
+
+The helper `lemma_dts_nonneg_add_remaining` is at `decreases (f, 8nat)` where f = fuel-1 from the caller `nonneg_add_closed_fuel` at `(fuel, 0nat)`.
+
+**Can call at fuel f:** nonneg_mul_closed (f,0), nonneg_add_closed (f,0), le_mul_nonneg_monotone (f,2), square_le_implies_le (f,3), nonneg_or_neg (f,2), nonneg_re_from_nonneg_norm (f,2), all lower-level helpers.
+
+**CANNOT call at fuel f+1:** Would need (f+1, X) < (f, 8) which fails since f+1 > f. Must work with component-level nonneg facts (nonneg(a1,f), nonneg(b1,f), nonneg(norm_x,f)) extracted from nonneg(Ext, f+1).
+
+## Decreases Hierarchy (Current)
 
 | Function | Decreases | Status |
 |----------|-----------|--------|
-| nonneg_mul_closed | (fuel, 0) | **verified** |
-| nonneg_add_closed | (fuel, 0) | cascading error |
-| cauchy_schwarz_step | (fuel, 1) | **verified** |
-| le_antisymmetric | (fuel, 1) | **verified** |
-| nonneg_fuel_congruence | (fuel, 2) | **verified** |
-| nonneg_or_neg | (fuel, 2) | **verified** |
-| cauchy_schwarz_combine | (fuel, 2) | **verified** |
-| nonneg_re_from_neg_im | (fuel, 2) | **verified** |
-| nonneg_im_from_neg_norm | (fuel, 2) | **verified** |
-| nonneg_re_from_nonneg_norm | (fuel, 2) | **verified** |
-| nonneg_component_from_ext | (fuel, 3) | **verified** |
-| iszero_re_from_neg_norm_product | (fuel, 3) | **verified** |
-| le_chain_neg_norms | (fuel, 3) | **verified** |
-| square_le_implies_le | (fuel, 3) | **verified** |
-| cauchy_le_transitive_raw | (fuel, 3) | **verified** |
-| neg_a1a2_square_le | (fuel, 4) | **verified** |
-| cauchy_neg_db1b2_case | (fuel, 4) | **verified** |
-| reverse_cauchy_nonneg_re | (fuel, 5) | **verified** |
-| cauchy_schwarz_is_zero_re | (fuel, 5) | **verified** |
-| cauchy_neg_a1a2_from_na2sq | (fuel, 5) | **verified** |
-| cauchy_nonneg_re_dispatch | (fuel, 6) | **verified** |
-| nonneg_mul_iszero_im | (fuel, 6) | **verified** |
-| neg_norms_nonneg_re_val | (fuel, 6) | **verified** |
-| mixed_norms_nonneg_im_val | (fuel, 6) | **verified** |
-| error_b_dispatch | (fuel, 7) | **verified** |
-| **nonneg_mul_neg_im_path** | **(fuel, 8)** | **verified** (new) |
-| nonneg_mul_remaining | (fuel, 9) | **1 error** (bumped from 8) |
+| nonneg_mul_closed | (fuel, 0) | VERIFIED |
+| nonneg_add_closed | (fuel, 0) | VERIFIED (trusts helper) |
+| cauchy_schwarz_step | (fuel, 1) | VERIFIED |
+| le_antisymmetric | (fuel, 1) | VERIFIED |
+| nonneg_fuel_congruence | (fuel, 2) | VERIFIED |
+| nonneg_or_neg | (fuel, 2) | VERIFIED |
+| le_mul_nonneg_monotone | (fuel, 2) | VERIFIED |
+| nonneg_re_from_nonneg_norm | (fuel, 2) | VERIFIED |
+| nonneg_component_from_ext | (fuel, 3) | VERIFIED |
+| square_le_implies_le | (fuel, 3) | VERIFIED |
+| reverse_cauchy_nonneg_re | (fuel, 5) | VERIFIED |
+| neg_norms_nonneg_re_val | (fuel, 6) | VERIFIED |
+| mixed_norms_nonneg_im_val | (fuel, 6) | VERIFIED |
+| error_b_dispatch | (fuel, 7) | VERIFIED |
+| **nonneg_mul_neg_im_path** | **(fuel, 8)** | VERIFIED |
+| **nonneg_mul_nonneg_im_path** | **(fuel, 8)** | VERIFIED |
+| **nonneg_add_remaining** | **(fuel, 8)** | **3 errors** |
+| nonneg_mul_remaining | (fuel, 9) | VERIFIED |
 
 ## File Locations
 
-All changes in `verus-quadratic-extension/src/dyn_tower_lemmas.rs`:
+All in `verus-quadratic-extension/src/dyn_tower_lemmas.rs`:
 
 | Function | ~Line | Status |
 |----------|-------|--------|
-| error_b_dispatch (modified) | ~13251 | VERIFIED (internal nonneg_or_neg) |
-| **nonneg_mul_neg_im_path** | **~13437** | **VERIFIED** (new, ~370 lines) |
-| nonneg_mul_remaining | ~13808 | 1 error (fall-through in nonneg(im) handler) |
-| Fall-through: nonneg(a1*a2) + b1*neg_b2 | ~14490 | Partially fixed (Cauchy dispatch) |
-| Fall-through: !nonneg(b1*neg_b2) | ~14616 | **REMAINING ERROR** |
+| square_of_sum | ~10821 | VERIFIED |
+| norm_sum_decomposition | ~10969 | WIP |
+| nonneg_add_remaining | ~11113 | 3 errors |
+| nonneg_add_closed_fuel | ~11225 | VERIFIED |
+| c1c2_norm_bound | ~10301 | VERIFIED |
+| le_mul_nonneg_monotone_fuel | ~10129 | VERIFIED |
+| square_le_implies_le_fuel | ~1375 | VERIFIED |
 
-## Key Z3 Context Pollution Lessons
+## Z3 Context Pollution Lessons (Updated)
 
-1. **Z3 loses even boolean variables** over 630 lines. Don't rely on control flow facts propagating more than ~200 lines.
-2. **Let-binding connections** (e.g., `neg_b2 == dts_neg(b2)`) are lost over 530 lines. ALL derived facts that depend on the let-binding become unusable.
-3. **rlimit increases don't help** context pollution (tested up to 10000). The issue is Z3 losing facts, not running out of time.
-4. **Clean-context helpers are the ONLY reliable fix** for functions >200 lines. Ghost equality params + short variable chains work well inside helpers.
-5. **`return` per branch** prevents cross-branch context pollution and helps Z3 check postconditions locally.
-6. **`if/else` structure** is needed to avoid dead code paths (two separate if-checks leave dead code that Z3 can't close).
-7. **Use let-variables** (not expanded forms) in calls that need to match earlier if-checks — but only if the let-binding is within ~100 lines.
+1. **Let-binding connections lost over 530+ lines.** Solution: clean-context helpers.
+2. **same_radicand chains lost over distance.** Solution: re-establish sr chains immediately before the call that needs them.
+3. **rlimit increases don't help context pollution.** The issue is Z3 losing facts, not running out of time.
+4. **Argument ordering for add_congruence_left/right matters.** `right(c, a, b)`: eqv(a,b) → eqv(add(c,a), add(c,b)). The "c" is the FIXED part.
+5. **DTS add_associative/add_commutative have NO sr preconditions** — much simpler than mul versions. Use for additive rearrangements.
+6. **DynTowerSpec does NOT implement Ring** — only AdditiveGroup. Can't use generic ring lemmas. Must use DTS-specific mul_distributes_left, mul_commutative, etc. (which need wf+sr).
+7. **Termination: can't call mutual-recursion functions at higher fuel.** At (f, 8nat), can't call anything at fuel f+1. Must work with components at fuel f.
