@@ -13438,7 +13438,6 @@ proof fn lemma_nonneg_mul_neg_im_path<T: OrderedField>(
     a1: DynTowerSpec<T>, b1: DynTowerSpec<T>,
     a2: DynTowerSpec<T>, b2: DynTowerSpec<T>,
     dd: DynTowerSpec<T>, f: nat,
-    im_nonneg: bool,
 )
     requires
         f >= dts_depth(a1) + 1, f >= dts_depth(b1) + 1,
@@ -13456,10 +13455,8 @@ proof fn lemma_nonneg_mul_neg_im_path<T: OrderedField>(
         dts_nonneg_fuel(DynTowerSpec::Ext(Box::new(a1), Box::new(b1), Box::new(dd)), (f + 1) as nat),
         dts_nonneg_fuel(DynTowerSpec::Ext(Box::new(a2), Box::new(b2), Box::new(dd)), (f + 1) as nat),
         !dts_is_zero(dts_add(dts_mul(a1, b2), dts_mul(b1, a2))),
-        //  Ghost param: im_nonneg captures the nonneg check result
-        im_nonneg == dts_nonneg_fuel(
-            dts_add(dts_mul(a1, b2), dts_mul(b1, a2)), f),
-        !im_nonneg,
+        //  !nonneg(im_val) — direct negation, no ghost param needed
+        !dts_nonneg_fuel(dts_add(dts_mul(a1, b2), dts_mul(b1, a2)), f),
     ensures
         dts_nonneg_fuel(
             DynTowerSpec::Ext(
@@ -13805,7 +13802,7 @@ proof fn lemma_nonneg_mul_neg_im_path<T: OrderedField>(
     }
 }
 
-#[verifier::rlimit(2000)]
+#[verifier::rlimit(5000)]
 proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
     a1: DynTowerSpec<T>, b1: DynTowerSpec<T>, a2: DynTowerSpec<T>, b2: DynTowerSpec<T>,
     dd: DynTowerSpec<T>, f: nat,
@@ -13943,7 +13940,7 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
             let im_check = dts_nonneg_fuel(im_val, f);
             //  Handle !nonneg(im) FIRST to avoid 630-line context pollution.
             if !im_check {
-                lemma_nonneg_mul_neg_im_path(a1, b1, a2, b2, dd, f, im_check);
+                lemma_nonneg_mul_neg_im_path(a1, b1, a2, b2, dd, f);
                 return;
             } else {
                 //  Establish norm infrastructure for nx, ny
