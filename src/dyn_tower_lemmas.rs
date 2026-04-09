@@ -14613,7 +14613,6 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                         }
                     //  nonneg(a1*a2) case fully handled above (pos norms → reverse_cauchy,
                     //  neg norms → nonneg_add). Both return via conclude_re.
-                    }
                 }
             }
         }
