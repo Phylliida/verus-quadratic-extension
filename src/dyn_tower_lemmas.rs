@@ -14681,16 +14681,18 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                         //  → neg_mul: neg(b1)*b2_nn → eqv to b1*neg_b2_nn → contradiction.
                         //  Z3 should derive false from the control flow facts.
                         //  Provide mul for the contradiction path:
-                        if dts_nonneg_fuel(b1, f) {
-                            //  b1_nn, !b2_nn → neg(b2) = neg_b2 nonneg from nonneg_or_neg
-                            //  nonneg_mul(b1, neg_b2) → nonneg(b1*neg_b2) → contradiction
-                            lemma_dts_same_radicand_transitive(b1, a1, b2);
-                            lemma_dts_same_radicand_transitive(b1, b2, neg_b2);
-                            lemma_dts_nonneg_radicands_neg(b2);
-                            lemma_dts_depth_neg(b2);
-                            lemma_norm_definite_neg(b2);
-                            lemma_dts_neg_well_formed(b2);
-                            lemma_dts_same_radicand_neg(b2);
+                        //  Derive nonneg(neg_b2) locally via nonneg_or_neg.
+                        //  Re-establish wf/depth for neg_b2 since let-binding is 530 lines away.
+                        lemma_dts_neg_well_formed(b2);
+                        lemma_dts_same_radicand_neg(b2);
+                        lemma_dts_depth_neg(b2);
+                        lemma_dts_nonneg_radicands_neg(b2);
+                        lemma_norm_definite_neg(b2);
+                        lemma_dts_same_radicand_transitive(b1, a1, b2);
+                        lemma_dts_same_radicand_transitive(b1, b2, neg_b2);
+                        lemma_dts_nonneg_or_neg_nonneg_fuel(neg_b2, f);
+                        if dts_nonneg_fuel(b1, f) && dts_nonneg_fuel(neg_b2, f) {
+                            //  b1_nn && neg_b2_nn → nonneg_mul(b1, neg_b2) → nonneg(b1*neg_b2) → contradiction
                             lemma_dts_nonneg_mul_closed_fuel(b1, neg_b2, f);
                             //  nonneg(b1*neg_b2) contradicts !nonneg(b1*neg_b2) → false
                             return;
