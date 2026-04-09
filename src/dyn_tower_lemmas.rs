@@ -13805,7 +13805,7 @@ proof fn lemma_nonneg_mul_neg_im_path<T: OrderedField>(
     }
 }
 
-#[verifier::rlimit(1500)]
+#[verifier::rlimit(2000)]
 proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
     a1: DynTowerSpec<T>, b1: DynTowerSpec<T>, a2: DynTowerSpec<T>, b2: DynTowerSpec<T>,
     dd: DynTowerSpec<T>, f: nat,
@@ -13939,13 +13939,14 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
             //  which is established later via the norm infrastructure.
             //  The re≥0 case is handled after norm setup via conclude_re calls below.
             //  im≥0: use conclude_im paths (C3). !im: handled via early exit below.
+            //  Capture in boolean for Z3 propagation through 630 lines.
+            let im_check = dts_nonneg_fuel(im_val, f);
             //  Handle !nonneg(im) FIRST to avoid 630-line context pollution.
-            if !dts_nonneg_fuel(im_val, f) {
-                let im_nn_val = dts_nonneg_fuel(im_val, f);
-                lemma_nonneg_mul_neg_im_path(a1, b1, a2, b2, dd, f, im_nn_val);
+            if !im_check {
+                lemma_nonneg_mul_neg_im_path(a1, b1, a2, b2, dd, f, im_check);
                 return;
             }
-            if dts_nonneg_fuel(im_val, f) {
+            if im_check {
                 //  Establish norm infrastructure for nx, ny
                 lemma_dts_same_radicand_reflexive(a1);
                 lemma_dts_same_radicand_reflexive(a2);
