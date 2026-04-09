@@ -14487,13 +14487,18 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                         //  nonneg(a1*a2) via congruence from the neg product
                         lemma_dts_mul_closed(a1, a2);
                     }
+                    //  nonneg(a1*a2) + nonneg(dd*b1*neg_b2) → nonneg_add → nonneg(S).
+                    //  Use S to derive nonneg(re_val) or conclude via norm analysis.
+                    //  If nonneg(re_val): conclude_re directly. If !nonneg(re_val): fall through.
+                    lemma_dts_nonneg_or_neg_nonneg_fuel(re_val, f);
+                    if dts_nonneg_fuel(re_val, f) {
+                        lemma_dts_nonneg_conclude_re_fuel(re_val, im_val, dd, f);
+                        return;
+                    }
                     if !dts_nonneg_fuel(dts_mul(a1, a2), f) {
                         //  Mixed a signs: a1*a2 not nonneg. Use conclude_re with norm ≥ 0.
-                        lemma_dts_nonneg_or_neg_nonneg_fuel(re_val, f);
-                        if dts_nonneg_fuel(re_val, f) {
-                            lemma_dts_nonneg_conclude_re_fuel(re_val, im_val, dd, f);
-                            return;
-                        }
+                        //  (re_val already checked above, !nonneg(re_val) from that check.)
+                        //  Fall through to contradiction paths below.
                         //  Path unreachable: neg(b1)≥0 + neg(b2)≥0 + Ext nonneg → a1≥0, a2≥0 → a1*a2≥0.
                         //  But !nonneg(a1*a2) from the branch above. Contradiction.
                         //  Path unreachable: both norms ≤ 0 → b1≥0, b2≥0 → a1≥0, a2≥0 → a1*a2≥0.
@@ -14569,6 +14574,15 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                         }
                         return;
                         }
+                    //  nonneg(a1*a2) case: re_val = a1*a2 + dd*b1*b2.
+                    //  !nonneg(re_val) from the check above. nonneg(im_val) from else clause.
+                    //  Use conclude_im: need nonneg(neg(norm_product)).
+                    //  norm_product ≡ nx*ny via norm_mul (already called).
+                    //  Norm signs: in this sub-case (b1≥0 or b2≥0, one norm neg),
+                    //  neg(norm) = neg(nx*ny) was established in the nonneg(im) handler above.
+                    //  Use conclude_im_via_neg_norm directly.
+                    lemma_conclude_im_via_neg_norm(a1, b1, a2, b2, dd, f);
+                    return;
                     }
                 }
             }
