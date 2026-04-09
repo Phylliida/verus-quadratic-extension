@@ -14487,18 +14487,55 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                         //  nonneg(a1*a2) via congruence from the neg product
                         lemma_dts_mul_closed(a1, a2);
                     }
-                    //  nonneg(a1*a2) + nonneg(dd*b1*neg_b2) → nonneg_add → nonneg(S).
-                    //  Use S to derive nonneg(re_val) or conclude via norm analysis.
-                    //  If nonneg(re_val): conclude_re directly. If !nonneg(re_val): fall through.
-                    lemma_dts_nonneg_or_neg_nonneg_fuel(re_val, f);
-                    if dts_nonneg_fuel(re_val, f) {
+                    //  nonneg(a1*a2) established. Derive nonneg(re_val) via Cauchy.
+                    //  re_val = a1*a2 + dd*b1*b2. With b1*neg_b2 ≥ 0: dd*b1*b2 ≤ 0.
+                    //  For neg norms: b1≥0, b2≥0 → dd*b1*b2 ≥ 0 → nonneg_add.
+                    //  For pos norms: reverse_cauchy → nonneg(re_val).
+                    //  Re-establish norm signs for the dispatch:
+                    lemma_dts_nonneg_or_neg_nonneg_fuel(nx, f);
+                    lemma_dts_nonneg_or_neg_nonneg_fuel(ny, f);
+                    lemma_dts_nonneg_or_neg_nonneg_fuel(b1, f);
+                    lemma_dts_nonneg_or_neg_nonneg_fuel(b2, f);
+                    if dts_nonneg_fuel(nx, f) && dts_nonneg_fuel(ny, f) {
+                        //  Pos norms: reverse Cauchy gives nonneg(re_val).
+                        lemma_dts_nonneg_re_from_nonneg_norm(a1, b1, dd, f);
+                        lemma_dts_same_radicand_symmetric(a1, a2);
+                        lemma_dts_same_radicand_transitive(a2, a1, b2);
+                        lemma_dts_same_radicand_transitive(a2, a1, dd);
+                        lemma_dts_nonneg_re_from_nonneg_norm(a2, b2, dd, f);
+                        lemma_dts_nonneg_or_neg_nonneg_fuel(dts_mul(dd, dts_mul(b1, b2)), f);
+                        if dts_nonneg_fuel(dts_mul(dd, dts_mul(b1, b2)), f) {
+                            //  dd*b1*b2 ≥ 0: nonneg_add
+                            lemma_dts_nonneg_add_closed_fuel(
+                                dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2)), f);
+                        } else {
+                            //  neg(dd*b1*b2) ≥ 0: reverse Cauchy
+                            lemma_reverse_cauchy_nonneg_re_from_pos_norms(a1, a2, b1, b2, dd, f);
+                        }
                         lemma_dts_nonneg_conclude_re_fuel(re_val, im_val, dd, f);
                         return;
                     }
+                    //  Neg norms (neg(nx)≥0, neg(ny)≥0): b1≥0, b2≥0 from nonneg_im_from_neg_norm.
+                    //  dd≥0, b1≥0, b2≥0 → dd*b1*b2 ≥ 0. nonneg_add(a1*a2, dd*b1*b2) → nonneg(re_val).
+                    lemma_dts_nonneg_im_from_neg_norm(a1, b1, dd, f);
+                    lemma_dts_same_radicand_symmetric(a1, a2);
+                    lemma_dts_same_radicand_transitive(a2, a1, b2);
+                    lemma_dts_same_radicand_transitive(a2, a1, dd);
+                    lemma_dts_nonneg_im_from_neg_norm(a2, b2, dd, f);
+                    lemma_dts_same_radicand_symmetric(a1, b1);
+                    lemma_dts_same_radicand_transitive(b1, a1, b2);
+                    lemma_dts_nonneg_mul_closed_fuel(b1, b2, f);
+                    lemma_dts_nonneg_fuel_stabilize(dd, f);
+                    lemma_dts_same_radicand_symmetric(b1, dts_mul(b1, b2));
+                    lemma_dts_same_radicand_transitive(dd, b1, dts_mul(b1, b2));
+                    lemma_dts_nonneg_mul_closed_fuel(dd, dts_mul(b1, b2), f);
+                    lemma_dts_nonneg_add_closed_fuel(
+                        dts_mul(a1, a2), dts_mul(dd, dts_mul(b1, b2)), f);
+                    lemma_dts_nonneg_conclude_re_fuel(re_val, im_val, dd, f);
+                    return;
+                    }
                     if !dts_nonneg_fuel(dts_mul(a1, a2), f) {
-                        //  Mixed a signs: a1*a2 not nonneg. Use conclude_re with norm ≥ 0.
-                        //  (re_val already checked above, !nonneg(re_val) from that check.)
-                        //  Fall through to contradiction paths below.
+                        //  Mixed a signs: a1*a2 not nonneg.
                         //  Path unreachable: neg(b1)≥0 + neg(b2)≥0 + Ext nonneg → a1≥0, a2≥0 → a1*a2≥0.
                         //  But !nonneg(a1*a2) from the branch above. Contradiction.
                         //  Path unreachable: both norms ≤ 0 → b1≥0, b2≥0 → a1≥0, a2≥0 → a1*a2≥0.
@@ -14574,15 +14611,8 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
                         }
                         return;
                         }
-                    //  nonneg(a1*a2) case: re_val = a1*a2 + dd*b1*b2.
-                    //  !nonneg(re_val) from the check above. nonneg(im_val) from else clause.
-                    //  Use conclude_im: need nonneg(neg(norm_product)).
-                    //  norm_product ≡ nx*ny via norm_mul (already called).
-                    //  Norm signs: in this sub-case (b1≥0 or b2≥0, one norm neg),
-                    //  neg(norm) = neg(nx*ny) was established in the nonneg(im) handler above.
-                    //  Use conclude_im_via_neg_norm directly.
-                    lemma_conclude_im_via_neg_norm(a1, b1, a2, b2, dd, f);
-                    return;
+                    //  nonneg(a1*a2) case fully handled above (pos norms → reverse_cauchy,
+                    //  neg norms → nonneg_add). Both return via conclude_re.
                     }
                 }
             }
