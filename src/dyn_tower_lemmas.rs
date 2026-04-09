@@ -13945,8 +13945,7 @@ proof fn lemma_dts_nonneg_mul_remaining<T: OrderedField>(
             if !im_check {
                 lemma_nonneg_mul_neg_im_path(a1, b1, a2, b2, dd, f, im_check);
                 return;
-            }
-            if im_check {
+            } else {
                 //  Establish norm infrastructure for nx, ny
                 lemma_dts_same_radicand_reflexive(a1);
                 lemma_dts_same_radicand_reflexive(a2);
