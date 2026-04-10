@@ -1,10 +1,37 @@
-# DTS nonneg_mul & nonneg_add — Status & Handoff (2026-04-09, sessions 4-6)
+# DTS nonneg_mul & nonneg_add — Status & Handoff (2026-04-10, session 7)
 
-## Current State: 131 verified, 1 error
+## Current State: 133 verified, 1 error
 
-The nonneg_mul mutual recursion group is **fully verified**. The remaining error is in `lemma_dts_nonneg_add_remaining` which has 3 unproved return paths (C2 norm bound, C3 neg_norm bound, both-neg contradiction).
+The nonneg_mul mutual recursion group is **fully verified**. The algebraic
+identity `lemma_dts_norm_sum_decomposition` is now also **VERIFIED**.
 
-`nonneg_add_closed_fuel` itself verifies (it trusts the helper's postcondition via mutual recursion). The 9 `axiom_non_square` errors are pre-existing and unrelated.
+The remaining error is in `lemma_dts_nonneg_add_remaining` which has 3 unproved
+return paths (C2 norm bound, C3 neg_norm bound, both-neg contradiction).
+
+`nonneg_add_closed_fuel` itself verifies (it trusts the helper's postcondition via
+mutual recursion). The 9 `axiom_non_square` errors are pre-existing and unrelated.
+
+## Session 7 Progress (2026-04-10)
+
+1. **Added `lemma_sub_add_sub_4arg<A: AdditiveGroup>`** in
+   `verus-algebra/src/lemmas/additive_group_lemmas.rs`:
+   `(a-b) + (c-d) ≡ (a+c) - (b+d)`. Generic version of the existing 3-arg
+   telescoping. Proof: ~30 lines using add_congruence + add_rearrange_2x2 +
+   neg_add + sub_is_add_neg. **VERIFIED.**
+
+2. **Added `lemma_dts_d_dist_quad`** helper in dyn_tower_lemmas.rs:
+   `dd*(b1+b2)² ≡ (dd*b1² + dd*b2²) + (dd*b1*b2 + dd*b1*b2)`.
+   Uses square_of_sum + mul_congruence_right + 3× mul_distributes_left chain.
+   ~140 lines. **VERIFIED.**
+
+3. **Rewrote `lemma_dts_norm_sum_decomposition`** from scratch:
+   `sub((a1+a2)², dd*(b1+b2)²) ≡ nx + (ny + (cross + cross))`.
+   Uses square_of_sum + d_dist_quad + sub_congruence_both + 3× sub_add_sub_4arg
+   + add_associative for the final reassociation. ~250 lines. **VERIFIED.**
+
+   Critical bug fix: `lemma_dts_mul_congruence_right(a, b, c)` takes the equiv'd
+   terms as `(a, b)` and the LEFT MULTIPLIER as `c` — the previous broken attempt
+   had the args in the wrong order.
 
 ## What Was Done
 
@@ -39,22 +66,17 @@ Created `lemma_dts_nonneg_add_remaining` (~100 lines) that dispatches on compone
 
 ## Remaining Work: nonneg_add_remaining
 
-### Step 1: Complete `norm_sum_decomposition` (~50 lines)
+**Step 1 (norm_sum_decomposition) is COMPLETE — see Session 7 above.**
 
-The skeleton has the distribute calls but the congruence chain is incomplete.
+### Critical termination constraint discovered
 
-**What needs to happen:**
-1. Fix `mul_congruence_right(dd, ...)` — either fix sr preconditions or use `mul_distributes_left` results directly
-2. Chain: dd*(b1+b2)² ≡ dd*square_of_sum_RHS ≡ add(add(dd*b1², dd*b2²), add(dd*b1*b2, dd*b1*b2))
-   via mul_congruence + distributes_left (twice)
-3. Apply sub_congruence on both (a1+a2)² and dd*(b1+b2)² results
-4. Rearrange sub(add(A,C), add(B,D)) ≡ add(sub(A,B), sub(C,D)) using the identity from `verus-geometry/src/circle_line.rs:213` (sub_add_sub 4-arg version)
-5. Further rearrange sub(add(a1²,a2²), add(dd*b1²,dd*b2²)) ≡ add(sub(a1²,dd*b1²), sub(a2²,dd*b2²)) using the same identity
+The current Case 2 attempt calls `lemma_dts_nonneg_mul_closed_fuel(x_ext, y_ext, (f+1) as nat)` — this is a **termination violation**: at decreases (f, 8nat), we cannot call any function at fuel f+1. The `f+1` is also forced because `dts_depth(x_ext) = 1 + max(component depths) = f`, so `nonneg_fuel(x_ext, fuel)` requires fuel ≥ f+1.
 
-**Key functions:**
-- `lemma_dts_mul_congruence_right(a, b, c)`: eqv(b,c) → eqv(mul(a,b), mul(a,c)). Requires sr(a,b).
-- `lemma_sub_add_sub(a, b, c, d)` from verus-geometry: (a-b)+(c-d) ≡ (a+c)-(b+d)
-- `lemma_dts_sub_congruence(a, b, c, d)`: eqv(a,b) ∧ eqv(c,d) → eqv(sub(a,c), sub(b,d)). (Check if this exists; otherwise build from add_congruence + neg_congruence.)
+**Resolution:** Don't try to use `nonneg_mul_closed_fuel` on x_ext/y_ext directly. Instead work entirely at fuel f using component-level facts:
+- `nonneg_fuel(x_ext, f+1)` unfolds to `C1 ∨ C2 ∨ C3` where each case is about `(a1, b1, dd)` at fuel f.
+- Same for y_ext.
+- Outer dispatch on sum_re/sum_im signs eliminates many sub-cases.
+- For surviving (Cx, Cy) pairs, derive `nonneg(nx, f)`, `nonneg(ny, f)`, `nonneg(cross, f)` and combine via `norm_sum_decomposition` + `nonneg_fuel_congruence`.
 
 ### Step 2: Cauchy Cross-Term Lemma (~100-150 lines, new function)
 
