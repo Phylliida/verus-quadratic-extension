@@ -10816,6 +10816,130 @@ pub proof fn lemma_dts_c1c2_norm_bound<T: OrderedField>(
     //  nonneg(sub(sum_re², d*sum_im²)) ✓
 }
 
+///  4-arg mul rearrange: (a*b)*(c*d) ≡ (a*c)*(b*d).
+///  Pure ring identity using associativity + commutativity.
+#[verifier::rlimit(200)]
+pub proof fn lemma_dts_mul_4_rearrange<T: OrderedField>(
+    a: DynTowerSpec<T>, b: DynTowerSpec<T>, c: DynTowerSpec<T>, d: DynTowerSpec<T>,
+)
+    requires
+        dts_well_formed(a), dts_well_formed(b),
+        dts_well_formed(c), dts_well_formed(d),
+        dts_same_radicand(a, b), dts_same_radicand(a, c), dts_same_radicand(a, d),
+    ensures
+        dts_eqv(
+            dts_mul(dts_mul(a, b), dts_mul(c, d)),
+            dts_mul(dts_mul(a, c), dts_mul(b, d))),
+{
+    //  ─── sr infrastructure ───
+    lemma_dts_same_radicand_reflexive(a);
+    lemma_dts_same_radicand_reflexive(b);
+    lemma_dts_same_radicand_reflexive(c);
+    lemma_dts_same_radicand_reflexive(d);
+    lemma_dts_same_radicand_symmetric(a, b);
+    lemma_dts_same_radicand_symmetric(a, c);
+    lemma_dts_same_radicand_symmetric(a, d);
+    lemma_dts_same_radicand_transitive(b, a, c);
+    lemma_dts_same_radicand_transitive(b, a, d);
+    lemma_dts_same_radicand_transitive(c, a, d);
+    //  Mul cells
+    lemma_dts_mul_closed(a, b);  //  sr(a, ab)
+    lemma_dts_mul_closed(c, d);  //  sr(c, cd)
+    lemma_dts_mul_closed(a, c);  //  sr(a, ac)
+    lemma_dts_mul_closed(b, d);  //  sr(b, bd)
+    lemma_dts_mul_closed(b, c);  //  sr(b, bc)
+    //  sr(c, b): c~a~b
+    lemma_dts_same_radicand_transitive(c, a, b);
+    lemma_dts_mul_closed(c, b);  //  sr(c, cb)
+    //  sr chains for the products
+    lemma_dts_same_radicand_symmetric(a, dts_mul(a, b));
+    lemma_dts_same_radicand_symmetric(c, dts_mul(c, d));
+    lemma_dts_same_radicand_symmetric(a, dts_mul(a, c));
+    lemma_dts_same_radicand_symmetric(b, dts_mul(b, d));
+    lemma_dts_same_radicand_symmetric(b, dts_mul(b, c));
+    lemma_dts_same_radicand_symmetric(c, dts_mul(c, b));
+    lemma_dts_same_radicand_transitive(dts_mul(a, b), a, c);  //  sr(ab, c)
+    lemma_dts_same_radicand_transitive(dts_mul(a, b), c, dts_mul(c, d));  //  sr(ab, cd)
+    lemma_dts_same_radicand_transitive(dts_mul(a, c), a, b);  //  sr(ac, b)
+    lemma_dts_same_radicand_transitive(dts_mul(a, c), b, dts_mul(b, d));  //  sr(ac, bd)
+    lemma_dts_same_radicand_transitive(a, b, dts_mul(b, c));  //  sr(a, bc)
+    lemma_dts_same_radicand_transitive(a, b, dts_mul(b, d));  //  sr(a, bd)
+    lemma_dts_same_radicand_transitive(a, c, dts_mul(c, b));  //  sr(a, cb)
+    lemma_dts_same_radicand_transitive(a, c, dts_mul(c, d));  //  sr(a, cd)
+    //  Build (ab)(cd) and (ac)(bd)
+    lemma_dts_mul_closed(dts_mul(a, b), dts_mul(c, d));
+    lemma_dts_mul_closed(dts_mul(a, c), dts_mul(b, d));
+
+    //  sr(b, c*d): b ~ a ~ c ~ c*d
+    lemma_dts_same_radicand_transitive(b, a, c);
+    lemma_dts_same_radicand_transitive(b, c, dts_mul(c, d));
+
+    //  ─── Step 1: (a*b)*(c*d) ≡ a*(b*(c*d))  [assoc] ───
+    lemma_dts_mul_associative(a, b, dts_mul(c, d));
+    lemma_dts_eqv_symmetric(
+        dts_mul(a, dts_mul(b, dts_mul(c, d))),
+        dts_mul(dts_mul(a, b), dts_mul(c, d)));
+
+    //  ─── Step 2: b*(c*d) ≡ (b*c)*d ≡ (c*b)*d ≡ c*(b*d) ───
+    //  b*(c*d) ≡ (b*c)*d  [assoc forward]
+    lemma_dts_mul_associative(b, c, d);
+    //  (b*c) ≡ (c*b)  [comm]
+    lemma_dts_mul_commutative(b, c);
+    //  sr(b*c, c*b): b*c ~ b ~ a ~ c ~ c*b
+    lemma_dts_same_radicand_symmetric(b, dts_mul(b, c));
+    lemma_dts_same_radicand_transitive(dts_mul(b, c), b, a);
+    lemma_dts_same_radicand_transitive(dts_mul(b, c), a, c);
+    lemma_dts_same_radicand_transitive(dts_mul(b, c), c, dts_mul(c, b));
+    //  (b*c)*d ≡ (c*b)*d  [congruence_left]
+    lemma_dts_mul_congruence_left(dts_mul(b, c), dts_mul(c, b), d);
+    //  (c*b)*d ≡ c*(b*d)  [assoc reverse]
+    lemma_dts_mul_associative(c, b, d);
+    lemma_dts_eqv_symmetric(
+        dts_mul(c, dts_mul(b, d)),
+        dts_mul(dts_mul(c, b), d));
+    //  Chain: b*(c*d) ≡ (b*c)*d ≡ (c*b)*d ≡ c*(b*d)
+    lemma_dts_eqv_transitive(
+        dts_mul(b, dts_mul(c, d)),
+        dts_mul(dts_mul(b, c), d),
+        dts_mul(dts_mul(c, b), d));
+    lemma_dts_eqv_transitive(
+        dts_mul(b, dts_mul(c, d)),
+        dts_mul(dts_mul(c, b), d),
+        dts_mul(c, dts_mul(b, d)));
+
+    //  ─── Step 3: a*(b*(c*d)) ≡ a*(c*(b*d))  [mul_congruence_right] ───
+    //  Need sr(b*(c*d), c*(b*d)). Both ~ a (we've built sr to a for both).
+    //  sr(b*(c*d), b): from mul_closed(b, c*d) we have sr(b, b*(c*d)) → sym
+    lemma_dts_mul_closed(b, dts_mul(c, d));  //  needs sr(b, c*d) (built above)
+    lemma_dts_same_radicand_symmetric(b, dts_mul(b, dts_mul(c, d)));
+    //  sr(c*(b*d), c): need sr(c, b*d) FIRST, then mul_closed gives sr(c, c*(b*d))
+    //  sr(c, b*d): c ~ a ~ b*d (sr(a, bd) was built earlier from a~b~bd)
+    lemma_dts_same_radicand_symmetric(a, c);
+    lemma_dts_same_radicand_transitive(c, a, dts_mul(b, d));
+    lemma_dts_mul_closed(c, dts_mul(b, d));
+    lemma_dts_same_radicand_symmetric(c, dts_mul(c, dts_mul(b, d)));
+    //  sr(b*(c*d), c*(b*d)) via b ~ a ~ c ~ c*(b*d)
+    lemma_dts_same_radicand_transitive(b, a, c);
+    lemma_dts_same_radicand_transitive(b, c, dts_mul(c, dts_mul(b, d)));
+    lemma_dts_same_radicand_transitive(
+        dts_mul(b, dts_mul(c, d)), b, dts_mul(c, dts_mul(b, d)));
+    lemma_dts_mul_congruence_right(
+        dts_mul(b, dts_mul(c, d)), dts_mul(c, dts_mul(b, d)), a);
+
+    //  ─── Step 4: a*(c*(b*d)) ≡ (a*c)*(b*d)  [assoc forward] ───
+    lemma_dts_mul_associative(a, c, dts_mul(b, d));
+
+    //  ─── Final chain: (a*b)(c*d) ≡ a*(b*(c*d)) ≡ a*(c*(b*d)) ≡ (a*c)*(b*d) ───
+    lemma_dts_eqv_transitive(
+        dts_mul(dts_mul(a, b), dts_mul(c, d)),
+        dts_mul(a, dts_mul(b, dts_mul(c, d))),
+        dts_mul(a, dts_mul(c, dts_mul(b, d))));
+    lemma_dts_eqv_transitive(
+        dts_mul(dts_mul(a, b), dts_mul(c, d)),
+        dts_mul(a, dts_mul(c, dts_mul(b, d))),
+        dts_mul(dts_mul(a, c), dts_mul(b, d)));
+}
+
 ///  Square of product: (a*b)² ≡ a² * b².
 ///  Pure ring rearrangement: a*b*a*b ≡ a*a*b*b via associativity + commutativity.
 #[verifier::rlimit(150)]
