@@ -1,6 +1,6 @@
 # DTS nonneg_mul & nonneg_add — Status & Handoff (2026-04-10, session 7)
 
-## Current State: 133 verified, 1 error
+## Current State: 138 verified, 1 error
 
 The nonneg_mul mutual recursion group is **fully verified**. The algebraic
 identity `lemma_dts_norm_sum_decomposition` is now also **VERIFIED**.
@@ -32,6 +32,30 @@ mutual recursion). The 9 `axiom_non_square` errors are pre-existing and unrelate
    Critical bug fix: `lemma_dts_mul_congruence_right(a, b, c)` takes the equiv'd
    terms as `(a, b)` and the LEFT MULTIPLIER as `c` — the previous broken attempt
    had the args in the wrong order.
+
+4. **Added `lemma_dts_square_of_product`** helper: `(a*b)² ≡ a² * b²`.
+   ~100 lines. **VERIFIED.**
+
+5. **Added `lemma_dts_mul_4_rearrange`** helper: `(a*b)*(c*d) ≡ (a*c)*(b*d)`.
+   Pure ring identity via assoc + comm + congruence chain. ~110 lines. **VERIFIED.**
+
+6. **Added `lemma_dts_d_quadruple_eq_sq`** helper:
+   `(dd*b2²)*(dd*b1²) ≡ (dd*(b1*b2))*(dd*(b1*b2))`.
+   Uses mul_4_rearrange + mul_commutative + square_of_product (twice).
+   ~120 lines. **VERIFIED.**
+
+7. **Added `lemma_dts_cauchy_cross_term`** at decreases (fuel, 4nat):
+   From nx ≥ 0, ny ≥ 0, a1·a2 ≥ 0, dd·(b1·b2) ≥ 0, derive
+   nonneg(a1·a2 - dd·(b1·b2)). The Cauchy-Schwarz step.
+   Proof: 2× le_mul_nonneg_monotone + telescoping + ring identities
+   (via square_of_product symmetric and d_quadruple_eq_sq) +
+   square_le_implies_le_fuel. ~370 lines. **VERIFIED.**
+
+8. **Added `lemma_dts_c2c2_norm_bound`** at decreases (fuel, 5nat):
+   Wires cauchy_cross_term + norm_sum_decomposition + nonneg_add chain
+   to prove nonneg(sub(sum_re², dd*sum_im²)) when both x and y are C2.
+   Uses neg_mul_neg trick to derive nonneg(b1*b2) from nonneg(neg(b1)*neg(b2)).
+   ~290 lines. **VERIFIED.**
 
 ## What Was Done
 
@@ -66,9 +90,10 @@ Created `lemma_dts_nonneg_add_remaining` (~100 lines) that dispatches on compone
 
 ## Remaining Work: nonneg_add_remaining
 
-**Step 1 (norm_sum_decomposition) is COMPLETE — see Session 7 above.**
+**Steps 1 (norm_sum_decomposition), 2 (cauchy_cross_term), and the C2+C2 case
+helper (c2c2_norm_bound) are COMPLETE — see Session 7 above.**
 
-### Critical termination constraint discovered
+### Critical termination constraint
 
 The current Case 2 attempt calls `lemma_dts_nonneg_mul_closed_fuel(x_ext, y_ext, (f+1) as nat)` — this is a **termination violation**: at decreases (f, 8nat), we cannot call any function at fuel f+1. The `f+1` is also forced because `dts_depth(x_ext) = 1 + max(component depths) = f`, so `nonneg_fuel(x_ext, fuel)` requires fuel ≥ f+1.
 
@@ -77,6 +102,25 @@ The current Case 2 attempt calls `lemma_dts_nonneg_mul_closed_fuel(x_ext, y_ext,
 - Same for y_ext.
 - Outer dispatch on sum_re/sum_im signs eliminates many sub-cases.
 - For surviving (Cx, Cy) pairs, derive `nonneg(nx, f)`, `nonneg(ny, f)`, `nonneg(cross, f)` and combine via `norm_sum_decomposition` + `nonneg_fuel_congruence`.
+
+### Remaining sub-case helpers needed
+
+| Helper | Status | Notes |
+|--------|--------|-------|
+| `c1c2_norm_bound` | VERIFIED (existing) | C1+C2 → C2 |
+| `c2c2_norm_bound` | **VERIFIED (session 7)** | C2+C2 → C2 |
+| `c2c3_norm_bound` | TODO | C2+C3, C3+C2 sub-cases — analogous structure |
+| `c3c3_neg_norm_bound` | TODO | C3+C3 → C3 (uses neg_norm bound, mirrors c2c2) |
+| `c1c3_neg_norm_bound` | TODO | C1+C3, C3+C1 — analogous to c1c2 but for C3 |
+| Case 4 contradiction | TODO | both sum_re, sum_im neg → contradiction |
+
+### Wiring strategy for nonneg_add_remaining
+
+Rewrite the body to:
+1. Dispatch on `nonneg_fuel(sum_re, f)` and `nonneg_fuel(sum_im, f)` (via `nonneg_or_neg_nonneg_fuel`).
+2. Extract C1/C2/C3 sub-structure of x_ext from the f+1-fuel precondition by introducing local bools `a1_nn := nonneg_fuel(a1, f)`, `b1_nn := ...`, etc. The existing `lemma_dts_nonneg_add_closed_fuel` already does this in its top-level dispatch.
+3. For each sub-case combination that survives the outer dispatch, call the appropriate helper from the table above.
+4. The helpers establish the norm bound; then call `lemma_dts_nonneg_conclude_re_fuel` (for C2) or `lemma_dts_nonneg_conclude_im_via_neg_norm` (for C3) to finalize.
 
 ### Step 2: Cauchy Cross-Term Lemma (~100-150 lines, new function)
 
