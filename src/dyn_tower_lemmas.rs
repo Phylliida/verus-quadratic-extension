@@ -12647,6 +12647,676 @@ proof fn lemma_dts_c2c2_norm_bound<T: OrderedField>(
     //  Result: nonneg(sub(ssa², dd*ssb²)) at fuel f ✓
 }
 
+///  C3+C3 neg-norm bound: from both x and y being C3, derive nonneg of sum's NEG norm.
+///  Mirrors c2c2_norm_bound but uses cauchy_cross_term_neg + negated decomposition.
+///  Output: nonneg(sub(d*ssb², ssa²)) which is the C3 form of "neg norm ≥ 0".
+#[verifier::rlimit(1000)]
+proof fn lemma_dts_c3c3_neg_norm_bound<T: OrderedField>(
+    a1: DynTowerSpec<T>, b1: DynTowerSpec<T>,
+    a2: DynTowerSpec<T>, b2: DynTowerSpec<T>,
+    dd: DynTowerSpec<T>, f: nat,
+)
+    requires
+        f >= dts_depth(a1) + 1, f >= dts_depth(b1) + 1,
+        f >= dts_depth(a2) + 1, f >= dts_depth(b2) + 1, f >= dts_depth(dd) + 1,
+        dts_well_formed(a1), dts_well_formed(b1), dts_well_formed(a2),
+        dts_well_formed(b2), dts_well_formed(dd),
+        dts_same_radicand(a1, b1), dts_same_radicand(a1, a2),
+        dts_same_radicand(a1, b2), dts_same_radicand(a1, dd),
+        dts_nonneg_radicands(a1), dts_nonneg_radicands(b1),
+        dts_nonneg_radicands(a2), dts_nonneg_radicands(b2),
+        dts_nonneg_radicands(dd), dts_nonneg(dd),
+        dts_norm_definite(a1), dts_norm_definite(b1),
+        dts_norm_definite(a2), dts_norm_definite(b2), dts_norm_definite(dd),
+        //  C3 facts for x: neg(a1) ≥ 0, b1 ≥ 0, neg_norm ≥ 0 (i.e. d*b1² ≥ a1²)
+        dts_nonneg_fuel(dts_neg(a1), f),
+        dts_nonneg_fuel(b1, f),
+        dts_nonneg_fuel(
+            dts_sub(dts_mul(dd, dts_mul(b1, b1)), dts_mul(a1, a1)), f),
+        //  C3 facts for y
+        dts_nonneg_fuel(dts_neg(a2), f),
+        dts_nonneg_fuel(b2, f),
+        dts_nonneg_fuel(
+            dts_sub(dts_mul(dd, dts_mul(b2, b2)), dts_mul(a2, a2)), f),
+    ensures
+        dts_nonneg_fuel(
+            dts_sub(
+                dts_mul(dd, dts_mul(dts_add(b1, b2), dts_add(b1, b2))),
+                dts_mul(dts_add(a1, a2), dts_add(a1, a2))),
+            f),
+    decreases f, 5nat,
+{
+    let aa1 = dts_mul(a1, a1);
+    let aa2 = dts_mul(a2, a2);
+    let bb1 = dts_mul(b1, b1);
+    let bb2 = dts_mul(b2, b2);
+    let dbb1 = dts_mul(dd, bb1);
+    let dbb2 = dts_mul(dd, bb2);
+    let a12 = dts_mul(a1, a2);
+    let b12 = dts_mul(b1, b2);
+    let db12 = dts_mul(dd, b12);
+    //  "neg-norm" form: nx_n = sub(dbb1, aa1), ny_n = sub(dbb2, aa2),
+    //  cross_n = sub(db12, a12) (negated cross)
+    let nx_n = dts_sub(dbb1, aa1);
+    let ny_n = dts_sub(dbb2, aa2);
+    let cross_n = dts_sub(db12, a12);
+    let ssa = dts_add(a1, a2);
+    let ssb = dts_add(b1, b2);
+
+    //  ─── sr/wf/nonneg_radicands/norm_definite infrastructure (same as c2c2) ───
+    lemma_dts_same_radicand_reflexive(a1);
+    lemma_dts_same_radicand_reflexive(a2);
+    lemma_dts_same_radicand_reflexive(b1);
+    lemma_dts_same_radicand_reflexive(b2);
+    lemma_dts_same_radicand_reflexive(dd);
+    lemma_dts_same_radicand_symmetric(a1, b1);
+    lemma_dts_same_radicand_symmetric(a1, b2);
+    lemma_dts_same_radicand_symmetric(a1, a2);
+    lemma_dts_same_radicand_symmetric(a1, dd);
+    lemma_dts_same_radicand_transitive(b1, a1, b2);
+    lemma_dts_same_radicand_transitive(b1, a1, a2);
+    lemma_dts_same_radicand_transitive(b1, a1, dd);
+    //  Mul cells
+    lemma_dts_mul_closed(a1, a1);
+    lemma_dts_mul_closed(a2, a2);
+    lemma_dts_mul_closed(a1, a2);
+    lemma_dts_mul_closed(b1, b1);
+    lemma_dts_mul_closed(b2, b2);
+    lemma_dts_mul_closed(b1, b2);
+    //  sr(dd, b1) via dd ~ a1 ~ b1
+    lemma_dts_same_radicand_transitive(dd, a1, b1);
+    lemma_dts_same_radicand_transitive(dd, b1, bb1);
+    lemma_dts_same_radicand_transitive(b1, b2, bb2);
+    lemma_dts_same_radicand_transitive(dd, b1, bb2);
+    lemma_dts_same_radicand_transitive(dd, b1, b12);
+    lemma_dts_mul_closed(dd, bb1);
+    lemma_dts_mul_closed(dd, bb2);
+    lemma_dts_mul_closed(dd, b12);
+    //  ssa, ssb closures
+    lemma_dts_add_closed(a1, a2);
+    lemma_dts_add_closed(b1, b2);
+    //  nonneg_radicands + norm_definite + depth for products
+    lemma_dts_nonneg_radicands_mul(a1, a2);
+    lemma_dts_nonneg_radicands_mul(b1, b2);
+    lemma_dts_nonneg_radicands_mul(dd, b12);
+    lemma_dts_nonneg_radicands_mul(a1, a1);
+    lemma_dts_nonneg_radicands_mul(b1, b1);
+    lemma_dts_nonneg_radicands_mul(dd, bb1);
+    lemma_dts_nonneg_radicands_mul(a2, a2);
+    lemma_dts_nonneg_radicands_mul(b2, b2);
+    lemma_dts_nonneg_radicands_mul(dd, bb2);
+    lemma_norm_definite_mul(a1, a2);
+    lemma_norm_definite_mul(b1, b2);
+    lemma_norm_definite_mul(dd, b12);
+    lemma_norm_definite_mul(a1, a1);
+    lemma_norm_definite_mul(b1, b1);
+    lemma_norm_definite_mul(dd, bb1);
+    lemma_norm_definite_mul(a2, a2);
+    lemma_norm_definite_mul(b2, b2);
+    lemma_norm_definite_mul(dd, bb2);
+    lemma_dts_depth_mul_le(a1, a2);
+    lemma_dts_depth_mul_le(b1, b2);
+    lemma_dts_depth_mul_le(dd, b12);
+    lemma_dts_depth_mul_le(a1, a1);
+    lemma_dts_depth_mul_le(b1, b1);
+    lemma_dts_depth_mul_le(dd, bb1);
+    lemma_dts_depth_mul_le(a2, a2);
+    lemma_dts_depth_mul_le(b2, b2);
+    lemma_dts_depth_mul_le(dd, bb2);
+
+    //  ─── Step A: nonneg(a1*a2) via neg_mul_neg ───
+    //  neg(a1) ≥ 0, neg(a2) ≥ 0 → neg(a1)*neg(a2) ≥ 0 → a1*a2 ≥ 0 via neg_mul_neg
+    lemma_dts_neg_well_formed(a1);
+    lemma_dts_neg_well_formed(a2);
+    lemma_dts_same_radicand_neg(a1);
+    lemma_dts_same_radicand_neg(a2);
+    lemma_dts_same_radicand_symmetric(a1, dts_neg(a1));
+    lemma_dts_same_radicand_symmetric(a2, dts_neg(a2));
+    lemma_dts_same_radicand_transitive(dts_neg(a1), a1, a2);
+    lemma_dts_same_radicand_transitive(dts_neg(a1), a2, dts_neg(a2));
+    lemma_dts_nonneg_radicands_neg(a1);
+    lemma_dts_nonneg_radicands_neg(a2);
+    lemma_norm_definite_neg(a1);
+    lemma_norm_definite_neg(a2);
+    lemma_dts_depth_neg(a1);
+    lemma_dts_depth_neg(a2);
+    lemma_dts_nonneg_mul_closed_fuel(dts_neg(a1), dts_neg(a2), f);
+    //  neg(a1)*neg(a2) ≡ a1*a2
+    lemma_dts_neg_mul_neg(a1, a2);
+    lemma_dts_mul_closed(dts_neg(a1), dts_neg(a2));
+    //  Transfer nonneg via congruence
+    //  sr(neg(a1)*neg(a2), a1*a2): both ~ a1
+    lemma_dts_same_radicand_symmetric(
+        dts_neg(a1), dts_mul(dts_neg(a1), dts_neg(a2)));
+    lemma_dts_same_radicand_transitive(
+        dts_mul(dts_neg(a1), dts_neg(a2)), dts_neg(a1), a1);
+    lemma_dts_same_radicand_symmetric(a1, a12);
+    lemma_dts_same_radicand_transitive(
+        dts_mul(dts_neg(a1), dts_neg(a2)), a1, a12);
+    lemma_dts_nonneg_radicands_mul(dts_neg(a1), dts_neg(a2));
+    lemma_norm_definite_mul(dts_neg(a1), dts_neg(a2));
+    lemma_dts_depth_mul_le(dts_neg(a1), dts_neg(a2));
+    lemma_dts_nonneg_fuel_congruence(
+        dts_mul(dts_neg(a1), dts_neg(a2)), a12, f);
+    //  Now: nonneg(a12) at fuel f
+
+    //  ─── Step B: nonneg(dd*(b1*b2)) via nonneg_mul_closed (b's nonneg directly) ───
+    lemma_dts_nonneg_mul_closed_fuel(b1, b2, f);
+    lemma_dts_nonneg_fuel_stabilize(dd, f);
+    lemma_dts_nonneg_mul_closed_fuel(dd, b12, f);
+    //  Now: nonneg(db12) at fuel f
+
+    //  ─── Step C: cauchy_cross_term_neg → nonneg(sub(db12, a12)) = nonneg(cross_n) ───
+    lemma_dts_cauchy_cross_term_neg(a1, b1, a2, b2, dd, f);
+
+    //  ─── Step D: norm_sum_decomposition gives N(sum) ≡ nx + (ny + (cross + cross)) ───
+    //  We need to negate this to get sub(d*ssb², ssa²) ≡ nx_n + (ny_n + (cross_n + cross_n))
+    lemma_dts_norm_sum_decomposition(a1, b1, a2, b2, dd);
+    let nx = dts_sub(aa1, dbb1);
+    let ny = dts_sub(aa2, dbb2);
+    let cross = dts_sub(a12, db12);
+    let decomp = dts_add(nx, dts_add(ny, dts_add(cross, cross)));
+    let neg_decomp = dts_add(nx_n, dts_add(ny_n, dts_add(cross_n, cross_n)));
+    let n_sum = dts_sub(dts_mul(ssa, ssa), dts_mul(dd, dts_mul(ssb, ssb)));
+    let target = dts_sub(
+        dts_mul(dd, dts_mul(ssb, ssb)),
+        dts_mul(ssa, ssa));
+    //  norm_sum_decomposition: eqv(n_sum, decomp)
+
+    //  ─── Step E: nonneg of neg_decomp ───
+    //  We have: nonneg(nx_n), nonneg(ny_n) [given], nonneg(cross_n) [from step C].
+    //  Build nonneg(cross_n + cross_n), then nonneg(ny_n + (cross_n + cross_n)),
+    //  then nonneg(nx_n + (ny_n + (cross_n + cross_n))) = nonneg(neg_decomp)
+    lemma_dts_same_radicand_reflexive(cross_n);
+    //  cross_n = sub(db12, a12) = add(db12, neg(a12)). Need wf, sr, etc.
+    lemma_dts_neg_well_formed(a12);
+    lemma_dts_same_radicand_neg(a12);
+    lemma_dts_same_radicand_symmetric(a12, dts_neg(a12));
+    //  sr(db12, a12) via db12 ~ dd ~ a1 ~ a12
+    lemma_dts_same_radicand_symmetric(dd, db12);
+    lemma_dts_same_radicand_symmetric(a1, dd);
+    lemma_dts_same_radicand_transitive(db12, dd, a1);
+    lemma_dts_same_radicand_transitive(db12, a1, a12);
+    lemma_dts_same_radicand_transitive(db12, a12, dts_neg(a12));
+    lemma_dts_add_closed(db12, dts_neg(a12));
+    lemma_dts_nonneg_radicands_neg(a12);
+    lemma_dts_nonneg_radicands_add(db12, dts_neg(a12));
+    lemma_norm_definite_neg(a12);
+    lemma_norm_definite_add(db12, dts_neg(a12));
+    lemma_dts_depth_neg(a12);
+    lemma_dts_depth_add_le(db12, dts_neg(a12));
+    //  Now nonneg(cross_n + cross_n)
+    lemma_dts_nonneg_add_closed_fuel(cross_n, cross_n, f);
+
+    //  Setup ny_n = sub(dbb2, aa2)
+    lemma_dts_neg_well_formed(aa2);
+    lemma_dts_same_radicand_neg(aa2);
+    lemma_dts_same_radicand_symmetric(aa2, dts_neg(aa2));
+    //  sr(dbb2, aa2) via dbb2 ~ dd ~ a1 ~ a2 ~ aa2
+    lemma_dts_same_radicand_symmetric(dd, dbb2);
+    lemma_dts_same_radicand_transitive(dbb2, dd, a1);
+    lemma_dts_same_radicand_transitive(dbb2, a1, a2);
+    lemma_dts_same_radicand_symmetric(a2, aa2);
+    lemma_dts_same_radicand_transitive(dbb2, a2, aa2);
+    lemma_dts_same_radicand_transitive(dbb2, aa2, dts_neg(aa2));
+    lemma_dts_add_closed(dbb2, dts_neg(aa2));
+    lemma_dts_nonneg_radicands_neg(aa2);
+    lemma_dts_nonneg_radicands_add(dbb2, dts_neg(aa2));
+    lemma_norm_definite_neg(aa2);
+    lemma_norm_definite_add(dbb2, dts_neg(aa2));
+    lemma_dts_depth_neg(aa2);
+    lemma_dts_depth_add_le(dbb2, dts_neg(aa2));
+    //  cross_n + cross_n closure
+    lemma_dts_add_closed(cross_n, cross_n);
+    //  sr(ny_n, cross_n + cross_n): chain through a1
+    //  Build sr(a1, dbb2): a1 ~ dd ~ dbb2
+    lemma_dts_same_radicand_symmetric(dd, dbb2);
+    lemma_dts_same_radicand_transitive(a1, dd, dbb2);
+    //  ny_n ~ dbb2 (from above sr) ~ a1 ~ db12 ~ cross_n ~ cross_n + cross_n
+    lemma_dts_same_radicand_symmetric(dbb2, ny_n);
+    lemma_dts_same_radicand_symmetric(a1, dbb2);
+    lemma_dts_same_radicand_transitive(ny_n, dbb2, a1);
+    //  Build sr(a1, db12): a1 ~ dd ~ db12
+    lemma_dts_same_radicand_symmetric(dd, db12);
+    lemma_dts_same_radicand_transitive(a1, dd, db12);
+    //  a1 ~ cross_n: a1 ~ db12 (have) ~ cross_n
+    lemma_dts_same_radicand_symmetric(db12, cross_n);
+    lemma_dts_same_radicand_symmetric(a1, db12);
+    lemma_dts_same_radicand_transitive(a1, db12, cross_n);
+    //  cross_n ~ cross_n + cross_n
+    lemma_dts_same_radicand_symmetric(cross_n, dts_add(cross_n, cross_n));
+    lemma_dts_same_radicand_transitive(a1, cross_n, dts_add(cross_n, cross_n));
+    lemma_dts_same_radicand_transitive(ny_n, a1, dts_add(cross_n, cross_n));
+    //  norm_definite for ny_n + (cross_n+cross_n)
+    lemma_dts_nonneg_radicands_add(cross_n, cross_n);
+    lemma_norm_definite_add(cross_n, cross_n);
+    lemma_dts_depth_add_le(cross_n, cross_n);
+    //  Now nonneg(ny_n + (cross_n + cross_n))
+    lemma_dts_nonneg_add_closed_fuel(ny_n, dts_add(cross_n, cross_n), f);
+
+    //  Setup nx_n = sub(dbb1, aa1)
+    lemma_dts_neg_well_formed(aa1);
+    lemma_dts_same_radicand_neg(aa1);
+    lemma_dts_same_radicand_symmetric(aa1, dts_neg(aa1));
+    //  sr(dbb1, aa1) via dbb1 ~ dd ~ a1 ~ aa1
+    lemma_dts_same_radicand_symmetric(dd, dbb1);
+    lemma_dts_same_radicand_transitive(dbb1, dd, a1);
+    lemma_dts_same_radicand_symmetric(a1, aa1);
+    lemma_dts_same_radicand_transitive(dbb1, a1, aa1);
+    lemma_dts_same_radicand_transitive(dbb1, aa1, dts_neg(aa1));
+    lemma_dts_add_closed(dbb1, dts_neg(aa1));
+    lemma_dts_nonneg_radicands_neg(aa1);
+    lemma_dts_nonneg_radicands_add(dbb1, dts_neg(aa1));
+    lemma_norm_definite_neg(aa1);
+    lemma_norm_definite_add(dbb1, dts_neg(aa1));
+    lemma_dts_depth_neg(aa1);
+    lemma_dts_depth_add_le(dbb1, dts_neg(aa1));
+    //  sr(nx_n, ny_n + (cross_n + cross_n)): both ~ a1
+    //  nx_n ~ dbb1 (sym) ~ a1 (have)
+    lemma_dts_same_radicand_symmetric(dbb1, nx_n);
+    lemma_dts_same_radicand_transitive(nx_n, dbb1, a1);
+    //  ny_n + ... ~ ny_n (from add_closed sym)
+    lemma_dts_add_closed(ny_n, dts_add(cross_n, cross_n));
+    lemma_dts_same_radicand_symmetric(ny_n, dts_add(ny_n, dts_add(cross_n, cross_n)));
+    //  nx_n ~ a1 ~ ny_n (from chain ny_n ~ a1 above) ~ ny_n+...
+    lemma_dts_same_radicand_symmetric(ny_n, a1);
+    lemma_dts_same_radicand_transitive(nx_n, a1, ny_n);
+    lemma_dts_same_radicand_transitive(
+        nx_n, ny_n, dts_add(ny_n, dts_add(cross_n, cross_n)));
+    //  norm_definite for the whole thing
+    lemma_dts_nonneg_radicands_add(ny_n, dts_add(cross_n, cross_n));
+    lemma_norm_definite_add(ny_n, dts_add(cross_n, cross_n));
+    lemma_dts_depth_add_le(ny_n, dts_add(cross_n, cross_n));
+    lemma_dts_nonneg_add_closed_fuel(
+        nx_n, dts_add(ny_n, dts_add(cross_n, cross_n)), f);
+    //  Now: nonneg(neg_decomp) at fuel f
+
+    //  ─── Step F: Build the eqv chain: target ≡ neg(n_sum) ≡ neg(decomp) ≡ neg_decomp ───
+    //  F1: target = sub(d*ssb², ssa²) ≡ neg(sub(ssa², d*ssb²)) = neg(n_sum)  via neg_sub_swap
+    //  Need wf, sr for ssa², d*ssb²
+    lemma_dts_same_radicand_reflexive(ssa);
+    lemma_dts_mul_closed(ssa, ssa);
+    lemma_dts_same_radicand_reflexive(ssb);
+    lemma_dts_mul_closed(ssb, ssb);
+    //  sr(dd, ssb²) via dd ~ b1 ~ ssb ~ ssb²
+    lemma_dts_same_radicand_symmetric(b1, ssb);
+    lemma_dts_same_radicand_transitive(dd, b1, ssb);
+    lemma_dts_same_radicand_symmetric(ssb, dts_mul(ssb, ssb));
+    lemma_dts_same_radicand_transitive(dd, ssb, dts_mul(ssb, ssb));
+    lemma_dts_mul_closed(dd, dts_mul(ssb, ssb));
+    lemma_dts_neg_sub_swap(dts_mul(ssa, ssa), dts_mul(dd, dts_mul(ssb, ssb)));
+    //  ensures eqv(neg(sub(ssa², d*ssb²)), sub(d*ssb², ssa²)) = eqv(neg(n_sum), target)
+    //  Symmetric:
+    lemma_dts_eqv_symmetric(dts_neg(n_sum), target);
+    //  Now: eqv(target, neg(n_sum))
+
+    //  F2: neg(n_sum) ≡ neg(decomp) via neg_congruence (norm_sum_decomposition gives eqv(n_sum, decomp))
+    //  We need a "neg_congruence" lemma. Use add_inverse: x ≡ y → neg(x) ≡ neg(y).
+    //  Approach: apply neg to both sides of n_sum ≡ decomp.
+    //  Alternative: use lemma_dts_neg_congruence or directly via add_congruence_left/right with neutral.
+    //  Easiest: build it via neg_well_formed + add_zero.
+    //  Actually, let's just use add_congruence on neg-form.
+    //  Use: neg(x) ≡ sub(zero, x) = add(zero, neg(x)) — we have neg as primitive.
+    //  Standard: `lemma_dts_neg_congruence(a, b)` if it exists.
+    //  Try a search-based approach: use add_inverse_left/right.
+    //  For now, build neg(n_sum) ≡ neg(decomp) via:
+    //    eqv(n_sum, decomp) → eqv(add(neg(n_sum), n_sum), add(neg(n_sum), decomp))
+    //                        → eqv(zero, add(neg(n_sum), decomp))
+    //                        → eqv(neg(n_sum), neg(decomp)) [hmm tricky]
+    //  Easier: use that DTS forms an additive group; there should be a neg_congruence lemma.
+    lemma_dts_neg_congruence(n_sum, decomp);
+    //  → eqv(neg(n_sum), neg(decomp))
+
+    //  F3: neg(decomp) ≡ neg_decomp via 3× neg_add chain
+    //  decomp = add(nx, add(ny, add(cross, cross)))
+    //  neg(decomp) = neg(add(nx, add(ny, add(cross, cross))))
+    //              ≡ add(neg(nx), neg(add(ny, add(cross, cross))))     [neg_add]
+    //              ≡ add(neg(nx), add(neg(ny), neg(add(cross, cross)))) [neg_add inside]
+    //              ≡ add(neg(nx), add(neg(ny), add(neg(cross), neg(cross)))) [neg_add inside]
+    //  And nx_n = sub(dbb1, aa1) = neg(nx) via neg_sub_swap (where nx = sub(aa1, dbb1)).
+    //  Similarly ny_n = neg(ny), cross_n = neg(cross).
+
+    //  ─── Build wf/sr for C2-form quantities nx, ny, cross ───
+    //  Build sr(a1, dbb1) via a1 ~ dd ~ dbb1
+    lemma_dts_same_radicand_symmetric(dd, dbb1);
+    lemma_dts_same_radicand_transitive(a1, dd, dbb1);
+    //  Build sr(a1, dbb2) via a1 ~ dd ~ dbb2 (already done above? rebuild for safety)
+    //  Already built earlier: sr(a1, dbb2) at the ny_n setup
+    //  Build sr(a1, db12) via a1 ~ dd ~ db12 (already done above)
+    //  Build sr(a1, aa1) via mul_closed
+    //  Already have sr(a1, aa1) from mul_closed above
+    //  Build sr(a1, aa2) via a1 ~ a2 ~ aa2
+    lemma_dts_same_radicand_transitive(a1, a2, aa2);
+    //  Build sr(a1, a12) from mul_closed
+    //  Already have
+
+    //  nx = sub(aa1, dbb1) = add(aa1, neg(dbb1))
+    lemma_dts_neg_well_formed(dbb1);
+    lemma_dts_same_radicand_neg(dbb1);
+    lemma_dts_same_radicand_symmetric(dbb1, dts_neg(dbb1));
+    //  sr(aa1, dbb1): aa1 ~ a1 ~ dbb1
+    lemma_dts_same_radicand_symmetric(a1, aa1);
+    lemma_dts_same_radicand_symmetric(a1, dbb1);
+    lemma_dts_same_radicand_transitive(aa1, a1, dbb1);
+    lemma_dts_same_radicand_transitive(aa1, dbb1, dts_neg(dbb1));
+    lemma_dts_add_closed(aa1, dts_neg(dbb1));  //  wf(nx)
+    //  ny = sub(aa2, dbb2) = add(aa2, neg(dbb2))
+    lemma_dts_neg_well_formed(dbb2);
+    lemma_dts_same_radicand_neg(dbb2);
+    lemma_dts_same_radicand_symmetric(dbb2, dts_neg(dbb2));
+    //  sr(aa2, dbb2): aa2 ~ a1 ~ dbb2
+    lemma_dts_same_radicand_symmetric(a1, aa2);
+    lemma_dts_same_radicand_symmetric(a1, dbb2);
+    lemma_dts_same_radicand_transitive(aa2, a1, dbb2);
+    lemma_dts_same_radicand_transitive(aa2, dbb2, dts_neg(dbb2));
+    lemma_dts_add_closed(aa2, dts_neg(dbb2));  //  wf(ny)
+    //  cross = sub(a12, db12) = add(a12, neg(db12))
+    lemma_dts_neg_well_formed(db12);
+    lemma_dts_same_radicand_neg(db12);
+    lemma_dts_same_radicand_symmetric(db12, dts_neg(db12));
+    //  sr(a12, db12): a12 ~ a1 ~ db12
+    lemma_dts_same_radicand_symmetric(a1, a12);
+    lemma_dts_same_radicand_symmetric(a1, db12);
+    lemma_dts_same_radicand_transitive(a12, a1, db12);
+    lemma_dts_same_radicand_transitive(a12, db12, dts_neg(db12));
+    lemma_dts_add_closed(a12, dts_neg(db12));  //  wf(cross)
+
+    lemma_dts_neg_sub_swap(aa1, dbb1);  //  ensures eqv(neg(sub(aa1,dbb1)), sub(dbb1,aa1)) = eqv(neg(nx), nx_n)
+    lemma_dts_neg_sub_swap(aa2, dbb2);  //  eqv(neg(ny), ny_n)
+    lemma_dts_neg_sub_swap(a12, db12);  //  eqv(neg(cross), cross_n)
+
+    //  Build the inner add chains for the eqv chain
+    //  Need: eqv(add(neg(cross), neg(cross)), add(cross_n, cross_n)) via add_congruence
+    //  Already have eqv(neg(cross), cross_n).
+    //  Need wf for the inner adds.
+    lemma_dts_neg_well_formed(cross);
+    lemma_dts_same_radicand_neg(cross);
+    //  sr(neg(cross), cross_n): both well-formed, sr via cross
+    //  neg(cross) ~ cross (same_radicand_neg)
+    lemma_dts_same_radicand_symmetric(cross, dts_neg(cross));
+    //  cross_n ~ db12 (sym above) ~ a1 ~ cross (need)
+    //  Already have: sr(a1, cross) via earlier. Hmm, do we?
+    //  cross = sub(a12, db12). We have sr(a1, a12), sr(a1, db12). For sr(a1, cross):
+    //  cross ~ a12 (from add_closed sym)
+    lemma_dts_same_radicand_symmetric(a12, cross);
+    lemma_dts_same_radicand_transitive(a1, a12, cross);
+    //  Build sr(a1, cross) via a1 ~ a12 ~ cross
+    lemma_dts_same_radicand_symmetric(a12, cross);
+    lemma_dts_same_radicand_transitive(a1, a12, cross);
+    lemma_dts_same_radicand_symmetric(a1, cross);
+    //  Build sr(cross_n, a1): cross_n ~ db12 (sym) ~ a1
+    lemma_dts_same_radicand_symmetric(db12, cross_n);
+    lemma_dts_same_radicand_symmetric(a1, db12);
+    lemma_dts_same_radicand_transitive(cross_n, db12, a1);
+    //  Now cross ~ neg(cross) via same_radicand_neg, and cross ~ cross_n via sub-relation
+    //  cross_n ~ a1 (have via db12) ~ cross
+    lemma_dts_same_radicand_transitive(cross_n, a1, cross);
+    lemma_dts_same_radicand_symmetric(cross_n, cross);
+    lemma_dts_same_radicand_transitive(dts_neg(cross), cross, cross_n);
+    //  Apply add_congruence_left + add_congruence_right + transitive to get
+    //  eqv(add(neg(cross), neg(cross)), add(cross_n, cross_n))
+    lemma_dts_add_congruence_left(dts_neg(cross), cross_n, dts_neg(cross));
+    //  → eqv(add(neg(cross), neg(cross)), add(cross_n, neg(cross)))
+    lemma_dts_add_congruence_right(cross_n, dts_neg(cross), cross_n);
+    //  → eqv(add(cross_n, neg(cross)), add(cross_n, cross_n))
+    lemma_dts_eqv_transitive(
+        dts_add(dts_neg(cross), dts_neg(cross)),
+        dts_add(cross_n, dts_neg(cross)),
+        dts_add(cross_n, cross_n));
+    //  → eqv(add(neg(cross), neg(cross)), add(cross_n, cross_n))
+
+    //  Need: eqv(neg(add(cross, cross)), add(neg(cross), neg(cross))) via neg_add
+    lemma_dts_neg_add(cross, cross);
+
+    //  Chain: neg(add(cross,cross)) ≡ add(neg(cross), neg(cross)) ≡ add(cross_n, cross_n)
+    lemma_dts_eqv_transitive(
+        dts_neg(dts_add(cross, cross)),
+        dts_add(dts_neg(cross), dts_neg(cross)),
+        dts_add(cross_n, cross_n));
+
+    //  Now lift: neg(add(ny, add(cross, cross))) ≡ ?
+    //  Build sr for needed adds
+    lemma_dts_same_radicand_reflexive(cross);
+    lemma_dts_add_closed(cross, cross);
+    lemma_dts_neg_well_formed(dts_add(cross, cross));
+    //  sr(ny, add(cross, cross)) via both ~ a1
+    //  ny = sub(aa2, dbb2). sr(a1, ny) via a1 ~ aa2 (a1~a2~aa2) ~ ny? Let's check.
+    //  Hmm, ny ~ aa2 (from add_closed sym).
+    lemma_dts_same_radicand_symmetric(aa2, ny);
+    //  a1 ~ a2 (have, sym) ~ aa2 ~ ny
+    lemma_dts_same_radicand_symmetric(a2, aa2);
+    lemma_dts_same_radicand_transitive(a1, a2, aa2);
+    lemma_dts_same_radicand_transitive(a1, aa2, ny);
+    lemma_dts_same_radicand_symmetric(a1, ny);
+    //  Build sr(a1, add(cross, cross)) via a1 ~ cross ~ add(cross, cross)
+    lemma_dts_same_radicand_symmetric(cross, dts_add(cross, cross));
+    lemma_dts_same_radicand_symmetric(a1, cross);
+    lemma_dts_same_radicand_transitive(a1, cross, dts_add(cross, cross));
+    //  add(cross, cross) ~ cross (sym) ~ a1
+    lemma_dts_same_radicand_symmetric(a1, dts_add(cross, cross));
+    lemma_dts_same_radicand_transitive(ny, a1, dts_add(cross, cross));
+    lemma_dts_add_closed(ny, dts_add(cross, cross));
+    //  neg_add: neg(add(ny, add(cross,cross))) ≡ add(neg(ny), neg(add(cross,cross)))
+    lemma_dts_neg_add(ny, dts_add(cross, cross));
+
+    //  Now: eqv(neg(add(cross,cross)), add(cross_n, cross_n)) [from above]
+    //  We need eqv(add(neg(ny), neg(add(cross,cross))), add(ny_n, add(cross_n, cross_n)))
+    //  Apply add_congruence: eqv(neg(ny), ny_n) AND eqv(neg(add(cross,cross)), add(cross_n,cross_n))
+    //  eqv(neg(ny), ny_n) we already have from neg_sub_swap(aa2, dbb2)
+    //  Need wf, sr for these
+    lemma_dts_neg_well_formed(ny);
+    lemma_dts_same_radicand_neg(ny);
+    //  sr(neg(ny), ny_n): both ~ a1 (or via cross/ny chains)
+    lemma_dts_same_radicand_symmetric(ny, dts_neg(ny));
+    lemma_dts_same_radicand_transitive(dts_neg(ny), ny, a1);
+    //  ny_n ~ dbb2 (sym) ~ a1
+    lemma_dts_same_radicand_transitive(ny_n, dbb2, a1);
+    lemma_dts_same_radicand_symmetric(ny_n, a1);
+    lemma_dts_same_radicand_transitive(dts_neg(ny), a1, ny_n);
+    //  sr for the second pair
+    //  neg(add(cross,cross)) ~ add(cross,cross) ~ cross ~ a1
+    lemma_dts_same_radicand_neg(dts_add(cross, cross));
+    lemma_dts_same_radicand_symmetric(
+        dts_add(cross, cross), dts_neg(dts_add(cross, cross)));
+    lemma_dts_same_radicand_symmetric(a1, dts_add(cross, cross));
+    lemma_dts_same_radicand_transitive(
+        dts_neg(dts_add(cross, cross)), dts_add(cross, cross), a1);
+    //  add(cross_n, cross_n) ~ cross_n ~ a1
+    lemma_dts_same_radicand_symmetric(
+        cross_n, dts_add(cross_n, cross_n));
+    lemma_dts_same_radicand_symmetric(cross_n, a1);  //  Hmm, do we have sr(a1, cross_n)?
+    //  cross_n ~ db12 ~ a1: yes from earlier
+    //  Actually we have lemma_dts_same_radicand_symmetric(cross_n, cross) earlier.
+    //  Let me derive sr(a1, cross_n) differently: a1 ~ db12 ~ cross_n
+    lemma_dts_same_radicand_transitive(a1, db12, cross_n);
+    lemma_dts_same_radicand_symmetric(a1, cross_n);
+    lemma_dts_same_radicand_symmetric(cross_n, dts_add(cross_n, cross_n));
+    lemma_dts_same_radicand_transitive(
+        dts_neg(dts_add(cross, cross)), a1, dts_add(cross_n, cross_n));
+    //  Apply add_congruence chain
+    lemma_dts_add_congruence_left(
+        dts_neg(ny), ny_n, dts_neg(dts_add(cross, cross)));
+    //  → eqv(add(neg(ny), neg(add(cross,cross))), add(ny_n, neg(add(cross,cross))))
+    lemma_dts_add_congruence_right(
+        ny_n, dts_neg(dts_add(cross, cross)), dts_add(cross_n, cross_n));
+    //  → eqv(add(ny_n, neg(add(cross,cross))), add(ny_n, add(cross_n, cross_n)))
+    lemma_dts_eqv_transitive(
+        dts_add(dts_neg(ny), dts_neg(dts_add(cross, cross))),
+        dts_add(ny_n, dts_neg(dts_add(cross, cross))),
+        dts_add(ny_n, dts_add(cross_n, cross_n)));
+    //  → eqv(add(neg(ny), neg(add(cross,cross))), add(ny_n, add(cross_n, cross_n)))
+
+    //  Chain: neg(add(ny, add(cross,cross))) ≡ add(neg(ny), neg(add(cross,cross)))
+    //                                       ≡ add(ny_n, add(cross_n, cross_n))
+    lemma_dts_eqv_transitive(
+        dts_neg(dts_add(ny, dts_add(cross, cross))),
+        dts_add(dts_neg(ny), dts_neg(dts_add(cross, cross))),
+        dts_add(ny_n, dts_add(cross_n, cross_n)));
+
+    //  Now lift to outer: neg(decomp) = neg(add(nx, add(ny, add(cross,cross))))
+    //                              ≡ add(neg(nx), neg(add(ny, add(cross,cross)))) [neg_add]
+    //                              ≡ add(nx_n, add(ny_n, add(cross_n, cross_n))) [add_congruence]
+    //  Build wf/sr for outer
+    //  sr(nx, add(ny, add(cross, cross))): both ~ a1
+    //  nx ~ aa1 (sym) ~ a1
+    lemma_dts_same_radicand_symmetric(aa1, nx);
+    lemma_dts_same_radicand_symmetric(a1, aa1);  //  aa1 ~ a1 (sym of sr(a1, aa1))
+    lemma_dts_same_radicand_transitive(nx, aa1, a1);
+    //  add(ny, add(cross,cross)) ~ ny ~ a1
+    lemma_dts_same_radicand_symmetric(ny, dts_add(ny, dts_add(cross, cross)));
+    lemma_dts_same_radicand_symmetric(ny, a1);
+    lemma_dts_same_radicand_transitive(
+        dts_add(ny, dts_add(cross, cross)), ny, a1);
+    lemma_dts_same_radicand_symmetric(
+        dts_add(ny, dts_add(cross, cross)), a1);
+    lemma_dts_same_radicand_transitive(
+        nx, a1, dts_add(ny, dts_add(cross, cross)));
+    lemma_dts_add_closed(nx, dts_add(ny, dts_add(cross, cross)));
+    //  Now apply neg_add
+    lemma_dts_neg_add(nx, dts_add(ny, dts_add(cross, cross)));
+    //  → eqv(neg(add(nx, add(ny, add(cross,cross)))), add(neg(nx), neg(add(ny, add(cross,cross)))))
+
+    //  Need: eqv(neg(nx), nx_n) — we have from neg_sub_swap(aa1, dbb1)
+    //  Need: eqv(neg(add(ny, add(cross,cross))), add(ny_n, add(cross_n, cross_n))) — we have
+
+    //  Apply add_congruence_both to get the outer equality
+    lemma_dts_neg_well_formed(nx);
+    lemma_dts_same_radicand_neg(nx);
+    lemma_dts_same_radicand_symmetric(nx, dts_neg(nx));
+    lemma_dts_same_radicand_transitive(dts_neg(nx), nx, a1);
+    //  nx_n ~ a1 from earlier
+    lemma_dts_same_radicand_symmetric(nx_n, a1);  //  Hmm, do we have sr(a1, nx_n)?
+    //  nx_n ~ dbb1 ~ a1 from earlier chain
+    lemma_dts_same_radicand_transitive(nx_n, dbb1, a1);
+    lemma_dts_same_radicand_symmetric(nx_n, a1);
+    lemma_dts_same_radicand_transitive(dts_neg(nx), a1, nx_n);
+    //  sr for the second pair
+    //  neg(add(ny, add(cross,cross))) ~ add(ny, add(cross,cross)) ~ a1
+    lemma_dts_neg_well_formed(dts_add(ny, dts_add(cross, cross)));
+    lemma_dts_same_radicand_neg(dts_add(ny, dts_add(cross, cross)));
+    lemma_dts_same_radicand_symmetric(
+        dts_add(ny, dts_add(cross, cross)),
+        dts_neg(dts_add(ny, dts_add(cross, cross))));
+    lemma_dts_same_radicand_transitive(
+        dts_neg(dts_add(ny, dts_add(cross, cross))),
+        dts_add(ny, dts_add(cross, cross)), a1);
+    //  add(ny_n, add(cross_n, cross_n)) ~ ny_n ~ a1
+    //  Need sr(a1, add(ny_n, add(cross_n, cross_n))). Build via a1 ~ ny_n ~ ...
+    //  ny_n ~ a1 (from earlier), so sr(a1, ny_n) via sym
+    //  ny_n ~ add(ny_n, add(cross_n, cross_n)) from add_closed; sym → other direction
+    lemma_dts_same_radicand_symmetric(
+        ny_n, dts_add(ny_n, dts_add(cross_n, cross_n)));
+    //  We have sr(ny_n, a1) from earlier. Sym: sr(a1, ny_n).
+    lemma_dts_same_radicand_symmetric(ny_n, a1);
+    lemma_dts_same_radicand_transitive(
+        a1, ny_n, dts_add(ny_n, dts_add(cross_n, cross_n)));
+    lemma_dts_same_radicand_transitive(
+        dts_neg(dts_add(ny, dts_add(cross, cross))), a1,
+        dts_add(ny_n, dts_add(cross_n, cross_n)));
+    //  Apply add_congruence chain
+    lemma_dts_add_congruence_left(
+        dts_neg(nx), nx_n, dts_neg(dts_add(ny, dts_add(cross, cross))));
+    lemma_dts_add_congruence_right(
+        nx_n,
+        dts_neg(dts_add(ny, dts_add(cross, cross))),
+        dts_add(ny_n, dts_add(cross_n, cross_n)));
+    lemma_dts_eqv_transitive(
+        dts_add(dts_neg(nx), dts_neg(dts_add(ny, dts_add(cross, cross)))),
+        dts_add(nx_n, dts_neg(dts_add(ny, dts_add(cross, cross)))),
+        dts_add(nx_n, dts_add(ny_n, dts_add(cross_n, cross_n))));
+    //  → eqv(add(neg(nx), neg(add(ny, add(cross,cross)))),
+    //         add(nx_n, add(ny_n, add(cross_n, cross_n))))
+    //  Chain: neg(decomp) ≡ add(neg(nx), neg(...)) ≡ add(nx_n, add(ny_n, add(cross_n, cross_n))) = neg_decomp
+    lemma_dts_eqv_transitive(
+        dts_neg(decomp),
+        dts_add(dts_neg(nx), dts_neg(dts_add(ny, dts_add(cross, cross)))),
+        neg_decomp);
+    //  Now: eqv(neg(decomp), neg_decomp)
+
+    //  ─── Step G: Combine F1, F2, F3 into eqv(target, neg_decomp) ───
+    //  F1: eqv(target, neg(n_sum))
+    //  F2: eqv(neg(n_sum), neg(decomp))
+    //  F3: eqv(neg(decomp), neg_decomp)
+    //  Chain:
+    lemma_dts_eqv_transitive(target, dts_neg(n_sum), dts_neg(decomp));
+    lemma_dts_eqv_transitive(target, dts_neg(decomp), neg_decomp);
+    //  Now: eqv(target, neg_decomp). Symmetric:
+    lemma_dts_eqv_symmetric(target, neg_decomp);
+    //  → eqv(neg_decomp, target)
+
+    //  ─── Step H: nonneg_fuel_congruence to transfer nonneg(neg_decomp) → nonneg(target) ───
+    //  Need wf, sr, etc for both sides.
+    //  target = sub(d*ssb², ssa²). Already built closures above.
+    //  nonneg_radicands + norm_definite + depth for target
+    lemma_dts_nonneg_radicands_add(a1, a2);  //  ssa
+    lemma_dts_nonneg_radicands_add(b1, b2);  //  ssb
+    lemma_norm_definite_add(a1, a2);
+    lemma_norm_definite_add(b1, b2);
+    lemma_dts_depth_add_le(a1, a2);
+    lemma_dts_depth_add_le(b1, b2);
+    lemma_dts_nonneg_radicands_mul(ssa, ssa);
+    lemma_dts_nonneg_radicands_mul(ssb, ssb);
+    lemma_dts_nonneg_radicands_mul(dd, dts_mul(ssb, ssb));
+    lemma_norm_definite_mul(ssa, ssa);
+    lemma_norm_definite_mul(ssb, ssb);
+    lemma_norm_definite_mul(dd, dts_mul(ssb, ssb));
+    lemma_dts_depth_mul_le(ssa, ssa);
+    lemma_dts_depth_mul_le(ssb, ssb);
+    lemma_dts_depth_mul_le(dd, dts_mul(ssb, ssb));
+    //  target = sub(d*ssb², ssa²) = add(d*ssb², neg(ssa²))
+    lemma_dts_neg_well_formed(dts_mul(ssa, ssa));
+    lemma_dts_same_radicand_neg(dts_mul(ssa, ssa));
+    lemma_dts_same_radicand_symmetric(
+        dts_mul(ssa, ssa), dts_neg(dts_mul(ssa, ssa)));
+    //  sr(d*ssb², ssa²): both ~ a1
+    //  ssa ~ a1 (from sym above of sr(a1, ssa))
+    lemma_dts_same_radicand_symmetric(a1, ssa);
+    lemma_dts_same_radicand_symmetric(ssa, dts_mul(ssa, ssa));
+    lemma_dts_same_radicand_transitive(a1, ssa, dts_mul(ssa, ssa));
+    //  d*ssb² ~ dd (from mul_closed sym) ~ a1
+    lemma_dts_same_radicand_symmetric(dd, dts_mul(dd, dts_mul(ssb, ssb)));
+    //  sr(dd, a1)
+    lemma_dts_same_radicand_symmetric(a1, dd);
+    lemma_dts_same_radicand_transitive(dts_mul(dd, dts_mul(ssb, ssb)), dd, a1);
+    //  Now sym: sr(d*ssb², a1) → sr(a1, d*ssb²)
+    lemma_dts_same_radicand_symmetric(dts_mul(dd, dts_mul(ssb, ssb)), a1);
+    //  sr(ssa², a1): from sr(a1, ssa²) above (sym)
+    lemma_dts_same_radicand_symmetric(a1, dts_mul(ssa, ssa));
+    lemma_dts_same_radicand_transitive(
+        dts_mul(dd, dts_mul(ssb, ssb)), a1, dts_mul(ssa, ssa));
+    lemma_dts_same_radicand_transitive(
+        dts_mul(dd, dts_mul(ssb, ssb)),
+        dts_mul(ssa, ssa),
+        dts_neg(dts_mul(ssa, ssa)));
+    lemma_dts_add_closed(
+        dts_mul(dd, dts_mul(ssb, ssb)), dts_neg(dts_mul(ssa, ssa)));
+    lemma_dts_nonneg_radicands_neg(dts_mul(ssa, ssa));
+    lemma_dts_nonneg_radicands_add(
+        dts_mul(dd, dts_mul(ssb, ssb)), dts_neg(dts_mul(ssa, ssa)));
+    lemma_norm_definite_neg(dts_mul(ssa, ssa));
+    lemma_norm_definite_add(
+        dts_mul(dd, dts_mul(ssb, ssb)), dts_neg(dts_mul(ssa, ssa)));
+    lemma_dts_depth_neg(dts_mul(ssa, ssa));
+    lemma_dts_depth_add_le(
+        dts_mul(dd, dts_mul(ssb, ssb)), dts_neg(dts_mul(ssa, ssa)));
+    //  sr(neg_decomp, target): both ~ a1
+    //  neg_decomp = add(nx_n, add(ny_n, add(cross_n, cross_n))) ~ nx_n ~ a1
+    lemma_dts_add_closed(nx_n, dts_add(ny_n, dts_add(cross_n, cross_n)));
+    lemma_dts_same_radicand_symmetric(nx_n, neg_decomp);
+    lemma_dts_same_radicand_transitive(neg_decomp, nx_n, a1);
+    //  target = sub(d*ssb², ssa²). Need sr(target, a1).
+    //  target ~ d*ssb² (from add_closed sym) ~ a1 (have)
+    lemma_dts_same_radicand_symmetric(
+        dts_mul(dd, dts_mul(ssb, ssb)), target);
+    lemma_dts_same_radicand_transitive(
+        target, dts_mul(dd, dts_mul(ssb, ssb)), a1);
+    lemma_dts_same_radicand_symmetric(target, a1);
+    lemma_dts_same_radicand_transitive(neg_decomp, a1, target);
+    //  Apply nonneg_fuel_congruence
+    lemma_dts_nonneg_fuel_congruence(neg_decomp, target, f);
+    //  Result: nonneg(target) at fuel f ✓
+}
+
 ///  Norm sum decomposition: N(x+y) ≡ N(x) + N(y) + 2*cross.
 ///  Where N(x) = a1²-d*b1², N(y) = a2²-d*b2², cross = a1*a2-d*b1*b2.
 ///  Formally: sub((a1+a2)², d*(b1+b2)²) ≡ add(N(x), add(N(y), add(cross, cross))).
