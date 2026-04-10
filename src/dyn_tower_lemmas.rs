@@ -10816,6 +10816,122 @@ pub proof fn lemma_dts_c1c2_norm_bound<T: OrderedField>(
     //  nonneg(sub(sum_re², d*sum_im²)) ✓
 }
 
+///  Square of product: (a*b)² ≡ a² * b².
+///  Pure ring rearrangement: a*b*a*b ≡ a*a*b*b via associativity + commutativity.
+#[verifier::rlimit(150)]
+pub proof fn lemma_dts_square_of_product<T: OrderedField>(
+    a: DynTowerSpec<T>, b: DynTowerSpec<T>,
+)
+    requires
+        dts_well_formed(a), dts_well_formed(b), dts_same_radicand(a, b),
+    ensures
+        dts_eqv(
+            dts_mul(dts_mul(a, b), dts_mul(a, b)),
+            dts_mul(dts_mul(a, a), dts_mul(b, b))),
+{
+    //  ─── sr infrastructure ───
+    lemma_dts_same_radicand_reflexive(a);
+    lemma_dts_same_radicand_reflexive(b);
+    lemma_dts_same_radicand_symmetric(a, b);
+    //  Mul cells
+    lemma_dts_mul_closed(a, a);  //  sr(a, a²)
+    lemma_dts_mul_closed(b, b);  //  sr(b, b²)
+    lemma_dts_mul_closed(a, b);  //  sr(a, ab)
+    //  sr chains
+    lemma_dts_same_radicand_symmetric(a, dts_mul(a, a));
+    lemma_dts_same_radicand_symmetric(b, dts_mul(b, b));
+    lemma_dts_same_radicand_symmetric(a, dts_mul(a, b));
+    lemma_dts_same_radicand_transitive(a, b, dts_mul(b, b));  //  sr(a, b²)
+    lemma_dts_same_radicand_transitive(dts_mul(a, a), a, b);  //  sr(a², b)
+    lemma_dts_same_radicand_transitive(dts_mul(a, a), b, dts_mul(b, b));  //  sr(a², b²)
+    lemma_dts_same_radicand_transitive(dts_mul(a, b), a, dts_mul(a, a));  //  sr(ab, a²)
+    lemma_dts_same_radicand_transitive(dts_mul(a, b), a, dts_mul(b, b));  //  sr(ab, b²)
+    //  ab*ab needs sr(ab, ab) reflexive
+    lemma_dts_same_radicand_reflexive(dts_mul(a, b));
+    lemma_dts_mul_closed(dts_mul(a, b), dts_mul(a, b));  //  (ab)²
+    //  a²*b² needs sr(a², b²) — established above
+    lemma_dts_mul_closed(dts_mul(a, a), dts_mul(b, b));  //  a²·b²
+    //  sr(b, mul(a,b)) for associative call
+    lemma_dts_same_radicand_symmetric(b, a);  //  sr(b, a)
+    lemma_dts_same_radicand_transitive(b, a, dts_mul(a, b));  //  sr(b, mul(a,b))
+
+    //  ─── Step 1: (a*b)*(a*b) ≡ a*(b*(a*b))  [associative] ───
+    lemma_dts_mul_associative(a, b, dts_mul(a, b));
+    //  Symmetric to get the form we want
+    lemma_dts_eqv_symmetric(
+        dts_mul(a, dts_mul(b, dts_mul(a, b))),
+        dts_mul(dts_mul(a, b), dts_mul(a, b)));
+
+    //  ─── Step 2: b*(a*b) ≡ (b*a)*b  [associative reverse] ───
+    lemma_dts_mul_associative(b, a, b);
+    lemma_dts_eqv_symmetric(
+        dts_mul(b, dts_mul(a, b)),
+        dts_mul(dts_mul(b, a), b));
+
+    //  ─── Step 3: b*a ≡ a*b  [commutative], then (b*a)*b ≡ (a*b)*b  [mul_congruence_left] ───
+    lemma_dts_mul_commutative(b, a);
+    lemma_dts_mul_closed(b, a);  //  for sr(b*a, ...). sr(b, mul(b,a)) given.
+    //  Build sr(a, mul(b, a)) via a~b~mul(b,a)
+    lemma_dts_same_radicand_transitive(a, b, dts_mul(b, a));
+    //  sr(mul(b,a), a) via sym
+    lemma_dts_same_radicand_symmetric(a, dts_mul(b, a));
+    lemma_dts_same_radicand_transitive(dts_mul(b, a), a, dts_mul(a, b));
+    lemma_dts_mul_congruence_left(dts_mul(b, a), dts_mul(a, b), b);
+    //  Chain: b*(a*b) ≡ (b*a)*b ≡ (a*b)*b
+    lemma_dts_eqv_transitive(
+        dts_mul(b, dts_mul(a, b)),
+        dts_mul(dts_mul(b, a), b),
+        dts_mul(dts_mul(a, b), b));
+
+    //  ─── Step 4: (a*b)*b ≡ a*(b*b)  [associative — needs symmetric flip] ───
+    //  mul_associative(a, b, b) gives a*(b*b) ≡ (a*b)*b. We want the reverse direction.
+    lemma_dts_mul_associative(a, b, b);
+    lemma_dts_eqv_symmetric(dts_mul(a, dts_mul(b, b)), dts_mul(dts_mul(a, b), b));
+    //  Chain: b*(a*b) ≡ (a*b)*b ≡ a*(b*b)
+    lemma_dts_eqv_transitive(
+        dts_mul(b, dts_mul(a, b)),
+        dts_mul(dts_mul(a, b), b),
+        dts_mul(a, dts_mul(b, b)));
+
+    //  ─── Step 5: lift to a * — via mul_congruence_right ───
+    //  We have: b*(a*b) ≡ a*(b*b). Apply mul_congruence_right with c=a:
+    //  ensures eqv(a*(b*(a*b)), a*(a*(b*b))).
+    //  Need sr(b*(a*b), a*(b*b)).
+    //  sr(a, b*(a*b)): a~b (sym pre)~b*(a*b)
+    lemma_dts_same_radicand_symmetric(b, dts_mul(a, b));
+    lemma_dts_mul_closed(b, dts_mul(a, b));  //  needs sr(b, mul(a,b)) ✓
+    //  sr(b, b*(a*b)) from mul_closed → sym → sr(b*(a*b), b)
+    lemma_dts_same_radicand_symmetric(b, dts_mul(b, dts_mul(a, b)));
+    //  sr(a*(b*b), a) from mul_closed
+    lemma_dts_mul_closed(b, b);  //  already
+    lemma_dts_same_radicand_transitive(a, b, dts_mul(b, b));  //  sr(a, b²)
+    lemma_dts_mul_closed(a, dts_mul(b, b));  //  needs sr(a, b²) ✓
+    lemma_dts_same_radicand_symmetric(a, dts_mul(a, dts_mul(b, b)));
+    //  sr(b*(a*b), a*(b*b)): both sides ~ a
+    //  b*(a*b) ~ b ~ a → b*(a*b) ~ a
+    lemma_dts_same_radicand_transitive(dts_mul(b, dts_mul(a, b)), b, a);
+    //  a*(b*b) ~ a (from sym above)
+    lemma_dts_same_radicand_transitive(
+        dts_mul(b, dts_mul(a, b)), a, dts_mul(a, dts_mul(b, b)));
+    lemma_dts_mul_congruence_right(
+        dts_mul(b, dts_mul(a, b)),
+        dts_mul(a, dts_mul(b, b)),
+        a);
+
+    //  ─── Step 6: a*(a*(b*b)) ≡ (a*a)*(b*b)  [associative] ───
+    lemma_dts_mul_associative(a, a, dts_mul(b, b));
+    //  Chain Steps 1, 5, 6:
+    //  (a*b)*(a*b) ≡ a*(b*(a*b)) ≡ a*(a*(b*b)) ≡ (a*a)*(b*b)
+    lemma_dts_eqv_transitive(
+        dts_mul(dts_mul(a, b), dts_mul(a, b)),
+        dts_mul(a, dts_mul(b, dts_mul(a, b))),
+        dts_mul(a, dts_mul(a, dts_mul(b, b))));
+    lemma_dts_eqv_transitive(
+        dts_mul(dts_mul(a, b), dts_mul(a, b)),
+        dts_mul(a, dts_mul(a, dts_mul(b, b))),
+        dts_mul(dts_mul(a, a), dts_mul(b, b)));
+}
+
 ///  Square of sum: (a+b)² ≡ a² + b² + 2ab.
 ///  Stated as: mul(add(a,b), add(a,b)) ≡ add(add(a², b²), add(ab, ab)).
 ///  Proof via: left-dist(a+b, a, b) → then left-dist each factor,
