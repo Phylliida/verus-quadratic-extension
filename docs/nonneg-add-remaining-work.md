@@ -1,21 +1,23 @@
-# DTS nonneg_add_remaining — Session 9 Status (2026-04-10)
+# DTS nonneg_add_remaining — Session 9b Status (2026-04-10)
 
-## Current State: 142 verified, 1 error (+ 9 pre-existing axiom_non_square)
+## Current State: 144 verified, 1 error (+ 9 pre-existing axiom_non_square)
 
 The `nonneg_add_remaining` dispatch handles 4 of 6 factor C-class
-combinations. The C2+C3 / C3+C2 case is algebraically **SOLVED**
-(see "SOLVED Algebraic Plan" below) — the cancellation primitive
-is in place, and the two helpers (`c2c3_norm_bound` /
-`c2c3_neg_norm_bound`) plus dispatch wiring remain as implementation
-work for the next session.
+combinations. The hardest piece — `lemma_dts_c2c3_norm_bound` — is
+**VERIFIED**, completing the cancellation-by-b1² algebraic strategy
+for Case 2 of C2+C3. The remaining work for next session:
+1. Write `lemma_dts_c2c3_neg_norm_bound` — Case 3 mirror (cancel by b2² instead)
+2. Wire C2+C3 dispatch in `nonneg_add_remaining`
 
-**Session 9 delta vs Session 8:**
-- Added `lemma_dts_le_mul_cancel_pos_fuel` at `decreases (fuel, 3nat)`
-  (~200 lines, VERIFIED). Cancellation by a positive factor, needed
-  by the c2c3 approach. (+1 verified from 141 → 142.)
-- Discovered √d-free algebraic plan via cancellation-by-b1² strategy.
-- The 1 remaining error is unchanged (C2+C3 postcondition in
-  `nonneg_add_remaining`).
+**Session 9b delta vs Session 9:**
+- Added `lemma_dts_c2c3_ab_linear` at `decreases (fuel, 4nat)` (~740 lines, VERIFIED).
+  Linear cross-term bound `nonneg(sub(a1·b2, b1·a2))` from C2+C3 norms.
+- Added `lemma_dts_c2c3_norm_bound` at `decreases (fuel, 6nat)` (~1500 lines, VERIFIED).
+  Implements all 7 steps of the cancellation-by-b1² strategy. From C2 (a1²≥d·b1²)
+  and C3 (d·b2²≥a2²) plus Case 2 sum signs (sum_re≥0, neg(sum_im)≥0), derives
+  `nonneg(sub(sum_re², d·sum_im²))` — the C2 form of the sum's norm bound.
+- 144 verified (was 142). Still 1 error remaining (the C2+C3 dispatch in
+  nonneg_add_remaining is still TODO).
 
 ## Session 8 Progress (2026-04-10)
 
