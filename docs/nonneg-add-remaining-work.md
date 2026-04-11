@@ -204,21 +204,87 @@ the squared linearization, we get a contradiction.
   immediately after `lemma_dts_le_mul_nonneg_monotone_fuel` in
   `src/dyn_tower_lemmas.rs` (~line 10230).
 
-- **TODO**: `lemma_dts_c2c3_norm_bound` — Case 2 helper. Large (~700+
-  lines) due to extensive sr/wf plumbing at each chain step. Target
-  `decreases (fuel, 6nat)` so it can call cancellation at (fuel, 3nat),
-  square_le_square at (fuel, 2nat), le_mul_nonneg_monotone at (fuel, 2nat),
-  square_le_implies_le at (fuel, 1nat). Insert before line 14489 (before
-  the `nonneg_add_remaining` doc comment).
+### Session 9b Status (2026-04-10) — c2c3_norm_bound milestone
+
+- **DONE**: `lemma_dts_c2c3_ab_linear` at `decreases (fuel, 4nat)`
+  (~740 lines, VERIFIED). Linear cross-term bound: from C2 norm
+  (a1²≥d·b1²) and C3 neg-norm (d·b2²≥a2²), derives
+  `nonneg(sub(a1·b2, b1·a2))` via squared chain
+  `(a1·b2)² ≥ (b1·a2)²` + `square_le_implies_le_fuel`. The
+  second-side nonneg `b1·a2 ≥ 0` is derived via `neg(b1)·neg(a2) ≡ b1·a2`
+  with both factors nonneg from C2/C3 conditions.
+  Located ~line 14498 of dyn_tower_lemmas.rs.
+
+- **DONE**: `lemma_dts_c2c3_norm_bound` at `decreases (fuel, 6nat)`
+  (~1500 lines, VERIFIED). Implements all 7 steps of the cancellation-by-b1²
+  strategy from session 9 doc. From C2 (a1²≥d·b1²), C3 (d·b2²≥a2²), and
+  Case 2 sum signs (sum_re≥0, neg(sum_im)≥0), plus the C2 side's
+  `!is_zero(b1)` (needed for the cancellation step), derives the C2 form
+  `nonneg(sub(sum_re², d·sum_im²))`. Located ~line 15240 of dyn_tower_lemmas.rs.
+
+  The 7 implementation steps:
+  1. Call `c2c3_ab_linear` → `nonneg(sub(a1·b2, b1·a2))`
+  2. Distributive identity: prove `eqv(sub(sum_re·neg(b1), neg(sum_im)·a1), sub(a1·b2, b1·a2))`
+     via repeated `neg_mul_left/right`, `mul_distributes_left`, `mul_commutative`,
+     `add_exchange`, `add_inverse_right`, `add_zero_*`. Transfer nonneg via
+     `nonneg_fuel_congruence`.
+  3. `square_le_square_fuel(neg(sum_im)·a1, sum_re·neg(b1), f)` →
+     `nonneg(sub((sum_re·neg(b1))², (neg(sum_im)·a1)²))`.
+  4. Simplify the squares via `square_of_product` + `neg_mul_neg`:
+     `(sum_re·neg(b1))² ≡ sum_re²·b1²` and `(neg(sum_im)·a1)² ≡ sum_im²·a1²`.
+     Apply `sub_congruence_both` to transfer nonneg → `nonneg(sub(sum_re²·b1², sum_im²·a1²))`.
+  5. Scale C2 by sum_im² via `le_mul_nonneg_monotone_fuel(dbb1, aa1, sum_im_sq, f)` →
+     `nonneg(sub(aa1·sum_im_sq, dbb1·sum_im_sq))`. Then commute to
+     `nonneg(sub(sum_im_sq·aa1, sum_im_sq·dbb1))` via mul_commutative.
+  6. Chain Step 4 + Step 5 via `lemma_sub_add_sub` (the algebraic identity
+     `sub(A, B) + sub(B, C) ≡ sub(A, C)`) to get
+     `nonneg(sub(sum_re²·b1², sum_im²·dbb1))`.
+  7. Rewrite `sum_im²·dbb1 ≡ (d·sum_im²)·bb1` via mul_associative + mul_commutative
+     + congruences. Then apply `le_mul_cancel_pos_fuel(dsisq, sum_re_sq, bb1, f)`
+     using `nonneg(bb1)` (square_nonneg) and `!is_zero(bb1)` derived from
+     `!is_zero(b1)` via `mul_cancel_zero(b1, b1)` (integral domain).
+  Result: `nonneg(sub(sum_re², d·sum_im²))` ✓
 
 - **TODO**: `lemma_dts_c2c3_neg_norm_bound` — Case 3 mirror. Same
-  structure, cancel by `b2²` instead of `b1²`. Alternatively, reuse
-  `c2c3_norm_bound` via argument swap + result congruence.
+  structure as `c2c3_norm_bound` but cancel by `b2²` instead of `b1²`.
+  Expected size: ~1500 lines (similar plumbing).
+  Strategy: copy `c2c3_norm_bound` and:
+  - Swap `b1`↔`b2` in the cancellation side
+  - Adjust the distributive identity in Step 2 (the linear cross-term will
+    still be `a1·b2 - b1·a2` from `c2c3_ab_linear`, but the distribution
+    will use `neg(sum_re)` and `sum_im` instead of `sum_re` and `neg(sum_im)`)
+  - Cancel `bb2` using `!is_zero(b2)` from C3
+  - Final goal: `nonneg(sub(d·sum_im², sum_re²))` (the C3 neg-norm form)
 
-- **TODO**: Wire dispatch in `nonneg_add_remaining` — Case 1 trivial
-  (already done), Case 2 via `c2c3_norm_bound` + `conclude_re_fuel`,
-  Case 3 via `c2c3_neg_norm_bound` + `conclude_im_fuel`, Case 4
-  contradiction via the squared-inequality argument above.
+- **TODO**: Wire C2+C3 / C3+C2 dispatch in `nonneg_add_remaining`. Replace
+  the current TODO branch (~line 15387) with:
+  ```rust
+  //  C2+C3 or C3+C2.
+  lemma_dts_nonneg_or_neg_nonneg_fuel(sum_re, f);
+  lemma_dts_nonneg_or_neg_nonneg_fuel(sum_im, f);
+  if dts_nonneg_fuel(sum_re, f) && dts_nonneg_fuel(sum_im, f) {
+      // Case 1: trivially C1
+      return;
+  }
+  if dts_nonneg_fuel(sum_re, f) {
+      // Case 2: sum_re ≥ 0, sum_im < 0
+      // Establish !is_zero(b1) (for c2c3_norm_bound's precondition)
+      // — comes from C2's b_neg condition
+      lemma_dts_c2c3_norm_bound(a1_c2_side, b1_c2_side, a2_c3_side, b2_c3_side, dd, f);
+      lemma_dts_nonneg_conclude_re_fuel(sum_re, sum_im, dd, f);
+      return;
+  }
+  if dts_nonneg_fuel(sum_im, f) {
+      // Case 3: sum_re < 0, sum_im ≥ 0
+      lemma_dts_c2c3_neg_norm_bound(...);
+      lemma_dts_nonneg_conclude_im_fuel(...);
+      return;
+  }
+  // Case 4: both negative — derive contradiction (see Case 4 sketch above)
+  ```
+  Note: the dispatch needs to handle BOTH C2+C3 (a1_nn ∧ !b1_nn ∧ !a2_nn ∧ b2_nn)
+  and C3+C2 (!a1_nn ∧ b1_nn ∧ a2_nn ∧ !b2_nn) — same code with arguments swapped
+  to put the C2 side first.
 
 ### Original possible paths (for reference)
 
@@ -249,18 +315,19 @@ All in `verus-quadratic-extension/src/dyn_tower_lemmas.rs`:
 | Function | Line | Status |
 |----------|------|--------|
 | `lemma_dts_le_mul_nonneg_monotone_fuel` | ~10129 | VERIFIED (pre-existing) |
-| `lemma_dts_le_mul_cancel_pos_fuel` | ~10230 | **✅ VERIFIED (session 9)** |
+| `lemma_dts_le_mul_cancel_pos_fuel` | ~10230 | ✅ VERIFIED (session 9) |
 | `lemma_dts_cauchy_cross_term_neg` | ~12010 | ✅ VERIFIED (session 8) |
 | `lemma_dts_c2c2_norm_bound` | ~12283 | ✅ VERIFIED (session 7) |
 | `lemma_dts_c3c3_neg_norm_bound` | ~12654 | ✅ VERIFIED (session 8) |
 | `lemma_dts_norm_sum_decomposition` | ~13325 | ✅ VERIFIED (session 7) |
 | `lemma_dts_c1c3_neg_norm_bound` | ~13543 | ✅ VERIFIED (session 8) |
-| `lemma_dts_c2c3_norm_bound` | TBD (~14489) | ❌ TODO (session 10) |
-| `lemma_dts_c2c3_neg_norm_bound` | TBD (~14489) | ❌ TODO (session 10) |
-| `lemma_dts_nonneg_add_remaining` | ~14496 | ❌ 1 error (c2c3 case) |
-| `lemma_dts_nonneg_add_closed_fuel` | ~14648 | ❌ 1 error (cascades from above) |
+| `lemma_dts_c2c3_ab_linear` | ~14498 | **✅ VERIFIED (session 9b)** |
+| `lemma_dts_c2c3_norm_bound` | ~15240 | **✅ VERIFIED (session 9b)** |
+| `lemma_dts_c2c3_neg_norm_bound` | TBD | ❌ TODO (session 10) |
+| `lemma_dts_nonneg_add_remaining` | ~16780 | ❌ 1 error (c2c3 dispatch) |
+| `lemma_dts_nonneg_add_closed_fuel` | ~16930 | ❌ 1 error (cascades from above) |
 
-## Decreases Hierarchy (Updated for Session 9)
+## Decreases Hierarchy (Updated for Session 9b)
 
 | Function | Decreases | Status |
 |----------|-----------|--------|
@@ -273,14 +340,15 @@ All in `verus-quadratic-extension/src/dyn_tower_lemmas.rs`:
 | `square_le_square` | (fuel, 2nat) | VERIFIED |
 | `le_mul_nonneg_monotone` | (fuel, 2nat) | VERIFIED |
 | `nonneg_or_neg_nonneg` | (fuel, 2nat) | VERIFIED |
-| `le_mul_cancel_pos` | (fuel, 3nat) | **VERIFIED (session 9)** |
+| `le_mul_cancel_pos` | (fuel, 3nat) | VERIFIED (session 9) |
 | `cauchy_cross_term` | (fuel, 4nat) | VERIFIED (session 7) |
 | `cauchy_cross_term_neg` | (fuel, 4nat) | VERIFIED (session 8) |
+| `c2c3_ab_linear` | (fuel, 4nat) | **VERIFIED (session 9b)** |
 | `c2c2_norm_bound` | (fuel, 5nat) | VERIFIED (session 7) |
 | `c3c3_neg_norm_bound` | (fuel, 5nat) | VERIFIED (session 8) |
-| `c2c3_norm_bound` | (fuel, 6nat) | **planned (session 10)** |
+| `c2c3_norm_bound` | (fuel, 6nat) | **VERIFIED (session 9b)** |
 | `c2c3_neg_norm_bound` | (fuel, 6nat) | **planned (session 10)** |
-| `nonneg_add_remaining` | (fuel, 8nat) | 1 error (c2c3 case) |
+| `nonneg_add_remaining` | (fuel, 8nat) | 1 error (c2c3 dispatch) |
 | `nonneg_mul_remaining` | (fuel, 9nat) | VERIFIED |
 
 ## Z3 Context Pollution Lessons (Updated)
@@ -305,3 +373,50 @@ In addition to lessons from Sessions 4-7:
     you need !is_zero(b1+b2) and have nonneg(b1), nonneg(b2), !is_zero(b1):
     if dts_is_zero(b1+b2), apply this lemma to derive is_zero(b1),
     contradicting the precondition.
+
+12. **`mul_cancel_zero` for `!is_zero(b·b)` from `!is_zero(b)`** (session 9b):
+    `lemma_dts_mul_cancel_zero(b, b)` takes `is_zero(b·b)` ∧ `!is_zero(b)`
+    and derives `is_zero(b)` (contradiction). Use inside an
+    `if dts_is_zero(b·b) { ... }` branch to give Z3 the contradiction.
+    Critical for the cancellation step in `c2c3_norm_bound`.
+
+13. **Long proofs (>1000 lines) lose track of sr facts** (session 9b): Z3's
+    context gets polluted, so even sr facts that were established earlier
+    may need to be REBUILT explicitly closer to the call site. When you
+    see "precondition not satisfied" on a sr precondition that you "know"
+    you established, rebuild the chain with explicit `same_radicand_*`
+    calls a few lines before the failing call.
+
+14. **For `mul_closed(x, x)` etc., reflexive sr is needed** (session 9b):
+    `mul_closed(a, a)` requires `sr(a, a)` which is reflexive — but Z3
+    won't automatically derive it. Always call `same_radicand_reflexive(a)`
+    before squared `mul_closed` calls.
+
+15. **`mul_congruence_left/right` need both eqv AND sr** (session 9b):
+    `mul_congruence_right(a, b, c)` requires `eqv(a, b)` AND `sr(a, b)`.
+    So building eqv via `mul_commutative` etc. is not enough — also need
+    explicit sr chain between the two equivalent expressions.
+
+## Cancellation-by-b1² strategy: implementation pattern
+
+The `c2c3_norm_bound` proof revealed a useful design pattern for
+DTS proofs that need to "divide" by something (which DTS can't do directly):
+
+1. **State the goal in scaled form**: Multiply the desired inequality by
+   the cancellation factor squared. E.g., to prove `sum_re² ≥ d·sum_im²`,
+   prove `sum_re²·b1² ≥ d·sum_im²·b1²` instead.
+
+2. **Chain the scaled facts** using `le_mul_nonneg_monotone_fuel` and
+   `sub_add_sub`. Each scaling preserves the squared form.
+
+3. **Cancel at the end** using `lemma_dts_le_mul_cancel_pos_fuel`, which
+   requires `nonneg(c)` (square_nonneg) and `!is_zero(c)`. The `!is_zero`
+   is the trickiest part — you need to derive it from problem-specific
+   conditions (e.g., `!is_zero(b1)` from C2's `b_neg`).
+
+4. **Use the `mul_cancel_zero` integral domain trick** for `!is_zero(b·b)`:
+   inside `if dts_is_zero(b·b) { lemma_dts_mul_cancel_zero(b, b); }` —
+   the if-branch contradiction gives Z3 `!is_zero(b·b)` outside.
+
+This pattern should generalize to other DTS proofs that need division
+or cancellation.
