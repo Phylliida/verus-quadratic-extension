@@ -14274,6 +14274,7 @@ pub proof fn lemma_dts_norm_sum_decomposition<T: OrderedField>(
 ///  C1 if both nonneg. C2 if re nonneg + norm≥0. C3 if im nonneg + neg_norm≥0.
 ///  Uses nonneg_mul_closed on x*conj(y) for cross-term nonneg.
 #[verifier::rlimit(1000)]
+#[verifier::rlimit(500)]
 proof fn lemma_dts_nonneg_add_remaining<T: OrderedField>(
     a1: DynTowerSpec<T>, b1: DynTowerSpec<T>,
     a2: DynTowerSpec<T>, b2: DynTowerSpec<T>,
@@ -14326,103 +14327,139 @@ proof fn lemma_dts_nonneg_add_remaining<T: OrderedField>(
     //  sr(sum_re, dd): sum_re ~ a1 ~ dd
     lemma_dts_same_radicand_symmetric(a1, dd);
     lemma_dts_same_radicand_transitive(sum_re, a1, dd);
-    //  ═══ Dispatch on component signs ═══
-    lemma_dts_nonneg_or_neg_nonneg_fuel(sum_re, f);
-    lemma_dts_nonneg_or_neg_nonneg_fuel(sum_im, f);
-    //  Case 1: both nonneg → C1
-    if dts_nonneg_fuel(sum_re, f) && dts_nonneg_fuel(sum_im, f) {
-        //  C1: nonneg(re) ∧ nonneg(im)
+
+    //  ═══ Extract C-class bools from f+1-fuel preconditions ═══
+    let a1_nn = dts_nonneg_fuel(a1, f);
+    let b1_nn = dts_nonneg_fuel(b1, f);
+    let a2_nn = dts_nonneg_fuel(a2, f);
+    let b2_nn = dts_nonneg_fuel(b2, f);
+
+    //  C-class facts that we'll need from the f+1 unfolding
+    //  For x_ext nonneg at f+1: x is in C1, C2, or C3 (specific component facts hold)
+    //  Similarly for y_ext.
+    //  Z3 sees these from the precondition unfolding.
+
+    //  ═══ Dispatch on factor C-classes ═══
+    //  Reaching nonneg_add_remaining means we are NOT in C1+C1, C1+C2, C2+C1.
+    //  Remaining: (T,F,T,F)=C2+C2, (T,T,F,T)=C1+C3, (T,F,F,T)=C2+C3,
+    //             (F,T,T,T)=C3+C1, (F,T,T,F)=C3+C2, (F,T,F,T)=C3+C3.
+
+    //  ─── C2+C2: must produce Case 2 (sum_re≥0, sum_im<0) ───
+    if a1_nn && !b1_nn && a2_nn && !b2_nn {
+        //  Both factors C2: a1≥0, b1<0 (& nx≥0), a2≥0, b2<0 (& ny≥0)
+        //  From f+1 precondition: nx ≥ 0 and ny ≥ 0 (since C2 case fires)
+        //  Need also: !is_zero(b1), !is_zero(b2) — given by C2.
+        //  Establish neg(b1)≥0, neg(b2)≥0 from le_total and !b_nn
+        lemma_dts_neg_well_formed(b1);
+        lemma_dts_neg_well_formed(b2);
+        lemma_dts_same_radicand_neg(b1);
+        lemma_dts_same_radicand_neg(b2);
+        lemma_dts_same_radicand_symmetric(b1, dts_neg(b1));
+        lemma_dts_same_radicand_symmetric(b2, dts_neg(b2));
+        lemma_dts_nonneg_radicands_neg(b1);
+        lemma_dts_nonneg_radicands_neg(b2);
+        lemma_norm_definite_neg(b1);
+        lemma_norm_definite_neg(b2);
+        lemma_dts_depth_neg(b1);
+        lemma_dts_depth_neg(b2);
+        //  Apply c2c2_norm_bound
+        lemma_dts_c2c2_norm_bound(a1, b1, a2, b2, dd, f);
+        //  Result: nonneg(sub(sum_re², d*sum_im²))
+        //  Now conclude_re_fuel. Need !is_zero(sum_im) and other conditions.
+        //  sum_im = b1+b2. Both b1, b2 are negative (b_neg). So sum_im is negative, !is_zero.
+        //  Establish nonneg(sum_re): a1≥0 and a2≥0 → sum_re ≥ 0
+        lemma_dts_nonneg_add_closed_fuel(a1, a2, f);
+        //  conclude_re finalizes the goal
+        lemma_dts_nonneg_conclude_re_fuel(sum_re, sum_im, dd, f);
         return;
     }
-    //  Case 2: sum_re nonneg, sum_im not → C2 (need norm bound)
-    if dts_nonneg_fuel(sum_re, f) {
-        //  !nonneg(sum_im) from above.
-        //  If is_zero(sum_im): nonneg → C1.
+
+    //  ─── C3+C3: must produce Case 3 (sum_re<0, sum_im>0) ───
+    if !a1_nn && b1_nn && !a2_nn && b2_nn {
+        //  Both factors C3: a1<0 (& neg(a1)≥0), b1>0, neg_norm_x≥0, similarly for y
+        //  Establish neg(a1)≥0, neg(a2)≥0 (Z3 should derive from C3 unfolding)
+        lemma_dts_neg_well_formed(a1);
+        lemma_dts_neg_well_formed(a2);
+        lemma_dts_same_radicand_neg(a1);
+        lemma_dts_same_radicand_neg(a2);
+        lemma_dts_same_radicand_symmetric(a1, dts_neg(a1));
+        lemma_dts_same_radicand_symmetric(a2, dts_neg(a2));
+        lemma_dts_nonneg_radicands_neg(a1);
+        lemma_dts_nonneg_radicands_neg(a2);
+        lemma_norm_definite_neg(a1);
+        lemma_norm_definite_neg(a2);
+        lemma_dts_depth_neg(a1);
+        lemma_dts_depth_neg(a2);
+        //  Apply c3c3_neg_norm_bound
+        lemma_dts_c3c3_neg_norm_bound(a1, b1, a2, b2, dd, f);
+        //  Result: nonneg(sub(d*sum_im², sum_re²))
+        //  Establish nonneg(sum_im): b1≥0 and b2≥0 → sum_im ≥ 0
+        lemma_dts_nonneg_add_closed_fuel(b1, b2, f);
+        //  Check is_zero(sum_im): if so, both b1, b2 must be zero, contradicting C3 !is_zero.
         if dts_is_zero(sum_im) {
+            //  Then sum_im is "zero" in DTS sense → nonneg → contradicts what we know about C3.
+            //  Actually if sum_im is zero, then sum is nonneg via C1 (sum_re,sum_im both nonneg)?
+            //  But sum_re = a1+a2 with both negative — sum_re < 0, so !nonneg.
+            //  C3 result needs sum_im > 0. With sum_im = 0, we can't be in C3.
+            //  However if is_zero(sum_im), sum_im is "0" as a DTS value, so nonneg(sum_im) holds.
+            //  Then we need C1: nonneg(sum_re) — false.
+            //  Or sum is zero (both sum_re, sum_im zero) which satisfies C1.
+            //  Hmm, if sum_im is zero AND sum_re < 0, then sum is in C2 form (re ≥ 0 fails).
+            //  Actually sum_re < 0 means sum is NOT in C1 (which needs re ≥ 0).
+            //  We need to reach a contradiction. The fact is: in C3+C3, sum_im = b1+b2 with !is_zero(b1) and !is_zero(b2) and b1,b2 ≥ 0. So sum_im > 0, hence !is_zero(sum_im).
+            //  This contradiction Z3 might struggle with. Use is_zero properties.
             lemma_dts_is_zero_implies_eqv_zero(sum_im);
             lemma_dts_nonneg_fuel_zero(sum_im, f);
-            return;
         }
-        //  C2 path: need nonneg(norm_sum) = nonneg(sub(sum_re², d*sum_im²))
-        //  Strategy: product x*y is nonneg (nonneg_mul_closed).
-        //  Give Z3 the product, norm_mul, and component infrastructure.
-        //  Then try conclude_re.
-        let x_ext = DynTowerSpec::Ext(Box::new(a1), Box::new(b1), Box::new(dd));
-        let y_ext = DynTowerSpec::Ext(Box::new(a2), Box::new(b2), Box::new(dd));
-        lemma_dts_norm_mul(a1, b1, a2, b2, dd);
-        lemma_dts_nonneg_mul_closed_fuel(x_ext, y_ext, (f + 1) as nat);
-        //  norm(product) = N(x)*N(y) — give Z3 norm factor info
-        let nx = dts_sub(dts_mul(a1, a1), dts_mul(dd, dts_mul(b1, b1)));
-        let ny = dts_sub(dts_mul(a2, a2), dts_mul(dd, dts_mul(b2, b2)));
-        lemma_dts_nonneg_or_neg_nonneg_fuel(nx, f);
-        lemma_dts_nonneg_or_neg_nonneg_fuel(ny, f);
-        //  Infrastructure for sub-components at fuel f
-        lemma_dts_same_radicand_reflexive(a1);
-        lemma_dts_same_radicand_reflexive(a2);
-        lemma_dts_same_radicand_reflexive(b1);
-        lemma_dts_same_radicand_reflexive(b2);
-        lemma_dts_mul_closed(a1, a1);
-        lemma_dts_mul_closed(a2, a2);
-        lemma_dts_mul_closed(b1, b1);
-        lemma_dts_mul_closed(b2, b2);
-        lemma_dts_mul_closed(a1, a2);
-        lemma_dts_mul_closed(b1, b2);
-        lemma_dts_same_radicand_symmetric(b1, dts_mul(b1, b1));
-        lemma_dts_same_radicand_symmetric(b2, dts_mul(b2, b2));
-        lemma_dts_same_radicand_symmetric(b1, dts_mul(b1, b2));
-        lemma_dts_same_radicand_transitive(dd, a1, b1);
-        lemma_dts_same_radicand_transitive(dd, b1, dts_mul(b1, b1));
-        lemma_dts_mul_closed(dd, dts_mul(b1, b1));
-        lemma_dts_same_radicand_symmetric(a1, dd);
-        lemma_dts_same_radicand_transitive(dd, a1, b2);
-        lemma_dts_same_radicand_transitive(dd, b2, dts_mul(b2, b2));
-        lemma_dts_mul_closed(dd, dts_mul(b2, b2));
-        lemma_dts_same_radicand_transitive(dd, b1, dts_mul(b1, b2));
-        lemma_dts_mul_closed(dd, dts_mul(b1, b2));
-        //  Square nonneg for sum components
-        lemma_dts_square_nonneg(sum_re, f);
-        lemma_dts_square_nonneg(sum_im, f);
-        //  nonneg(dd) at fuel f
-        lemma_dts_nonneg_fuel_stabilize(dd, f);
-        //  Norm infrastructure for sum
-        lemma_dts_same_radicand_reflexive(sum_re);
-        lemma_dts_same_radicand_reflexive(sum_im);
-        lemma_dts_mul_closed(sum_re, sum_re);
-        lemma_dts_mul_closed(sum_im, sum_im);
-        lemma_dts_same_radicand_symmetric(sum_re, dd);
-        lemma_dts_same_radicand_transitive(dd, sum_re, sum_im);
-        lemma_dts_same_radicand_symmetric(sum_im, dts_mul(sum_im, sum_im));
-        lemma_dts_same_radicand_transitive(dd, sum_im, dts_mul(sum_im, sum_im));
-        lemma_dts_mul_closed(dd, dts_mul(sum_im, sum_im));
-        //  Try conclude_re with norm infrastructure
-        lemma_dts_nonneg_or_neg_nonneg_fuel(
-            dts_sub(dts_mul(sum_re, sum_re), dts_mul(dd, dts_mul(sum_im, sum_im))), f);
-        if dts_nonneg_fuel(
-            dts_sub(dts_mul(sum_re, sum_re), dts_mul(dd, dts_mul(sum_im, sum_im))), f) {
-            lemma_dts_nonneg_conclude_re_fuel(sum_re, sum_im, dd, f);
-            return;
-        }
-        //  norm < 0: try C3 path (if sum_im > 0, which it shouldn't be... contradiction)
-        //  Since sum_re ≥ 0 and sum is nonneg and norm < 0:
-        //  C3 needs im > 0. But we have !nonneg(sum_im). Z3 should close.
+        //  Apply conclude_im
+        lemma_dts_nonneg_conclude_im_fuel(sum_re, sum_im, dd, f);
         return;
     }
-    //  Case 3: sum_re not nonneg, sum_im nonneg → C3
-    if dts_nonneg_fuel(sum_im, f) {
-        //  !nonneg(sum_re) from above.
-        //  C3 needs: nonneg(im) ∧ !is_zero(im) ∧ nonneg(neg(norm)).
-        //  nonneg(sum_im) ✓.
-        //  !is_zero(sum_im): if is_zero, then neg(sum_im) also zero, nonneg → contradicts !nonneg(sum_re)
-        //  with the sum being nonneg. Z3 should close.
-        //  nonneg(neg(norm)): need d*sum_im² ≥ sum_re².
-        //  TODO: implement neg_norm bound proof for C3 case
+
+    //  ─── C1+C3 / C3+C1: dispatch on sum_re sign ───
+    if (a1_nn && b1_nn && !a2_nn && b2_nn) || (!a1_nn && b1_nn && a2_nn && b2_nn) {
+        //  C1+C3 or C3+C1. sum_im = b1+b2 ≥ 0 always.
+        lemma_dts_nonneg_add_closed_fuel(b1, b2, f);
+        lemma_dts_nonneg_or_neg_nonneg_fuel(sum_re, f);
+        if dts_nonneg_fuel(sum_re, f) {
+            //  Case 1: both sum_re, sum_im ≥ 0 → C1, trivial
+            return;
+        }
+        //  Case 3: sum_re < 0. Check is_zero first.
+        if dts_is_zero(sum_re) {
+            lemma_dts_is_zero_implies_eqv_zero(sum_re);
+            lemma_dts_nonneg_fuel_zero(sum_re, f);
+            return;
+        }
+        //  Now: !nonneg(sum_re) ∧ !is_zero(sum_re).
+        //  Apply c1c3_neg_norm_bound
+        lemma_dts_c1c3_neg_norm_bound(a1, b1, a2, b2, dd, f);
+        //  conclude_im_fuel needs nonneg(sum_im), !is_zero(sum_im), neg_norm bound
+        //  Need !is_zero(sum_im): from C3, b_c3 ≥ 0 ∧ !is_zero(b_c3). And b_c1 ≥ 0.
+        //  So sum_im = b_c1+b_c3 > 0, hence !is_zero.
+        //  This is a computation Z3 needs to verify — may need help.
+        lemma_dts_nonneg_conclude_im_fuel(sum_re, sum_im, dd, f);
         return;
     }
-    //  Case 4: both not nonneg → impossible (sum ≥ 0 but all components negative)
-    //  This case is mathematically impossible. Z3 should derive false.
-    //  From nonneg(x) and nonneg(y): x + y = sum ≥ 0.
-    //  With sum_re < 0 and sum_im ≤ 0: sum = sum_re + sum_im*√d ≤ 0.
-    //  Contradiction. Z3 may need help — add explicit proofs if needed.
+
+    //  ─── C3+C3 case missing? Already handled above.
+
+    //  ─── C2+C3 / C3+C2: the hard mixed case ───
+    //  TODO: write c2c3_norm_bound and c2c3_neg_norm_bound helpers.
+    //  For now, dispatch on sum signs and handle Case 1 (trivial), Case 4 (contradiction).
+    //  Cases 2 and 3 require c2c3 helpers which are not yet implemented.
+    if (a1_nn && !b1_nn && !a2_nn && b2_nn) || (!a1_nn && b1_nn && a2_nn && !b2_nn) {
+        //  C2+C3 or C3+C2.
+        lemma_dts_nonneg_or_neg_nonneg_fuel(sum_re, f);
+        lemma_dts_nonneg_or_neg_nonneg_fuel(sum_im, f);
+        if dts_nonneg_fuel(sum_re, f) && dts_nonneg_fuel(sum_im, f) {
+            //  Case 1: both ≥ 0, trivial C1
+            return;
+        }
+        //  Cases 2, 3, 4 — TODO: implement c2c3 helpers
+        //  For now, leave unproven (will trigger postcondition failure).
+        return;
+    }
 }
 
 #[verifier::rlimit(80)]
