@@ -14395,22 +14395,14 @@ proof fn lemma_dts_nonneg_add_remaining<T: OrderedField>(
         //  Result: nonneg(sub(d*sum_im², sum_re²))
         //  Establish nonneg(sum_im): b1≥0 and b2≥0 → sum_im ≥ 0
         lemma_dts_nonneg_add_closed_fuel(b1, b2, f);
-        //  Check is_zero(sum_im): if so, both b1, b2 must be zero, contradicting C3 !is_zero.
+        //  Check is_zero(sum_im): if so, derive is_zero(b1) via nonneg_sum_zero_implies_zero.
+        //  But !is_zero(b1) from C3 → contradiction.
         if dts_is_zero(sum_im) {
-            //  Then sum_im is "zero" in DTS sense → nonneg → contradicts what we know about C3.
-            //  Actually if sum_im is zero, then sum is nonneg via C1 (sum_re,sum_im both nonneg)?
-            //  But sum_re = a1+a2 with both negative — sum_re < 0, so !nonneg.
-            //  C3 result needs sum_im > 0. With sum_im = 0, we can't be in C3.
-            //  However if is_zero(sum_im), sum_im is "0" as a DTS value, so nonneg(sum_im) holds.
-            //  Then we need C1: nonneg(sum_re) — false.
-            //  Or sum is zero (both sum_re, sum_im zero) which satisfies C1.
-            //  Hmm, if sum_im is zero AND sum_re < 0, then sum is in C2 form (re ≥ 0 fails).
-            //  Actually sum_re < 0 means sum is NOT in C1 (which needs re ≥ 0).
-            //  We need to reach a contradiction. The fact is: in C3+C3, sum_im = b1+b2 with !is_zero(b1) and !is_zero(b2) and b1,b2 ≥ 0. So sum_im > 0, hence !is_zero(sum_im).
-            //  This contradiction Z3 might struggle with. Use is_zero properties.
-            lemma_dts_is_zero_implies_eqv_zero(sum_im);
-            lemma_dts_nonneg_fuel_zero(sum_im, f);
+            lemma_dts_nonneg_sum_zero_implies_zero(b1, b2, f);
+            //  → is_zero(b1). With !is_zero(b1) from C3 → false.
+            //  Z3 should derive false from contradiction.
         }
+        //  Now !is_zero(sum_im) (or false derived above).
         //  Apply conclude_im
         lemma_dts_nonneg_conclude_im_fuel(sum_re, sum_im, dd, f);
         return;
@@ -14434,10 +14426,18 @@ proof fn lemma_dts_nonneg_add_remaining<T: OrderedField>(
         //  Now: !nonneg(sum_re) ∧ !is_zero(sum_re).
         //  Apply c1c3_neg_norm_bound
         lemma_dts_c1c3_neg_norm_bound(a1, b1, a2, b2, dd, f);
-        //  conclude_im_fuel needs nonneg(sum_im), !is_zero(sum_im), neg_norm bound
-        //  Need !is_zero(sum_im): from C3, b_c3 ≥ 0 ∧ !is_zero(b_c3). And b_c1 ≥ 0.
-        //  So sum_im = b_c1+b_c3 > 0, hence !is_zero.
-        //  This is a computation Z3 needs to verify — may need help.
+        //  Check is_zero(sum_im) via lemma_dts_nonneg_sum_zero_implies_zero
+        if dts_is_zero(sum_im) {
+            //  Derive is_zero(b1) from is_zero(b1+b2) ∧ nonneg(b1) ∧ nonneg(b2)
+            lemma_dts_nonneg_sum_zero_implies_zero(b1, b2, f);
+            //  Also derive is_zero(b2) by commutative + is_zero_congruence
+            lemma_dts_add_commutative(b1, b2);
+            lemma_dts_is_zero_congruence(dts_add(b1, b2), dts_add(b2, b1));
+            //  Now is_zero(b2+b1)
+            lemma_dts_same_radicand_symmetric(b1, b2);
+            lemma_dts_nonneg_sum_zero_implies_zero(b2, b1, f);
+            //  Now is_zero(b1) ∧ is_zero(b2). C3 side has !is_zero(b_c3) → contradiction.
+        }
         lemma_dts_nonneg_conclude_im_fuel(sum_re, sum_im, dd, f);
         return;
     }
