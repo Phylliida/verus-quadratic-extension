@@ -15953,7 +15953,72 @@ proof fn lemma_dts_c2c3_norm_bound<T: OrderedField>(
         dts_mul(sum_re_sq, bb1),
         dts_neg(dts_mul(sum_im_sq, dts_mul(a1, a1))));
 
-    //  Apply sub_congruence_both
+    //  Apply sub_congruence_both — need sr between corresponding pairs
+    //  sr((sum_re·nb1)², sum_re²·b1²): both ~ a1
+    //  Build (sum_re·nb1)² closures first
+    lemma_dts_same_radicand_reflexive(dts_mul(sum_re, dts_neg(b1)));
+    lemma_dts_same_radicand_reflexive(dts_mul(dts_neg(sum_im), a1));
+    lemma_dts_mul_closed(
+        dts_mul(sum_re, dts_neg(b1)),
+        dts_mul(sum_re, dts_neg(b1)));
+    lemma_dts_mul_closed(
+        dts_mul(dts_neg(sum_im), a1),
+        dts_mul(dts_neg(sum_im), a1));
+    //  sr((sum_re·nb1)², sum_re·nb1) via mul_closed sym
+    lemma_dts_same_radicand_symmetric(
+        dts_mul(sum_re, dts_neg(b1)),
+        dts_mul(
+            dts_mul(sum_re, dts_neg(b1)),
+            dts_mul(sum_re, dts_neg(b1))));
+    //  sr(sum_re·nb1, a1) we have via earlier
+    //  Combine: sr((sum_re·nb1)², a1)
+    lemma_dts_same_radicand_transitive(
+        dts_mul(
+            dts_mul(sum_re, dts_neg(b1)),
+            dts_mul(sum_re, dts_neg(b1))),
+        dts_mul(sum_re, dts_neg(b1)), a1);
+    //  sr(sum_re_sq·bb1, a1) we should have via the rebuilt chain
+    //  Build sr((sum_re·nb1)², sum_re_sq·bb1) via a1
+    lemma_dts_same_radicand_symmetric(dts_mul(sum_re_sq, bb1), a1);
+    //  Wait, sym needs sr(sum_re_sq·bb1, a1). Do we have it?
+    //  We have sr(sum_re_sq, bb1). And mul_closed gives sr(sum_re_sq, sum_re_sq·bb1) → sym → sr(sum_re_sq·bb1, sum_re_sq).
+    //  And sr(sum_re_sq, a1) from the rebuild chain.
+    //  Combine: sr(sum_re_sq·bb1, a1) via trans.
+    lemma_dts_mul_closed(sum_re_sq, bb1);
+    lemma_dts_same_radicand_symmetric(sum_re_sq, dts_mul(sum_re_sq, bb1));
+    lemma_dts_same_radicand_transitive(dts_mul(sum_re_sq, bb1), sum_re_sq, a1);
+    lemma_dts_same_radicand_symmetric(dts_mul(sum_re_sq, bb1), a1);
+    //  Now sr((sum_re·nb1)², a1) ~ sr(a1, sum_re_sq·bb1)
+    lemma_dts_same_radicand_transitive(
+        dts_mul(
+            dts_mul(sum_re, dts_neg(b1)),
+            dts_mul(sum_re, dts_neg(b1))),
+        a1,
+        dts_mul(sum_re_sq, bb1));
+    //  Similarly for the second pair: sr((nsi·a1)², sum_im_sq·(a1·a1))
+    lemma_dts_same_radicand_symmetric(
+        dts_mul(dts_neg(sum_im), a1),
+        dts_mul(
+            dts_mul(dts_neg(sum_im), a1),
+            dts_mul(dts_neg(sum_im), a1)));
+    lemma_dts_same_radicand_transitive(
+        dts_mul(
+            dts_mul(dts_neg(sum_im), a1),
+            dts_mul(dts_neg(sum_im), a1)),
+        dts_mul(dts_neg(sum_im), a1), a1);
+    //  Build sr(sum_im_sq·(a1·a1), a1) via similar chain
+    lemma_dts_mul_closed(sum_im_sq, dts_mul(a1, a1));
+    lemma_dts_same_radicand_symmetric(sum_im_sq, dts_mul(sum_im_sq, dts_mul(a1, a1)));
+    lemma_dts_same_radicand_transitive(
+        dts_mul(sum_im_sq, dts_mul(a1, a1)), sum_im_sq, a1);
+    lemma_dts_same_radicand_symmetric(
+        dts_mul(sum_im_sq, dts_mul(a1, a1)), a1);
+    lemma_dts_same_radicand_transitive(
+        dts_mul(
+            dts_mul(dts_neg(sum_im), a1),
+            dts_mul(dts_neg(sum_im), a1)),
+        a1,
+        dts_mul(sum_im_sq, dts_mul(a1, a1)));
     lemma_dts_sub_congruence_both(
         dts_mul(
             dts_mul(sum_re, dts_neg(b1)),
@@ -16125,17 +16190,17 @@ proof fn lemma_dts_c2c3_norm_bound<T: OrderedField>(
         dts_sub(
             dts_mul(sum_re_sq, bb1),
             dts_mul(sum_im_sq, dts_mul(a1, a1))));
-    lemma_dts_same_radicand_symmetric(
-        dts_sub(
-            dts_mul(sum_re_sq, bb1),
-            dts_mul(sum_im_sq, dts_mul(a1, a1))),
-        a1);
-    //  We need sr(a1, sub_RHS) — derived from sr(sub_RHS, sum_re²·b1², a1) chain
+    //  Now sr(sub, sum_re_sq·bb1). Combine with sr(sum_re_sq·bb1, a1) → sr(sub, a1)
     lemma_dts_same_radicand_transitive(
         dts_sub(
             dts_mul(sum_re_sq, bb1),
             dts_mul(sum_im_sq, dts_mul(a1, a1))),
         dts_mul(sum_re_sq, bb1),
+        a1);
+    lemma_dts_same_radicand_symmetric(
+        dts_sub(
+            dts_mul(sum_re_sq, bb1),
+            dts_mul(sum_im_sq, dts_mul(a1, a1))),
         a1);
     lemma_dts_same_radicand_symmetric(
         dts_sub(
@@ -16184,16 +16249,10 @@ proof fn lemma_dts_c2c3_norm_bound<T: OrderedField>(
     //  → sr(aa1, sum_im_sq)
     //  sr(dbb1, aa1): dbb1 ~ dd ~ a1 ~ aa1
     lemma_dts_same_radicand_transitive(dd, a1, aa1);
-    lemma_dts_same_radicand_symmetric(dd, dbb1);
-    lemma_dts_same_radicand_transitive(dbb1, dd, aa1);
-    //  Setup for le_mul: need wf(dbb1), wf(aa1), nonneg_radicands, etc.
-    //  These should be in scope from earlier.
-    //  Square_nonneg of sum_im to get nonneg(sum_im²)
-    lemma_dts_square_nonneg(sum_im, f);
-    //  → nonneg(sum_im²)
-    //  Need aa1 = mul_closed(a1, a1) — should be in scope
-    //  Need dbb1 = mul_closed(dd, bb1) — let me make sure
+    //  Build mul cells for dbb1 first
     lemma_dts_mul_closed(b1, b1);
+    //  sr(dd, b1) via dd ~ a1 ~ b1
+    lemma_dts_same_radicand_transitive(dd, a1, b1);
     lemma_dts_same_radicand_transitive(dd, b1, bb1);
     lemma_dts_mul_closed(dd, bb1);
     lemma_dts_nonneg_radicands_mul(b1, b1);
@@ -16202,6 +16261,12 @@ proof fn lemma_dts_c2c3_norm_bound<T: OrderedField>(
     lemma_norm_definite_mul(dd, bb1);
     lemma_dts_depth_mul_le(b1, b1);
     lemma_dts_depth_mul_le(dd, bb1);
+    //  Now sr(dd, dbb1) from mul_closed(dd, bb1)
+    lemma_dts_same_radicand_symmetric(dd, dbb1);
+    lemma_dts_same_radicand_transitive(dbb1, dd, aa1);
+    //  Square_nonneg of sum_im to get nonneg(sum_im²)
+    lemma_dts_square_nonneg(sum_im, f);
+    //  → nonneg(sum_im²)
 
     lemma_dts_le_mul_nonneg_monotone_fuel(dbb1, aa1, sum_im_sq, f);
     //  → nonneg(sub(aa1·sum_im_sq, dbb1·sum_im_sq))
@@ -16224,10 +16289,20 @@ proof fn lemma_dts_c2c3_norm_bound<T: OrderedField>(
     //  Use mul_commutative on aa1·sum_im_sq → sum_im_sq·aa1 and similarly dbb1·sum_im_sq → sum_im_sq·dbb1.
     lemma_dts_mul_commutative(aa1, sum_im_sq);
     //  → eqv(aa1·sum_im_sq, sum_im_sq·aa1)
+    //  sr(dbb1, sum_im_sq) via dbb1 ~ dd ~ a1 ~ sum_im_sq
+    lemma_dts_same_radicand_symmetric(dd, dbb1);
+    lemma_dts_same_radicand_transitive(dbb1, dd, a1);
+    lemma_dts_same_radicand_symmetric(a1, sum_im_sq);
+    //  Wait, we need sr(a1, sum_im_sq). We have sr(sum_im_sq, a1). Flip:
+    lemma_dts_same_radicand_symmetric(sum_im_sq, a1);
+    lemma_dts_same_radicand_transitive(dbb1, a1, sum_im_sq);
     lemma_dts_mul_commutative(dbb1, sum_im_sq);
     //  → eqv(dbb1·sum_im_sq, sum_im_sq·dbb1)
     //  Apply sub_congruence_both to Step 5 result
     //  Setup wf for sum_im_sq·aa1 and sum_im_sq·dbb1
+    //  sr(sum_im_sq, aa1) and sr(sum_im_sq, dbb1) — flip from existing
+    lemma_dts_same_radicand_symmetric(aa1, sum_im_sq);
+    lemma_dts_same_radicand_symmetric(dbb1, sum_im_sq);
     lemma_dts_mul_closed(sum_im_sq, aa1);
     lemma_dts_mul_closed(sum_im_sq, dbb1);
     lemma_dts_nonneg_radicands_mul(sum_im_sq, aa1);
