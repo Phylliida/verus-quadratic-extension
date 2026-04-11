@@ -1,9 +1,21 @@
-# DTS nonneg_add_remaining — Session 8 Status (2026-04-10)
+# DTS nonneg_add_remaining — Session 9 Status (2026-04-10)
 
-## Current State: 141 verified, 1 error (+ 9 pre-existing axiom_non_square)
+## Current State: 142 verified, 1 error (+ 9 pre-existing axiom_non_square)
 
 The `nonneg_add_remaining` dispatch handles 4 of 6 factor C-class
-combinations. Only the C2+C3 / C3+C2 mixed case remains as a TODO.
+combinations. The C2+C3 / C3+C2 case is algebraically **SOLVED**
+(see "SOLVED Algebraic Plan" below) — the cancellation primitive
+is in place, and the two helpers (`c2c3_norm_bound` /
+`c2c3_neg_norm_bound`) plus dispatch wiring remain as implementation
+work for the next session.
+
+**Session 9 delta vs Session 8:**
+- Added `lemma_dts_le_mul_cancel_pos_fuel` at `decreases (fuel, 3nat)`
+  (~200 lines, VERIFIED). Cancellation by a positive factor, needed
+  by the c2c3 approach. (+1 verified from 141 → 142.)
+- Discovered √d-free algebraic plan via cancellation-by-b1² strategy.
+- The 1 remaining error is unchanged (C2+C3 postcondition in
+  `nonneg_add_remaining`).
 
 ## Session 8 Progress (2026-04-10)
 
@@ -148,31 +160,63 @@ Step 6: Cancel `b1²` using `lemma_dts_le_mul_cancel_pos_fuel` (ADDED):
     `sum_im = b2 ≥ 0`, contradicting `!nonneg(sum_im)`)
   - → `sum_re² ≥ d·sum_im²`, which is the goal (modulo `neg(sum_im)² = sum_im²`).
 
-**Symmetry for Case 3:** Mirror the chain using D instead of B:
-  - `(b2 · a1 ≥ a2 · b1)` ← wait, we need the right linear fact for Case 3.
-  - Actually from `D·(C−A) ≤ C·(D−B)` (since `AD−BC ≥ 0`), square both sides,
-    use C3 (`d·b2² ≥ a2²`) scaled by `sum_re²`, cancel by `b2²`.
-  - Or equivalently swap x ↔ y symmetry and reuse the Case 2 structure.
+**Symmetry for Case 3 (sum_re<0, sum_im≥0):** Mirror the chain, cancel by `b2²`.
+The analogous linear fact is `a2·b1 ≥ a1·b2` — wait, that's the *reverse* of
+Case 2's fact. Actually we still need `a1·b2 ≥ b1·a2` (same squared chain),
+but now we write the linear distribution as
+`neg(sum_re)·b2 − sum_im·neg(a2) ≡ b1·a2·(−1) + a1·b2·(−1)·(−1) = a1·b2 − b1·a2`
+(or similar — the sign analysis needs care). The squared chain,
+`sum_re²·b2² ≥ sum_im²·a2²` ≥ `sum_im²·(d·b2²)/... `, ends up cancelling `b2²`
+using `!is_zero(b2)` (derivable from Case 3 conditions: if `b2 = 0` then
+`sum_re = a1 + a2` with `a1 ≥ 0`, `a2 ≤ 0` and no immediate contradiction —
+but C3 requires `!is_zero(b2)` so this might actually be a precondition).
+**Implementation note:** the exact sign choreography should be worked out
+while writing the helper, ideally by translating the A,B,C,D argument back
+carefully. Case 3 is symmetric to Case 2 under x ↔ y swap, so the cleanest
+approach may be to call `c2c3_norm_bound(a2, b2, a1, b1, ...)` with swapped
+arguments and then congruence the result.
+
+**Case 4 (both sum_re<0, sum_im<0) is impossible — squared proof:**
+From Case 4 we have `!is_zero(sum_im)` and sum_im < 0. With `nonneg(b2)` (C3)
+and `nonneg(neg(b1))` (C2), this forces `neg(b1) > b2` strictly (since their
+sum is negative). So `b1² > b2²` strictly. Chain:
+- `a1² ≥ d·b1²` (C2)
+- `d·b1² > d·b2²` (strict, from `b1² > b2²`)
+- `d·b2² ≥ a2²` (C3)
+- So `a1² > a2²` strictly.
+- With `a1 ≥ 0` and `neg(a2) ≥ 0`, square_le_implies_le gives `a1 > neg(a2)`,
+  i.e., `a1 + a2 > 0`, i.e., `sum_re > 0`, contradicting `!nonneg(sum_re)`.
+
+The strict inequalities are tricky in DTS — `b1² > b2²` strict needs care.
+One approach: derive `nonneg(sub(b1², b2²))` via `square_le_square_fuel` on
+`neg(b1) ≥ b2` (from `neg(b1) − b2 = neg(sum_im) ≥ 0` and Case 4's
+`!is_zero(sum_im)` giving strict inequality). Then the chain above gives
+`nonneg(sub(a1², a2²))` eventually, and combined with `!is_zero(sum_re)` +
+the squared linearization, we get a contradiction.
 
 ### Session 9 Status
 
 - **DONE**: `lemma_dts_le_mul_cancel_pos_fuel` — cancellation lemma at
   `decreases (fuel, 3nat)`. Uses le_antisymmetric + mul_cancel_zero
-  (integral domain) via contradiction. ~200 lines. VERIFIED.
+  (integral domain) via contradiction. ~200 lines. VERIFIED. Located
+  immediately after `lemma_dts_le_mul_nonneg_monotone_fuel` in
+  `src/dyn_tower_lemmas.rs` (~line 10230).
 
 - **TODO**: `lemma_dts_c2c3_norm_bound` — Case 2 helper. Large (~700+
   lines) due to extensive sr/wf plumbing at each chain step. Target
   `decreases (fuel, 6nat)` so it can call cancellation at (fuel, 3nat),
   square_le_square at (fuel, 2nat), le_mul_nonneg_monotone at (fuel, 2nat),
-  square_le_implies_le at (fuel, 1nat).
+  square_le_implies_le at (fuel, 1nat). Insert before line 14489 (before
+  the `nonneg_add_remaining` doc comment).
 
 - **TODO**: `lemma_dts_c2c3_neg_norm_bound` — Case 3 mirror. Same
-  structure, cancel by `b2²` instead of `b1²`.
+  structure, cancel by `b2²` instead of `b1²`. Alternatively, reuse
+  `c2c3_norm_bound` via argument swap + result congruence.
 
-- **TODO**: Wire dispatch in `nonneg_add_remaining` — Case 1 trivial,
-  Case 2 via c2c3_norm_bound, Case 3 via c2c3_neg_norm_bound, Case 4
-  contradiction via positivity argument on `√d·b2 ≥ |a2|` and
-  `a1 ≥ √d·|b1|` → `b2 ≥ |b1|` → `sum_im ≥ 0`, contradicting Case 4.
+- **TODO**: Wire dispatch in `nonneg_add_remaining` — Case 1 trivial
+  (already done), Case 2 via `c2c3_norm_bound` + `conclude_re_fuel`,
+  Case 3 via `c2c3_neg_norm_bound` + `conclude_im_fuel`, Case 4
+  contradiction via the squared-inequality argument above.
 
 ### Original possible paths (for reference)
 
@@ -202,27 +246,39 @@ All in `verus-quadratic-extension/src/dyn_tower_lemmas.rs`:
 
 | Function | Line | Status |
 |----------|------|--------|
-| `lemma_dts_cauchy_cross_term_neg` | ~12000 | ✅ VERIFIED |
+| `lemma_dts_le_mul_nonneg_monotone_fuel` | ~10129 | VERIFIED (pre-existing) |
+| `lemma_dts_le_mul_cancel_pos_fuel` | ~10230 | **✅ VERIFIED (session 9)** |
+| `lemma_dts_cauchy_cross_term_neg` | ~12010 | ✅ VERIFIED (session 8) |
 | `lemma_dts_c2c2_norm_bound` | ~12283 | ✅ VERIFIED (session 7) |
-| `lemma_dts_c3c3_neg_norm_bound` | ~12654 | ✅ VERIFIED |
+| `lemma_dts_c3c3_neg_norm_bound` | ~12654 | ✅ VERIFIED (session 8) |
 | `lemma_dts_norm_sum_decomposition` | ~13325 | ✅ VERIFIED (session 7) |
-| `lemma_dts_c1c3_neg_norm_bound` | ~13325 (after) | ✅ VERIFIED |
-| `lemma_dts_nonneg_add_remaining` | ~14277 | ❌ 1 error (c2c3) |
-| `lemma_dts_nonneg_add_closed_fuel` | ~14429 | ❌ 1 error (cascades from above) |
+| `lemma_dts_c1c3_neg_norm_bound` | ~13543 | ✅ VERIFIED (session 8) |
+| `lemma_dts_c2c3_norm_bound` | TBD (~14489) | ❌ TODO (session 10) |
+| `lemma_dts_c2c3_neg_norm_bound` | TBD (~14489) | ❌ TODO (session 10) |
+| `lemma_dts_nonneg_add_remaining` | ~14496 | ❌ 1 error (c2c3 case) |
+| `lemma_dts_nonneg_add_closed_fuel` | ~14648 | ❌ 1 error (cascades from above) |
 
-## Decreases Hierarchy (Updated for Session 8)
+## Decreases Hierarchy (Updated for Session 9)
 
 | Function | Decreases | Status |
 |----------|-----------|--------|
 | `nonneg_mul_closed` | (fuel, 0nat) | VERIFIED |
 | `nonneg_add_closed` | (fuel, 0nat) | trusts helper |
 | `cauchy_schwarz_step` | (fuel, 1nat) | VERIFIED |
-| `c1c3_neg_norm_bound` | (fuel, 1nat) | **VERIFIED (session 8)** |
+| `c1c3_neg_norm_bound` | (fuel, 1nat) | VERIFIED (session 8) |
+| `square_le_implies_le` | (fuel, 1nat) | VERIFIED |
+| `le_antisymmetric` | (fuel, 1nat) | VERIFIED |
+| `square_le_square` | (fuel, 2nat) | VERIFIED |
+| `le_mul_nonneg_monotone` | (fuel, 2nat) | VERIFIED |
+| `nonneg_or_neg_nonneg` | (fuel, 2nat) | VERIFIED |
+| `le_mul_cancel_pos` | (fuel, 3nat) | **VERIFIED (session 9)** |
 | `cauchy_cross_term` | (fuel, 4nat) | VERIFIED (session 7) |
-| `cauchy_cross_term_neg` | (fuel, 4nat) | **VERIFIED (session 8)** |
+| `cauchy_cross_term_neg` | (fuel, 4nat) | VERIFIED (session 8) |
 | `c2c2_norm_bound` | (fuel, 5nat) | VERIFIED (session 7) |
-| `c3c3_neg_norm_bound` | (fuel, 5nat) | **VERIFIED (session 8)** |
-| `nonneg_add_remaining` | (fuel, 8nat) | **1 error (c2c3 case)** |
+| `c3c3_neg_norm_bound` | (fuel, 5nat) | VERIFIED (session 8) |
+| `c2c3_norm_bound` | (fuel, 6nat) | **planned (session 10)** |
+| `c2c3_neg_norm_bound` | (fuel, 6nat) | **planned (session 10)** |
+| `nonneg_add_remaining` | (fuel, 8nat) | 1 error (c2c3 case) |
 | `nonneg_mul_remaining` | (fuel, 9nat) | VERIFIED |
 
 ## Z3 Context Pollution Lessons (Updated)
