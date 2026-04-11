@@ -101,28 +101,100 @@ level — √d would be a *higher* level).
   `lemma_cauchy_le_chain_neg_norms` (needs both negative), and
   `cauchy_cross_term` variants. None work for the mixed-sign C2+C3.
 
-### Possible paths forward
+### SOLVED Algebraic Plan (Session 9, 2026-04-10)
+
+The natural proof uses √d explicitly, but there is a √d-FREE chain via
+a **cancellation-by-b₁²** strategy. The key insight: we don't need √d
+as a value — we can prove the goal "scaled by B²" and then cancel B².
+
+Let A = a₁ (≥0), B = −b₁ (≥0, >0 in Case 2), C = −a₂ (≥0), D = b₂ (≥0).
+Case 2: A ≥ C (sum_re ≥ 0), B > D (sum_im < 0).
+Case 3: C ≥ A (sum_re < 0), D ≥ B (sum_im > 0) — cancel by D² instead.
+
+**Key derivation (Case 2):**
+
+Step 1: `a1·b2 ≥ b1·a2` (equivalent to AD ≥ BC) via squared chain:
+  - From `a1² ≥ d·b1²` (C2) scale by b2²: `a1²·b2² ≥ d·b1²·b2²`
+  - From `d·b2² ≥ a2²` (C3) scale by b1²: `d·b1²·b2² ≥ b1²·a2²`
+  - Chain: `a1²·b2² ≥ b1²·a2²`, i.e., `(a1·b2)² ≥ (b1·a2)²`
+  - Apply `square_le_implies_le_fuel` with both `a1·b2, b1·a2 ≥ 0`
+    (the latter via `neg(b1)·neg(a2) = b1·a2` and both factors ≥ 0)
+  - → `a1·b2 ≥ b1·a2`, i.e., `nonneg(sub(a1·b2, b1·a2))`
+
+Step 2: Distribute: `sum_re·neg(b1) − neg(sum_im)·a1 ≡ a1·b2 − b1·a2`
+  - `sum_re·neg(b1) = (a1+a2)·(−b1) = −a1·b1 − a2·b1`
+  - `neg(sum_im)·a1 = (−(b1+b2))·a1 = −a1·b1 − a1·b2`
+  - Difference: `(−a1·b1 − a2·b1) − (−a1·b1 − a1·b2) = a1·b2 − a2·b1`
+  - Apply distributivity lemmas + neg_mul chains; transfer nonneg
+
+Step 3: Square-monotonicity via `lemma_dts_square_le_square_fuel`:
+  - From `nonneg(sum_re·neg(b1) − neg(sum_im)·a1)` get
+    `(sum_re·neg(b1))² ≥ (neg(sum_im)·a1)²`
+  - i.e., `sum_re²·b1² ≥ sum_im²·a1²` (using `neg(x)² = x²` + square_of_product)
+
+Step 4: Chain with C2 via `le_mul_nonneg_monotone_fuel`:
+  - Scale C2 (`a1² − d·b1² ≥ 0`) by `sum_im² ≥ 0` (via `square_nonneg`)
+  - → `sum_im²·a1² − sum_im²·d·b1² ≥ 0`
+  - i.e., `sum_im²·a1² ≥ sum_im²·d·b1²`
+
+Step 5: Transitive chain:
+  - `sum_re²·b1² ≥ sum_im²·a1² ≥ d·sum_im²·b1²`
+  - Rearrange via mul_commutative/associative: `sum_re²·b1² ≥ (d·sum_im²)·b1²`
+
+Step 6: Cancel `b1²` using `lemma_dts_le_mul_cancel_pos_fuel` (ADDED):
+  - `nonneg(b1²)` via `square_nonneg`
+  - `!is_zero(b1²)` via `mul_cancel_zero` contrapositive on `!is_zero(b1)`
+  - `!is_zero(b1)` is derivable from Case 2 conditions (if `b1 = 0` then
+    `sum_im = b2 ≥ 0`, contradicting `!nonneg(sum_im)`)
+  - → `sum_re² ≥ d·sum_im²`, which is the goal (modulo `neg(sum_im)² = sum_im²`).
+
+**Symmetry for Case 3:** Mirror the chain using D instead of B:
+  - `(b2 · a1 ≥ a2 · b1)` ← wait, we need the right linear fact for Case 3.
+  - Actually from `D·(C−A) ≤ C·(D−B)` (since `AD−BC ≥ 0`), square both sides,
+    use C3 (`d·b2² ≥ a2²`) scaled by `sum_re²`, cancel by `b2²`.
+  - Or equivalently swap x ↔ y symmetry and reuse the Case 2 structure.
+
+### Session 9 Status
+
+- **DONE**: `lemma_dts_le_mul_cancel_pos_fuel` — cancellation lemma at
+  `decreases (fuel, 3nat)`. Uses le_antisymmetric + mul_cancel_zero
+  (integral domain) via contradiction. ~200 lines. VERIFIED.
+
+- **TODO**: `lemma_dts_c2c3_norm_bound` — Case 2 helper. Large (~700+
+  lines) due to extensive sr/wf plumbing at each chain step. Target
+  `decreases (fuel, 6nat)` so it can call cancellation at (fuel, 3nat),
+  square_le_square at (fuel, 2nat), le_mul_nonneg_monotone at (fuel, 2nat),
+  square_le_implies_le at (fuel, 1nat).
+
+- **TODO**: `lemma_dts_c2c3_neg_norm_bound` — Case 3 mirror. Same
+  structure, cancel by `b2²` instead of `b1²`.
+
+- **TODO**: Wire dispatch in `nonneg_add_remaining` — Case 1 trivial,
+  Case 2 via c2c3_norm_bound, Case 3 via c2c3_neg_norm_bound, Case 4
+  contradiction via positivity argument on `√d·b2 ≥ |a2|` and
+  `a1 ≥ √d·|b1|` → `b2 ≥ |b1|` → `sum_im ≥ 0`, contradicting Case 4.
+
+### Original possible paths (for reference)
 
 1. **Extend the field**: Define a "scaled" version of the problem where
    we work with (a, √d*b) pairs and avoid raw √d. Probably requires a
-   new spec function and considerable plumbing.
+   new spec function and considerable plumbing. NOT NEEDED.
 
 2. **Inline brute force**: Write a ~1000+ line c2c3 helper that
    manipulates the algebraic identity directly via `le_mul_nonneg_monotone`
-   chains. Likely tractable but tedious; the final `square_le_implies_le`
-   step still needs care to avoid √d.
+   chains. **← This is the approach adopted, via cancellation strategy.**
 
 3. **Reduce to multiplication**: Use `nonneg_mul_closed` on x_ext, y_ext.
    This requires fuel f+1 which violates termination at decreases (f, 8nat).
    To enable: restructure the entire nonneg_add / nonneg_mul mutual
    recursion to give nonneg_add_remaining a higher fuel bucket. Major
-   refactor.
+   refactor. NOT NEEDED.
 
 4. **New algebraic helper**: Write a "mixed Cauchy" helper that takes
    one positive norm and one negative norm and produces some useful
    intermediate fact. The identity
    `(a_c2² - d*|b_c2|²)(d*b_c3² - |a_c3|²) ≥ 0` might be a starting
-   point, expanded out.
+   point, expanded out. NOT NEEDED (the cancellation approach is cleaner).
 
 ## File Locations
 
