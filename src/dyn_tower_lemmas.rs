@@ -19395,6 +19395,8 @@ proof fn lemma_dts_nonneg_add_remaining<T: OrderedField>(
                 lemma_dts_is_zero_congruence(dts_add(b1, b2), dts_add(b2, b1));
                 lemma_dts_c2c3_iszero_sum_im_implies_nonneg_sum_re(a2, b2, a1, b1, dd, f);
                 //  → nonneg(add(a2, a1)). Transfer to nonneg(sum_re) via congruence:
+                //  sr(add(a2,a1), sum_re): flip sr(sum_re, add(a2,a1))
+                lemma_dts_same_radicand_symmetric(sum_re, dts_add(a2, a1));
                 lemma_dts_nonneg_fuel_congruence(dts_add(a2, a1), sum_re, f);
                 //  → nonneg(sum_re) contradicts !nonneg(sum_re)
                 return;
