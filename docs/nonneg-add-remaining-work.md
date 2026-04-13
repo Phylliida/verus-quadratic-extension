@@ -1,23 +1,75 @@
-# DTS nonneg_add_remaining — Session 9b Status (2026-04-10)
+# DTS nonneg_add_remaining — COMPLETE (2026-04-13)
 
-## Current State: 144 verified, 1 error (+ 9 pre-existing axiom_non_square)
+## Final State: 150 verified, 0 errors
 
-The `nonneg_add_remaining` dispatch handles 4 of 6 factor C-class
-combinations. The hardest piece — `lemma_dts_c2c3_norm_bound` — is
-**VERIFIED**, completing the cancellation-by-b1² algebraic strategy
-for Case 2 of C2+C3. The remaining work for next session:
-1. Write `lemma_dts_c2c3_neg_norm_bound` — Case 3 mirror (cancel by b2² instead)
-2. Wire C2+C3 dispatch in `nonneg_add_remaining`
+**`lemma_dts_nonneg_add_closed_fuel` is FULLY VERIFIED.** DTS nonnegativity
+is proved closed under addition across all C-class combinations in dynamic
+towers of quadratic field extensions. Zero assumes, zero admits, zero
+external_body.
 
-**Session 9b delta vs Session 9:**
-- Added `lemma_dts_c2c3_ab_linear` at `decreases (fuel, 4nat)` (~740 lines, VERIFIED).
-  Linear cross-term bound `nonneg(sub(a1·b2, b1·a2))` from C2+C3 norms.
-- Added `lemma_dts_c2c3_norm_bound` at `decreases (fuel, 6nat)` (~1500 lines, VERIFIED).
-  Implements all 7 steps of the cancellation-by-b1² strategy. From C2 (a1²≥d·b1²)
-  and C3 (d·b2²≥a2²) plus Case 2 sum signs (sum_re≥0, neg(sum_im)≥0), derives
-  `nonneg(sub(sum_re², d·sum_im²))` — the C2 form of the sum's norm bound.
-- 144 verified (was 142). Still 1 error remaining (the C2+C3 dispatch in
-  nonneg_add_remaining is still TODO).
+Combined with `nonneg_mul_closed` (completed earlier), this establishes
+that the nonneg cone in DTS is closed under both addition and multiplication
+— the two hardest pillars of the OrderedField proof.
+
+## Session 10 (2026-04-13) — Final push
+
+### New helpers (all VERIFIED)
+
+1. **`lemma_dts_c2c3_neg_norm_bound`** (~1675 lines, decreases (f, 6nat))
+   Case 3 mirror of `c2c3_norm_bound`. Cancellation-by-b2² strategy.
+   From C2+C3 with Case 3 signs (neg(sum_re)≥0, sum_im≥0), derives
+   `nonneg(sub(d·sum_im², sum_re²))` — the C3 neg-norm form.
+
+2. **`lemma_dts_norm_transfer`** (~200 lines, decreases (f, 0nat))
+   Generic helper: given `eqv(xp, x)` and `eqv(yp, y)`, transfers
+   `nonneg(sub(xp², d·yp²))` to `nonneg(sub(x², d·y²))` (and reverse).
+   Used for C3+C2 dispatch where helpers use add(a2,a1) but postcondition
+   needs add(a1,a2).
+
+3. **`lemma_dts_c2c3_iszero_sum_im_implies_nonneg_sum_re`** (~300 lines, decreases (f, 4nat))
+   Contradiction: `is_zero(b1+b2)` with C2+C3 norms implies `nonneg(a1+a2)`.
+   Proof: b2=neg(b1) → b2²=b1² → d·b2²=d·b1² → chain a1²≥a2² →
+   `square_le_implies_le` → a1≥|a2| → nonneg(sum_re).
+
+4. **`lemma_dts_c2c3_case4_contradiction`** (~350 lines, decreases (f, 5nat))
+   Generalizes #3: `nonneg(neg(b1+b2))` implies `nonneg(a1+a2)`.
+   Proof: neg(b1+b2)≥0 → sub(neg(b1), b2)≥0 → `square_le_square` →
+   b1²≥b2² → `le_mul_nonneg_monotone` → d·b1²≥d·b2² → chain a1²≥a2² →
+   `square_le_implies_le` → nonneg(sum_re). Contradicts Case 4's
+   `!nonneg(sum_re)`.
+
+5. **`proof_unreachable_nonneg_add_remaining`** (~15 lines)
+   Boolean exhaustion helper with clean Z3 context. Proves that
+   the 6 handled C-class combos + the 3 caller-excluded combos cover
+   all 9 possibilities.
+
+### Dispatch structure (final)
+
+`nonneg_add_closed_fuel` handles C1+C1, C1+C2, C2+C1 directly, then calls
+`nonneg_add_remaining` with precondition `!(a1_nn && a2_nn && (b1_nn || b2_nn))`.
+
+`nonneg_add_remaining` dispatches:
+
+| Combination | Handler | How |
+|-------------|---------|-----|
+| C2+C2 | `c2c2_norm_bound` + `conclude_re` | Direct |
+| C3+C3 | `c3c3_neg_norm_bound` + `conclude_im` | Direct |
+| C1+C3 | `c1c3_neg_norm_bound` + `conclude_im` | Direct |
+| C3+C1 | `c1c3_neg_norm_bound` + `conclude_im` | Direct (dup) |
+| C2+C3 | Cases 1-4 inline | See below |
+| C3+C2 | Cases 1-4 via norm_transfer | Swapped args |
+
+C2+C3 / C3+C2 sub-dispatch:
+- **Case 1** (sum_re≥0, sum_im≥0): trivial C1
+- **Case 2** (sum_re≥0, neg(sum_im)≥0): `c2c3_norm_bound` → `conclude_re`
+- **Case 3** (neg(sum_re)≥0, sum_im≥0): `c2c3_neg_norm_bound` → `conclude_im`
+  - is_zero(sum_im) sub-case: `iszero_sum_im_implies_nonneg_sum_re` → contradiction
+- **Case 4** (neg(sum_re)≥0, neg(sum_im)≥0): `case4_contradiction` → contradiction
+
+For C3+C2: call helpers with (a2, b2, a1, b1), transfer results via
+`norm_transfer` + `add_commutative` congruence chains.
+
+## Session 9b (2026-04-10)
 
 ## Session 8 Progress (2026-04-10)
 
@@ -323,9 +375,12 @@ All in `verus-quadratic-extension/src/dyn_tower_lemmas.rs`:
 | `lemma_dts_c1c3_neg_norm_bound` | ~13543 | ✅ VERIFIED (session 8) |
 | `lemma_dts_c2c3_ab_linear` | ~14498 | **✅ VERIFIED (session 9b)** |
 | `lemma_dts_c2c3_norm_bound` | ~15240 | **✅ VERIFIED (session 9b)** |
-| `lemma_dts_c2c3_neg_norm_bound` | TBD | ❌ TODO (session 10) |
-| `lemma_dts_nonneg_add_remaining` | ~16780 | ❌ 1 error (c2c3 dispatch) |
-| `lemma_dts_nonneg_add_closed_fuel` | ~16930 | ❌ 1 error (cascades from above) |
+| `lemma_dts_c2c3_neg_norm_bound` | ~16719 | **✅ VERIFIED (session 10)** |
+| `lemma_dts_c2c3_iszero_sum_im_implies_nonneg_sum_re` | ~18395 | **✅ VERIFIED (session 10)** |
+| `lemma_dts_c2c3_case4_contradiction` | ~18797 | **✅ VERIFIED (session 10)** |
+| `lemma_dts_norm_transfer` | ~19170 | **✅ VERIFIED (session 10)** |
+| `lemma_dts_nonneg_add_remaining` | ~19535 | **✅ VERIFIED (session 10)** |
+| `lemma_dts_nonneg_add_closed_fuel` | ~20005 | **✅ VERIFIED** |
 
 ## Decreases Hierarchy (Updated for Session 9b)
 
@@ -347,8 +402,11 @@ All in `verus-quadratic-extension/src/dyn_tower_lemmas.rs`:
 | `c2c2_norm_bound` | (fuel, 5nat) | VERIFIED (session 7) |
 | `c3c3_neg_norm_bound` | (fuel, 5nat) | VERIFIED (session 8) |
 | `c2c3_norm_bound` | (fuel, 6nat) | **VERIFIED (session 9b)** |
-| `c2c3_neg_norm_bound` | (fuel, 6nat) | **planned (session 10)** |
-| `nonneg_add_remaining` | (fuel, 8nat) | 1 error (c2c3 dispatch) |
+| `c2c3_neg_norm_bound` | (fuel, 6nat) | **VERIFIED (session 10)** |
+| `iszero_sum_im_implies_nonneg_sum_re` | (fuel, 4nat) | **VERIFIED (session 10)** |
+| `case4_contradiction` | (fuel, 5nat) | **VERIFIED (session 10)** |
+| `norm_transfer` | (fuel, 0nat) | **VERIFIED (session 10)** |
+| `nonneg_add_remaining` | (fuel, 8nat) | **✅ VERIFIED (session 10)** |
 | `nonneg_mul_remaining` | (fuel, 9nat) | VERIFIED |
 
 ## Z3 Context Pollution Lessons (Updated)
@@ -396,6 +454,19 @@ In addition to lessons from Sessions 4-7:
     `mul_congruence_right(a, b, c)` requires `eqv(a, b)` AND `sr(a, b)`.
     So building eqv via `mul_commutative` etc. is not enough — also need
     explicit sr chain between the two equivalent expressions.
+
+16. **Z3 can't unfold Ext spec fn in long functions** (session 10): In a 500+
+    line function, Z3 may not unfold `dts_nonneg_fuel(Ext(Box::new(a), ...), f+1)`
+    to derive that `a_nn || b_nn`. Even in clean-context helpers, Box deref
+    matching can fail. Fix: add a caller-side precondition that explicitly
+    states the consequence (e.g., `!(a1_nn && a2_nn && (b1_nn || b2_nn))`),
+    and extract boolean exhaustion to a tiny helper with only bool parameters.
+
+17. **C3+C2 congruence via norm_transfer** (session 10): For symmetric
+    dispatch (C3+C2 mirrors C2+C3), call helpers with swapped args then
+    use a dedicated `norm_transfer` helper to convert `nonneg(sub(X'², d·Y'²))`
+    to `nonneg(sub(X², d·Y²))` given `eqv(X', X)` and `eqv(Y', Y)`.
+    Avoids duplicating ~1500 lines of proof for the symmetric case.
 
 ## Cancellation-by-b1² strategy: implementation pattern
 
