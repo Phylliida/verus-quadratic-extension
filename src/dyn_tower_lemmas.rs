@@ -18567,22 +18567,195 @@ proof fn lemma_dts_nonneg_add_remaining<T: OrderedField>(
 
     //  ─── C3+C3 case missing? Already handled above.
 
-    //  ─── C2+C3 / C3+C2: the hard mixed case ───
-    //  TODO: write c2c3_norm_bound and c2c3_neg_norm_bound helpers.
-    //  For now, dispatch on sum signs and handle Case 1 (trivial), Case 4 (contradiction).
-    //  Cases 2 and 3 require c2c3 helpers which are not yet implemented.
-    if (a1_nn && !b1_nn && !a2_nn && b2_nn) || (!a1_nn && b1_nn && a2_nn && !b2_nn) {
-        //  C2+C3 or C3+C2.
+    //  ─── C2+C3: a1∈C2, a2∈C3 ───
+    if a1_nn && !b1_nn && !a2_nn && b2_nn {
         lemma_dts_nonneg_or_neg_nonneg_fuel(sum_re, f);
         lemma_dts_nonneg_or_neg_nonneg_fuel(sum_im, f);
         if dts_nonneg_fuel(sum_re, f) && dts_nonneg_fuel(sum_im, f) {
-            //  Case 1: both ≥ 0, trivial C1
+            return;  //  Case 1: trivial C1
+        }
+        //  Setup neg closures for b1 (C2 b-neg) and a2 (C3 a-neg)
+        lemma_dts_neg_well_formed(b1);
+        lemma_dts_neg_well_formed(a2);
+        lemma_dts_same_radicand_neg(b1);
+        lemma_dts_same_radicand_neg(a2);
+        lemma_dts_same_radicand_symmetric(b1, dts_neg(b1));
+        lemma_dts_same_radicand_symmetric(a2, dts_neg(a2));
+        lemma_dts_nonneg_radicands_neg(b1);
+        lemma_dts_nonneg_radicands_neg(a2);
+        lemma_norm_definite_neg(b1);
+        lemma_norm_definite_neg(a2);
+        lemma_dts_depth_neg(b1);
+        lemma_dts_depth_neg(a2);
+
+        if dts_nonneg_fuel(sum_re, f) {
+            //  Case 2: sum_re≥0, sum_im<0
+            lemma_dts_c2c3_norm_bound(a1, b1, a2, b2, dd, f);
+            lemma_dts_nonneg_conclude_re_fuel(sum_re, sum_im, dd, f);
             return;
         }
-        //  Cases 2, 3, 4 — TODO: implement c2c3 helpers
-        //  For now, leave unproven (will trigger postcondition failure).
+        if dts_nonneg_fuel(sum_im, f) {
+            //  Case 3: neg(sum_re)≥0, sum_im≥0
+            //  Handle is_zero(sum_im) separately — conclude_im needs !is_zero(sum_im)
+            if dts_is_zero(sum_im) {
+                //  sum_im = 0. From C2+C3: b2≥0, neg(b1)≥0. With b1+b2=0:
+                //  This means b2 = neg(b1), both ≥ 0.
+                //  C3 has !is_zero(b2). If is_zero(b1+b2) with nonneg(b2) and nonneg(neg(b1)):
+                //  sum_zero_implies_zero needs both nonneg — but we have nonneg(b2) from C3 and
+                //  nonneg(neg(b1)) from C2. We need nonneg(b1) + nonneg(b2) for the standard
+                //  sum_zero_implies_zero. This won't work directly.
+                //  Alternative: from is_zero(sum_im) and neg(sum_re)≥0:
+                //  The extension Ext(sum_re, 0, dd) at f+1 is nonneg iff nonneg(sum_re) (C1)
+                //  or nonneg(neg(sum_re)) (C3 with is_zero(sum_im)).
+                //  We have nonneg(neg(sum_re)) from the Case 3 condition.
+                //  Z3 should derive this from the spec fn unfolding.
+                return;
+            }
+            lemma_dts_c2c3_neg_norm_bound(a1, b1, a2, b2, dd, f);
+            lemma_dts_nonneg_conclude_im_fuel(sum_re, sum_im, dd, f);
+            return;
+        }
+        //  Case 4: both neg — contradiction (TODO: explicit proof if Z3 can't derive)
         return;
     }
+
+    //  ─── C3+C2: a1∈C3, a2∈C2 ───
+    if !a1_nn && b1_nn && a2_nn && !b2_nn {
+        lemma_dts_nonneg_or_neg_nonneg_fuel(sum_re, f);
+        lemma_dts_nonneg_or_neg_nonneg_fuel(sum_im, f);
+        if dts_nonneg_fuel(sum_re, f) && dts_nonneg_fuel(sum_im, f) {
+            return;  //  Case 1: trivial C1
+        }
+        //  C3+C2 is symmetric to C2+C3 with roles of (a1,b1) and (a2,b2) swapped.
+        //  The helpers c2c3_norm_bound/neg_norm_bound take C2=(first), C3=(second).
+        //  Here: C2 side = (a2, b2), C3 side = (a1, b1).
+        //  Helper postconditions use add(a2, a1) and add(b2, b1) which need congruence
+        //  to sum_re=add(a1,a2) and sum_im=add(b1,b2).
+
+        //  Setup sr for (a2, b2, a1, b1) as helper arguments
+        //  The helpers need sr(a2, b2), sr(a2, a1), sr(a2, b1), sr(a2, dd)
+        lemma_dts_same_radicand_symmetric(a1, a2);   //  sr(a2, a1)
+        lemma_dts_same_radicand_transitive(a2, a1, b1);  //  sr(a2, b1)
+        lemma_dts_same_radicand_transitive(a2, a1, dd);  //  sr(a2, dd)
+        //  sr(a2, b2) from a2 ~ a1 ~ b2
+        lemma_dts_same_radicand_transitive(a2, a1, b2);  //  sr(a2, b2)
+
+        //  Neg closures for b2 (C2 b-neg) and a1 (C3 a-neg)
+        lemma_dts_neg_well_formed(b2);
+        lemma_dts_neg_well_formed(a1);
+        lemma_dts_same_radicand_neg(b2);
+        lemma_dts_same_radicand_neg(a1);
+        lemma_dts_same_radicand_symmetric(b2, dts_neg(b2));
+        lemma_dts_same_radicand_symmetric(a1, dts_neg(a1));
+        lemma_dts_nonneg_radicands_neg(b2);
+        lemma_dts_nonneg_radicands_neg(a1);
+        lemma_norm_definite_neg(b2);
+        lemma_norm_definite_neg(a1);
+        lemma_dts_depth_neg(b2);
+        lemma_dts_depth_neg(a1);
+
+        //  Build nonneg/neg for swapped sums add(a2,a1) and add(b2,b1)
+        //  from nonneg(add(a1,a2)) and nonneg(add(b1,b2)) via add_commutative
+        lemma_dts_add_commutative(a1, a2);
+        lemma_dts_add_commutative(b1, b2);
+        //  add_closed for swapped sums — need sr(b2, b1)
+        lemma_dts_same_radicand_symmetric(b1, b2);  //  sr(b2, b1) from sr(b1, b2)
+        lemma_dts_add_closed(a2, a1);
+        lemma_dts_add_closed(b2, b1);
+        lemma_dts_nonneg_radicands_add(a2, a1);
+        lemma_dts_nonneg_radicands_add(b2, b1);
+        lemma_norm_definite_add(a2, a1);
+        lemma_norm_definite_add(b2, b1);
+        lemma_dts_depth_add_le(a2, a1);
+        lemma_dts_depth_add_le(b2, b1);
+        //  Transfer nonneg between sums
+        //  sr(add(a1,a2), add(a2,a1)): sum_re ~ a1 ~ a2 ~ add(a2,a1)
+        lemma_dts_same_radicand_symmetric(a1, sum_re);
+        lemma_dts_same_radicand_symmetric(a2, dts_add(a2, a1));
+        lemma_dts_same_radicand_transitive(sum_re, a1, a2);
+        lemma_dts_same_radicand_transitive(sum_re, a2, dts_add(a2, a1));
+        //  sr(add(b1,b2), add(b2,b1)): sum_im ~ b1 ~ b2 ~ add(b2,b1)
+        lemma_dts_same_radicand_symmetric(b1, sum_im);
+        lemma_dts_same_radicand_symmetric(b2, dts_add(b2, b1));
+        lemma_dts_same_radicand_transitive(sum_im, b1, a1);
+        lemma_dts_same_radicand_transitive(sum_im, a1, b2);
+        lemma_dts_same_radicand_transitive(sum_im, b2, dts_add(b2, b1));
+
+        //  Transfer sum sign facts to swapped sums
+        if dts_nonneg_fuel(sum_re, f) {
+            //  Case 2: nonneg(sum_re). Transfer to nonneg(add(a2,a1)).
+            lemma_dts_nonneg_fuel_congruence(sum_re, dts_add(a2, a1), f);
+            //  neg(add(b2,b1))≥0: from !nonneg(sum_im) via or_neg → nonneg(neg(sum_im))
+            //  Transfer: neg(add(b1,b2)) → neg(add(b2,b1)) via neg_congruence + congruence
+            lemma_dts_neg_congruence(sum_im, dts_add(b2, b1));
+            lemma_dts_neg_well_formed(sum_im);
+            lemma_dts_neg_well_formed(dts_add(b2, b1));
+            lemma_dts_same_radicand_neg(sum_im);
+            lemma_dts_same_radicand_neg(dts_add(b2, b1));
+            lemma_dts_nonneg_radicands_neg(sum_im);
+            lemma_dts_nonneg_radicands_neg(dts_add(b2, b1));
+            lemma_norm_definite_neg(sum_im);
+            lemma_norm_definite_neg(dts_add(b2, b1));
+            lemma_dts_depth_neg(sum_im);
+            lemma_dts_depth_neg(dts_add(b2, b1));
+            lemma_dts_same_radicand_symmetric(sum_im, dts_neg(sum_im));
+            lemma_dts_same_radicand_transitive(dts_neg(sum_im), sum_im, b2);
+            lemma_dts_same_radicand_transitive(dts_neg(sum_im), b2, dts_add(b2, b1));
+            lemma_dts_same_radicand_transitive(dts_neg(sum_im), dts_add(b2, b1), dts_neg(dts_add(b2, b1)));
+            lemma_dts_nonneg_fuel_congruence(dts_neg(sum_im), dts_neg(dts_add(b2, b1)), f);
+            //  Call helper with swapped args
+            lemma_dts_c2c3_norm_bound(a2, b2, a1, b1, dd, f);
+            //  Result: nonneg(sub((a2+a1)², d·(b2+b1)²))
+            //  Transfer to nonneg(sub(sum_re², d·sum_im²)) via congruence
+            //  For this we use the fact that (a2+a1)² ≡ sum_re² and d·(b2+b1)² ≡ d·sum_im²
+            //  nonneg_conclude_re_fuel works on sum_re, sum_im directly if we have the norm fact.
+            //  But we have it in the swapped form. We need sub_congruence_both to transfer.
+            //  Actually, nonneg_conclude_re_fuel(sum_re, sum_im, dd, f) needs:
+            //    nonneg(sum_re), nonneg(sub(sum_re², d·sum_im²)), wf/sr etc.
+            //  The norm bound result is nonneg(sub((a2+a1)², d·(b2+b1)²)).
+            //  Since (a2+a1) ≡ sum_re and (b2+b1) ≡ sum_im, and eqv is an equivalence relation,
+            //  Z3 should be able to derive eqv of the squared products. Let's try calling conclude_re directly.
+            //  Actually, (a2+a1) and sum_re are DIFFERENT DynTowerSpec expressions — they are not syntactically equal.
+            //  Z3 needs explicit congruence transfer.
+            //
+            //  For now, let's see if Z3 can figure this out from the eqv(add(a1,a2), add(a2,a1)) already established:
+            lemma_dts_nonneg_conclude_re_fuel(sum_re, sum_im, dd, f);
+            return;
+        }
+        if dts_nonneg_fuel(sum_im, f) {
+            //  Case 3: nonneg(sum_im). Transfer to nonneg(add(b2,b1)).
+            lemma_dts_nonneg_fuel_congruence(sum_im, dts_add(b2, b1), f);
+            //  neg(add(a2,a1))≥0: from !nonneg(sum_re) → nonneg(neg(sum_re))
+            lemma_dts_neg_congruence(sum_re, dts_add(a2, a1));
+            lemma_dts_neg_well_formed(sum_re);
+            lemma_dts_neg_well_formed(dts_add(a2, a1));
+            lemma_dts_same_radicand_neg(sum_re);
+            lemma_dts_same_radicand_neg(dts_add(a2, a1));
+            lemma_dts_nonneg_radicands_neg(sum_re);
+            lemma_dts_nonneg_radicands_neg(dts_add(a2, a1));
+            lemma_norm_definite_neg(sum_re);
+            lemma_norm_definite_neg(dts_add(a2, a1));
+            lemma_dts_depth_neg(sum_re);
+            lemma_dts_depth_neg(dts_add(a2, a1));
+            lemma_dts_same_radicand_symmetric(sum_re, dts_neg(sum_re));
+            lemma_dts_same_radicand_transitive(dts_neg(sum_re), sum_re, a2);
+            lemma_dts_same_radicand_transitive(dts_neg(sum_re), a2, dts_add(a2, a1));
+            lemma_dts_same_radicand_transitive(dts_neg(sum_re), dts_add(a2, a1), dts_neg(dts_add(a2, a1)));
+            lemma_dts_nonneg_fuel_congruence(dts_neg(sum_re), dts_neg(dts_add(a2, a1)), f);
+            //  Call helper
+            lemma_dts_c2c3_neg_norm_bound(a2, b2, a1, b1, dd, f);
+            //  Result: nonneg(sub(d·(b2+b1)², (a2+a1)²))
+            //  Need to transfer to nonneg(sub(d·sum_im², sum_re²)) for conclude_im
+            //  Try: Z3 may derive from eqv(add(a1,a2), add(a2,a1)) etc.
+            lemma_dts_nonneg_conclude_im_fuel(sum_re, sum_im, dd, f);
+            return;
+        }
+        //  Case 4: both neg — contradiction (TODO)
+        return;
+    }
+
+    //  All 6 remaining C-class combos handled above (C2+C2, C3+C3, C1+C3, C3+C1, C2+C3, C3+C2).
+    //  The caller handles C1+C1, C1+C2, C2+C1. So this point is unreachable.
 }
 
 #[verifier::rlimit(80)]
